@@ -21,7 +21,7 @@ export default function Masuk() {
             return api.masuk(nis.trim(), sandi)
         },
         onSuccess: async ({ data }) => {
-            await sesi.masuk(data.access_token, (data.user?.name as string) ?? null, data.uuid)
+            await sesi.masuk(data.access_token, (data.user?.name as string) ?? null, data.uuid, nis.trim())
             await navigate({ to: '/' })
         },
     })

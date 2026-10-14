@@ -5,6 +5,7 @@ import { sesi as sesiAkun } from '@/lib/sesi'
 import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
 import { usePelanggaran } from '@/lib/usePelanggaran'
+import { useProteksiKonten } from '@/lib/useProteksiKonten'
 import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
 import { cn } from '@/lib/utils'
 import type { Jawaban as JawabanInti, SoalPaket } from '@erapor-cbt/exam-core'
@@ -87,6 +88,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     const soal = u.data?.isi.soal ?? []
     const aktif = soal[indeks]
+
+    const pesanProteksi = useProteksiKonten(u.status === 'mengerjakan')
 
     // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab).
     const blokir = useBlocker({
@@ -182,6 +185,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     }
 
     const nama = sesiAkun.nama() ?? ''
+    const tandaAir = [nama, sesiAkun.nis()].filter(Boolean).join(' · ')
     const peringatan = sisaMs !== null && sisaMs <= 5 * 60_000
     const j = aktif ? u.jawaban[aktif.id] : undefined
     const tampilPesan = u.pesan && u.pesan.pada !== pesanDitutup
@@ -257,8 +261,9 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             )}
 
             {/* Soal / tinjauan */}
-            <main className="relative flex-1 overflow-y-auto">
-                <Watermark nama={nama} />
+            {/* Teks soal tidak bisa diseleksi/ditekan-lama; kolom jawaban tetap bisa. */}
+            <main className="relative flex-1 select-none overflow-y-auto [-webkit-touch-callout:none] [&_[contenteditable]]:select-text [&_input]:select-text [&_textarea]:select-text">
+                <Watermark teks={tandaAir} />
                 {tinjau ? (
                     <Tinjauan
                         soal={soal}
@@ -391,6 +396,14 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             <X className="size-4" />
                         </button>
                     </div>
+                </div>
+            )}
+
+            {pesanProteksi && (
+                <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 flex justify-center px-4">
+                    <p role="status" className="animate-turun rounded-full bg-ink/90 px-4 py-2 text-xs font-semibold text-white shadow-md">
+                        {pesanProteksi}
+                    </p>
                 </div>
             )}
 
@@ -601,16 +614,16 @@ function Angka({ label, nilai, kelas }: { label: string; nilai: number; kelas: s
     )
 }
 
-/** Nama murid samar di latar — mengurangi foto/tangkapan layar soal (PRD batasan web). */
-function Watermark({ nama }: { nama: string }) {
-    if (!nama) return null
+/** Nama + NIS samar di latar — bocoran foto/tangkapan layar soal bisa dilacak (PRD batasan web). */
+function Watermark({ teks }: { teks: string }) {
+    if (!teks) return null
 
     return (
         <div aria-hidden className="pointer-events-none absolute inset-0 select-none overflow-hidden">
             <div className="absolute -inset-1/2 flex rotate-[-24deg] flex-wrap content-start gap-x-16 gap-y-20 opacity-[0.03]">
                 {Array.from({ length: 80 }, (_, i) => (
                     <span key={i} className="whitespace-nowrap text-body-lg font-bold text-ink">
-                        {nama}
+                        {teks}
                     </span>
                 ))}
             </div>

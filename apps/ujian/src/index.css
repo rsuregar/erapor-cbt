@@ -30,3 +30,18 @@
         @apply outline-none shadow-ring;
     }
 }
+
+/* Story 7.5: layar ujian tidak bisa dicetak (Ctrl+P juga dicegat di useProteksiKonten). */
+@media print {
+    body.ujian-berjalan #app {
+        display: none !important;
+    }
+
+    body.ujian-berjalan::after {
+        content: 'Soal ujian tidak boleh dicetak.';
+        display: block;
+        padding: 48px;
+        font: 600 18px/1.4 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+        color: #1e2a32;
+    }
+}

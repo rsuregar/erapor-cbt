@@ -7,6 +7,7 @@ import { Preferences } from '@capacitor/preferences'
 let token: string | null | undefined
 let nama: string | null = null
 let uuid: string | null = null
+let nis: string | null = null
 
 export const sesi = {
     async muat(): Promise<void> {
@@ -14,6 +15,7 @@ export const sesi = {
         token = (await Preferences.get({ key: 'token' })).value
         nama = (await Preferences.get({ key: 'nama' })).value
         uuid = (await Preferences.get({ key: 'uuid' })).value
+        nis = (await Preferences.get({ key: 'nis' })).value
     },
 
     token(): string | null {
@@ -24,15 +26,22 @@ export const sesi = {
         return nama
     },
 
+    /** NIS/username saat masuk — ikut watermark soal. */
+    nis(): string | null {
+        return nis
+    },
+
     /** Pemilik data ujian lokal — perangkat lab dipakai bergantian. */
     uuid(): string | null {
         return uuid
     },
 
-    async masuk(tokenBaru: string, namaMurid: string | null, uuidMurid: string): Promise<void> {
+    async masuk(tokenBaru: string, namaMurid: string | null, uuidMurid: string, nisMurid: string): Promise<void> {
         token = tokenBaru
         nama = namaMurid
         uuid = uuidMurid
+        nis = nisMurid
+        await Preferences.set({ key: 'nis', value: nisMurid })
         await Preferences.set({ key: 'token', value: tokenBaru })
         await Preferences.set({ key: 'nama', value: namaMurid ?? '' })
         await Preferences.set({ key: 'uuid', value: uuidMurid })
@@ -42,6 +51,8 @@ export const sesi = {
         token = null
         nama = null
         uuid = null
+        nis = null
+        await Preferences.remove({ key: 'nis' })
         await Preferences.remove({ key: 'token' })
         await Preferences.remove({ key: 'nama' })
         await Preferences.remove({ key: 'uuid' })
