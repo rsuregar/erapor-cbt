@@ -32,6 +32,13 @@ export function useProteksiKonten(aktif: boolean) {
         const seret = (e: Event) => e.preventDefault()
         const tombol = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase()
+            // Muat ulang tak pernah perlu: jawaban ada di perangkat. Internet lambat sering memancingnya.
+            if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && k === 'r')) {
+                e.preventDefault()
+                kabari('Tidak perlu memuat ulang — jawabanmu tersimpan otomatis, walau internet lambat.')
+
+                return
+            }
             // Cetak, simpan halaman, lihat sumber.
             if ((e.ctrlKey || e.metaKey) && (k === 'p' || k === 's' || k === 'u')) {
                 e.preventDefault()

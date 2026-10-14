@@ -31,6 +31,11 @@
     }
 }
 
+/* Layar ujian: matikan tarik-untuk-muat-ulang (Chrome Android) — penyebab muat ulang tak sengaja. */
+body.ujian-berjalan {
+    overscroll-behavior-y: none;
+}
+
 /* Story 7.5: layar ujian tidak bisa dicetak (Ctrl+P juga dicegat di useProteksiKonten). */
 @media print {
     body.ujian-berjalan #app {

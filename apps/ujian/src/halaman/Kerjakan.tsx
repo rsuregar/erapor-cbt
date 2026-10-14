@@ -150,6 +150,16 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         if (offline) setSempatOffline(true)
         else if (u.koneksi.tertunda === 0) setSempatOffline(false)
     }, [offline, u.koneksi.tertunda])
+    // Online tapi jawaban lama tak terkirim = koneksi lambat. Tenangkan murid sebelum ia memuat ulang.
+    const [lambat, setLambat] = useState(false)
+    const adaTertunda = u.koneksi.tertunda > 0
+    useEffect(() => {
+        setLambat(false)
+        if (offline || !adaTertunda) return
+        const t = setTimeout(() => setLambat(true), 20_000)
+
+        return () => clearTimeout(t)
+    }, [offline, adaTertunda])
 
     const ringkas = useMemo(() => hitung(soal, u.jawaban), [soal, u.jawaban])
 
@@ -228,7 +238,16 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         <CloudOff className="mt-0.5 size-4 shrink-0" />
                         <p>
                             <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
-                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung. Jangan tutup atau hapus data aplikasi.
+                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung. Tidak perlu memuat ulang halaman.
+                        </p>
+                    </div>
+                </div>
+            ) : lambat && !sempatOffline ? (
+                <div role="status" className="border-b border-sky-100 bg-sky-100">
+                    <div className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2.5 text-sm text-sky-600">
+                        <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+                        <p>
+                            <b>Koneksi lambat.</b> {u.koneksi.tertunda} jawaban tersimpan aman di perangkat dan sedang dikirim. Lanjutkan saja — tidak perlu memuat ulang.
                         </p>
                     </div>
                 </div>
