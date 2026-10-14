@@ -1,14 +1,32 @@
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import '@fontsource/poppins/latin-600.css';
+@import '@fontsource/poppins/latin-700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#app {
-    height: 100%;
-}
+@layer base {
+    html,
+    body,
+    #app {
+        height: 100%;
+    }
 
-body {
-    /* Area aman notch/gesture di app Capacitor & PWA layar penuh. */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    body {
+        @apply bg-slate-50 font-sans text-body text-slate-700 antialiased;
+        text-rendering: optimizeLegibility;
+        /* Area aman notch/gesture di app Capacitor & PWA layar penuh. */
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    h1,
+    h2,
+    h3 {
+        @apply font-bold tracking-tight text-ink;
+    }
+
+    :focus-visible {
+        @apply outline-none shadow-ring;
+    }
 }

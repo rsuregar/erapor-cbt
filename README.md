@@ -26,6 +26,24 @@ Satu kode, tiga keluaran (PRD "Arsitektur & Tech Stack"):
   FLAG_SECURE, iOS Automatic Assessment Configuration) lewat plugin native
   menyusul.
 
+## Desain
+
+Mengikuti **Al Akhyar Design System** (design system bawaan organisasi):
+https://claude.ai/artifact/1NGNPjebehvf5PQAcYC41Q
+
+- Token warna, tipografi, radius, bayangan, dan motion disalin ke
+  `apps/ujian/tailwind.config.js`. Ubah di design system dulu, baru di sini.
+- Font Plus Jakarta Sans (UI) dan Poppins (angka/judul besar) **dibundel**
+  lewat `@fontsource`, bukan dari Google Fonts CDN, supaya tetap tampil saat
+  offline.
+- Komponen di `apps/ujian/src/komponen/` mengikuti komponen design system:
+  `Tombol` (Button), `Masukan` (Input), `Lencana` (Badge), `Kartu` (Card),
+  `KepalaFitur` (AppHeader), ditambah `KotakToken`.
+- Logo dari repo e-Rapor (`logogram`) dan design system (`lockup`), di
+  `apps/ujian/public/brand/`.
+- Mode demo untuk meninjau desain tanpa server: saat `npm run dev`, masuk
+  dengan username `demo` (sandi bebas). Tidak ikut build produksi.
+
 ## Struktur
 
 ```
@@ -78,7 +96,7 @@ Build PWA/Capacitor wajib mengisi `VITE_API_URL` absolut
 ## Status
 
 - [x] Kerangka monorepo, exam-core (API, dekripsi, outbox, jam, sinkron), uji.
-- [x] Masuk, daftar ujian (hari ini / mendatang / riwayat), hasil.
+- [x] Masuk, daftar ujian (hari ini / mendatang / riwayat), persiapan (tampilan), hasil — gaya Al Akhyar Design System.
 - [ ] Persiapan: pra-unduh paket + media, token, mulai.
 - [ ] Layar mengerjakan bergaya Bluebook, ragu-ragu, navigasi soal, timer.
 - [ ] Deteksi & antrean pelanggaran, layar terkunci, pesan pengawas.

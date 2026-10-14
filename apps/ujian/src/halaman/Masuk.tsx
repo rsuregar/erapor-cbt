@@ -1,51 +1,98 @@
-import { api } from '@/lib/api'
+import { Masukan } from '@/komponen/Masukan'
+import { Tombol } from '@/komponen/Tombol'
+import { api, aturDemo } from '@/lib/api'
 import { sesi } from '@/lib/sesi'
 import { GalatApi } from '@erapor-cbt/exam-core'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { LogIn } from 'lucide-react'
+import { Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react'
 import { useState } from 'react'
 
-/** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). */
+/** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
     const navigate = useNavigate()
     const [nis, setNis] = useState('')
     const [sandi, setSandi] = useState('')
+    const [lihat, setLihat] = useState(false)
     const masuk = useMutation({
-        mutationFn: () => api.masuk(nis.trim(), sandi),
+        mutationFn: () => {
+            aturDemo(nis.trim() === 'demo')
+
+            return api.masuk(nis.trim(), sandi)
+        },
         onSuccess: async ({ data }) => {
             await sesi.masuk(data.access_token, (data.user?.name as string) ?? null)
             await navigate({ to: '/' })
         },
     })
-    const galat = masuk.error instanceof GalatApi ? (masuk.error.status === 401 ? 'NIS atau kata sandi salah.' : masuk.error.message) : null
+    const galat =
+        masuk.error instanceof GalatApi
+            ? masuk.error.status === 401
+                ? 'NIS atau kata sandi salah.'
+                : masuk.error.kode === 'JARINGAN'
+                  ? 'Tidak tersambung ke server. Periksa koneksi internet.'
+                  : masuk.error.message
+            : null
 
     return (
-        <main className="flex min-h-full items-center justify-center bg-slate-50 p-4">
-            <form
-                className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-                onSubmit={(e) => {
-                    e.preventDefault()
-                    masuk.mutate()
-                }}
-            >
-                <div>
-                    <h1 className="text-xl font-semibold">Ujian Al Akhyar</h1>
-                    <p className="text-sm text-slate-500">Masuk dengan akun e-Rapor.</p>
+        <main className="flex min-h-full flex-col">
+            <section className="rounded-b-2xl bg-primary px-6 pb-24 pt-10 text-white">
+                <div className="mx-auto max-w-md">
+                    <img src="/brand/lockup-putih.png" alt="Sekolah Islam Al Akhyar" className="h-12 w-auto" />
+                    <p className="mt-8 text-sm font-medium opacity-85">Assalamu&apos;alaikum</p>
+                    <h1 className="mt-1 font-display text-h2 font-semibold leading-tight text-white">Ujian Al Akhyar</h1>
+                    <p className="mt-1 text-body opacity-85">Masuk dengan akun e-Rapor untuk mulai ujian.</p>
                 </div>
-                <label className="block space-y-1">
-                    <span className="text-sm font-medium">NIS / username</span>
-                    <input className="w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="username" value={nis} onChange={(e) => setNis(e.target.value)} required />
-                </label>
-                <label className="block space-y-1">
-                    <span className="text-sm font-medium">Kata sandi</span>
-                    <input type="password" className="w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="current-password" value={sandi} onChange={(e) => setSandi(e.target.value)} required />
-                </label>
-                {galat && <p className="text-sm text-rose-600">{galat}</p>}
-                <button type="submit" disabled={masuk.isPending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 font-medium text-white disabled:opacity-60">
-                    <LogIn className="size-4" /> {masuk.isPending ? 'Memeriksa…' : 'Masuk'}
-                </button>
-            </form>
+            </section>
+
+            <div className="-mt-16 flex-1 px-4 pb-8">
+                <form
+                    className="mx-auto max-w-md space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-md"
+                    onSubmit={(e) => {
+                        e.preventDefault()
+                        masuk.mutate()
+                    }}
+                >
+                    <Masukan
+                        label="NIS / username"
+                        ikonKiri={<IdCard className="size-5" />}
+                        autoComplete="username"
+                        inputMode="text"
+                        autoCapitalize="none"
+                        value={nis}
+                        onChange={(e) => setNis(e.target.value)}
+                        required
+                    />
+                    <Masukan
+                        label="Kata sandi"
+                        type={lihat ? 'text' : 'password'}
+                        ikonKiri={<LockKeyhole className="size-5" />}
+                        autoComplete="current-password"
+                        value={sandi}
+                        onChange={(e) => setSandi(e.target.value)}
+                        required
+                        akhiran={
+                            <button type="button" onClick={() => setLihat((v) => !v)} className="-mr-1 rounded-xs p-1.5 text-slate-500" aria-label={lihat ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}>
+                                {lihat ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                            </button>
+                        }
+                    />
+                    {galat && (
+                        <p role="alert" className="rounded-sm bg-coral-100 px-3 py-2.5 text-sm font-medium text-coral-600">
+                            {galat}
+                        </p>
+                    )}
+                    <Tombol type="submit" ukuran="lg" penuh disabled={masuk.isPending}>
+                        {masuk.isPending ? 'Memeriksa…' : 'Masuk'}
+                    </Tombol>
+                    <p className="text-center text-xs text-slate-500">Lupa kata sandi? Hubungi wali kelas atau admin sekolah.</p>
+                    {import.meta.env.DEV && <p className="text-center text-micro text-slate-400">Dev: username &quot;demo&quot; (sandi bebas) memakai data contoh.</p>}
+                </form>
+
+                <footer className="mx-auto mt-8 max-w-md text-center text-xs text-slate-500">
+                    Yayasan Pendidikan Islam Al Akhyar · <span className="font-semibold text-primary">Unggul &amp; Berakhlak</span>
+                </footer>
+            </div>
         </main>
     )
 }

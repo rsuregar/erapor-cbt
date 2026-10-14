@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
             react(),
             VitePWA({
                 registerType: 'prompt',
-                includeAssets: ['ikon.svg'],
+                includeAssets: ['brand/*.png'],
                 manifest: {
                     name: 'Ujian Al Akhyar',
                     short_name: 'Ujian',
@@ -22,14 +22,17 @@ export default defineConfig(({ mode }) => {
                     lang: 'id',
                     display: 'fullscreen',
                     orientation: 'any',
-                    theme_color: '#0f172a',
-                    background_color: '#ffffff',
-                    icons: [{ src: 'ikon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+                    theme_color: '#006195',
+                    background_color: '#F5F8FA',
+                    icons: [
+                        { src: 'brand/ikon-192.png', sizes: '192x192', type: 'image/png' },
+                        { src: 'brand/ikon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+                    ],
                 },
                 workbox: {
                     // Aset app di-cache agar bisa dibuka tanpa internet. API tidak
                     // di-cache Workbox: data ujian dikelola exam-core (IndexedDB).
-                    globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+                    globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
                     navigateFallback: 'index.html',
                     navigateFallbackDenylist: [/^\/api\//],
                 },
