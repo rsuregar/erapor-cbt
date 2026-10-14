@@ -1,0 +1,24 @@
+{
+  "name": "erapor-cbt",
+  "private": true,
+  "description": "Aplikasi ujian murid CBT e-Rapor Al Akhyar (Capacitor Android/iOS + PWA).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @erapor-cbt/ujian",
+    "build": "npm run build -w @erapor-cbt/ujian",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "sinkron:renderer": "node scripts/sinkron-renderer.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

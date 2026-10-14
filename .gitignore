@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Capacitor: proyek native di-commit, hasil build tidak
+apps/ujian/android/app/build/
+apps/ujian/android/.gradle/
+apps/ujian/android/local.properties
+apps/ujian/ios/App/Pods/
+apps/ujian/ios/App/build/
+apps/ujian/ios/DerivedData/
