@@ -29,7 +29,9 @@ export default function Masuk() {
         masuk.error instanceof GalatApi
             ? masuk.error.status === 401
                 ? 'NIS atau kata sandi salah.'
-                : masuk.error.kode === 'JARINGAN'
+                : masuk.error.status === 429
+                  ? 'Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi.'
+                  : masuk.error.kode === 'JARINGAN'
                   ? 'Tidak tersambung ke server. Periksa koneksi internet.'
                   : masuk.error.message
             : null
