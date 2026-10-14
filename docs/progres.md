@@ -18,7 +18,7 @@ disebut.
 | 6.2 | Pra-unduh paket terenkripsi + indikator siap | Kode jadi | S3 |
 | 6.3 | Mengerjakan semua jenis soal di HP & laptop | Kode jadi | S3 |
 | 6.4 | Timer jam server, kumpul otomatis | Kode jadi | S3 |
-| 6.5 | Jawaban tidak hilang saat offline | Sebagian — outbox + uji unit jadi; uji offline 10 menit → S5 | S3 → S5 |
+| 6.5 | Jawaban tidak hilang saat offline | Kode jadi — uji otomatis offline 10 menit (`packages/exam-core/test/offline.test.ts`): 0 hilang/dobel, termasuk app dibuka ulang dan balasan hilang | S3 → S5 |
 | 6.6 | Kumpul saat offline ("Menunggu sinkron") | Kode jadi | S3 |
 | 6.7 | Lanjut di perangkat lain setelah reset pengawas | Kode jadi | S3 |
 | 7.2 | Deteksi keluar dari ujian, terkunci di ambang | Kode jadi | S3 |
