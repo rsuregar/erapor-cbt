@@ -139,4 +139,12 @@ describe('KlienApi', () => {
         expect(url).toBe('https://erapor.test/api/cbt/ujian/12/mulai')
         expect((init.headers as Record<string, string>).Authorization).toBe('Bearer abc')
     })
+
+    it('401 saat login adalah kredensial salah, bukan sesi berakhir', async () => {
+        const saatTidakSah = vi.fn()
+        const fetch = vi.fn(async () => new Response(JSON.stringify({ status: 'error', message: 'Invalid email/username or password' }), { status: 401 }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => null, saatTidakSah, fetch })
+        await expect(api.masuk('514450087', 'salah')).rejects.toMatchObject({ status: 401 })
+        expect(saatTidakSah).not.toHaveBeenCalled()
+    })
 })

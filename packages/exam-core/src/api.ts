@@ -118,11 +118,12 @@ export class KlienApi {
         const data = (await respons.json().catch(() => ({}))) as Record<string, unknown>
         if (respons.ok) return data as T
 
-        if (respons.status === 401) {
+        // 401 saat login = kredensial salah, bukan sesi berakhir.
+        if (respons.status === 401 && berToken) {
             this.opsi.saatTidakSah?.()
             throw new GalatApi('TIDAK_SAH', String(data.message ?? 'Sesi berakhir, silakan masuk lagi.'), 401, data)
         }
         const { message, kode, ...lain } = data
-        throw new GalatApi((kode as KodeGalat) ?? 'TIDAK_DIKENAL', String(message ?? `Galat ${respons.status}`), respons.status, lain)
+        throw new GalatApi((kode as KodeGalat) ?? (respons.status === 401 ? 'TIDAK_SAH' : 'TIDAK_DIKENAL'), String(message ?? `Galat ${respons.status}`), respons.status, lain)
     }
 }

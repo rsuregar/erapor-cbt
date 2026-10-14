@@ -48,8 +48,7 @@ ERAPOR_DIR=../erapor npm run sinkron:renderer
 
 ```bash
 npm install
-cp apps/ujian/.env.example apps/ujian/.env   # isi VITE_API_URL
-npm run dev        # http://localhost:5180
+npm run dev        # http://localhost:5180 — /api diteruskan ke https://www.erapor.test
 npm test           # uji exam-core
 npm run typecheck
 npm run build      # apps/ujian/dist (PWA)
@@ -64,6 +63,11 @@ npx cap add ios
 npm run cap:sync
 npx cap open android
 ```
+
+Saat dev, Vite meneruskan `/api` ke e-Rapor lokal (`ERAPOR_DEV_URL`, bawaan
+`https://www.erapor.test`), jadi tidak perlu `.env` dan tidak terhalang CORS.
+Build PWA/Capacitor wajib mengisi `VITE_API_URL` absolut
+(lihat `apps/ujian/.env.example`).
 
 ## Yang harus disiapkan di e-Rapor
 

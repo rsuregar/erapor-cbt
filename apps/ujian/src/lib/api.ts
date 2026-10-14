@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { sesi } from './sesi'
 
 export const api = new KlienApi({
-    baseUrl: import.meta.env.VITE_API_URL ?? '/api',
+    baseUrl: import.meta.env.VITE_API_URL || '/api',
     ambilToken: () => sesi.token(),
     saatTidakSah: () => {
         void sesi.keluar().then(() => window.location.assign('/masuk'))
