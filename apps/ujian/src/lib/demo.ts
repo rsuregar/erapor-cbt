@@ -183,7 +183,7 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
     }
     if (jalur.endsWith(`/cbt/attempt/${ATTEMPT}/pelanggaran`)) {
         const entri = JSON.parse(String((init?.body as FormData).get('entri'))) as EntriPelanggaran[]
-        st.pelanggaran = (st.pelanggaran ?? 0) + entri.filter((e) => e.jenis !== 'offline').length
+        st.pelanggaran = (st.pelanggaran ?? 0) + entri.filter((e) => e.jenis !== 'offline' && e.jenis !== 'muat_ulang').length
         if (st.status === 'mengerjakan' && st.pelanggaran >= AMBANG) {
             st.status = 'terkunci'
             st.terkunciPada = Date.now()

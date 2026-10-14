@@ -5,10 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Jenis yang tidak ikut ambang kunci (JenisPelanggaran::tidakDihitung() di
- * server). `keluar_lokasi` juga tidak dihitung, tapi hanya dicatat server dari
+ * server). `muat_ulang` tetap dicatat untuk pengawas tapi tidak dihitung —
+ * internet lambat, tarik-untuk-muat-ulang, dan OS yang menutup tab di latar
+ * bukan kecurangan; di Lockdown server tetap langsung mengunci.
+ * `keluar_lokasi` juga tidak dihitung, tapi hanya dicatat server dari
  * detak.lokasi — app tidak pernah mengirimnya.
  */
-const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline'])
+const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'muat_ulang'])
 
 /** Tinggal sebentar (mis. menarik panel notifikasi) tidak dihitung. */
 const MIN_PERGI_MS = 1000

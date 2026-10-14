@@ -188,6 +188,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                     <h2 className="text-body-lg">Tata tertib</h2>
                     <Aturan ikon={<BellOff className="size-4" />}>Nyalakan mode Jangan Ganggu dan tutup aplikasi lain.</Aturan>
                     <Aturan ikon={<ShieldCheck className="size-4" />}>Jangan keluar dari aplikasi atau berpindah layar — tercatat sebagai pelanggaran.</Aturan>
+                    {u.level_keamanan === 'lockdown' && (
+                        <Aturan ikon={<ShieldCheck className="size-4" />}>Ujian Lockdown: memuat ulang atau menutup aplikasi langsung mengunci ujian sampai dibuka pengawas.</Aturan>
+                    )}
                     {wajibLokasi && (
                         <Aturan ikon={<LocateFixed className="size-4" />}>Ujian ini hanya bisa dikerjakan di area sekolah. Posisimu dicek saat menekan Mulai dan selama ujian.</Aturan>
                     )}

@@ -85,7 +85,7 @@ export function IndikatorPelanggaran({ r }: { r: Ringkas }) {
                                 : 'Tercatat dan terlihat oleh pengawas. Ujian ini tidak terkunci otomatis.'}
                         </p>
                         <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                            Yang dihitung: keluar atau berpindah aplikasi/tab dan memuat ulang halaman. Internet putus <b>tidak</b> dihitung.
+                            Yang dihitung: keluar atau berpindah aplikasi/tab, dan keluar dari layar penuh. Internet putus dan memuat ulang halaman <b>tidak</b> dihitung.
                         </p>
                     </div>
                 </>
