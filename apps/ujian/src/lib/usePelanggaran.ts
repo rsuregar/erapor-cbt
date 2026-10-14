@@ -33,6 +33,8 @@ export function usePelanggaran(opsi: {
     level: UjianRingkas['level_keamanan'] | undefined
     msSejakMulai: () => number | undefined
     onTerkunci: () => void
+    /** Ketat/Lockdown di laptop: keluar layar penuh = pelanggaran */
+    pantauLayarPenuh?: boolean
 }) {
     const { attemptId, aktif } = opsi
     const K_JUMLAH = `attempt:${attemptId}:pelanggaran`
@@ -166,6 +168,18 @@ export function usePelanggaran(opsi: {
             window.removeEventListener('pagehide', pergi)
         }
     }, [aktif, catat])
+
+    // Keluar layar penuh (Esc, F11, gestur) — tidak selalu memicu blur, jadi dipantau sendiri.
+    const pantauLayarPenuh = !!opsi.pantauLayarPenuh
+    useEffect(() => {
+        if (!aktif || !pantauLayarPenuh) return
+        const ubah = () => {
+            if (!document.fullscreenElement) void catat('keluar_layar_penuh', ref.current.msSejakMulai(), 0)
+        }
+        document.addEventListener('fullscreenchange', ubah)
+
+        return () => document.removeEventListener('fullscreenchange', ubah)
+    }, [aktif, pantauLayarPenuh, catat])
 
     const level = opsi.level ?? 'ketat'
     const mengunci = level !== 'dasar' && ambang > 0

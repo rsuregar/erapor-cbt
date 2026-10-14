@@ -2,6 +2,7 @@ import { alasanKunci, DialogKesempatanTerakhir, IndikatorPelanggaran, Pemberitah
 import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { waktuMundur } from '@/lib/format'
 import { sesi as sesiAkun } from '@/lib/sesi'
+import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
 import { usePelanggaran } from '@/lib/usePelanggaran'
 import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
@@ -22,6 +23,7 @@ import {
     EyeOff,
     Loader2,
     Lock,
+    Maximize,
     Megaphone,
     Unlock,
     X,
@@ -56,7 +58,17 @@ function keTampil(s: SoalPaket, stimulus: Record<string, { judul: string | null;
  */
 export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const u = useSesiUjian(attemptId)
+    const level = u.data?.sesi.ujian.level_keamanan
+    const wajibLp = !!level && wajibLayarPenuh(level)
+    const [layarPenuh, setLayarPenuh] = useState(layarPenuhAktif)
+    useEffect(() => {
+        const ubah = () => setLayarPenuh(layarPenuhAktif())
+        document.addEventListener('fullscreenchange', ubah)
+
+        return () => document.removeEventListener('fullscreenchange', ubah)
+    }, [])
     const p = usePelanggaran({
+        pantauLayarPenuh: wajibLp,
         attemptId,
         aktif: u.status === 'mengerjakan',
         ambangAwal: u.data?.sesi.mulai.ambang_pelanggaran ?? 0,
@@ -393,6 +405,21 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         <Tombol onClick={() => blokir.reset()}>Tetap di sini</Tombol>
                     </div>
                 </Dialog>
+            )}
+
+            {wajibLp && !layarPenuh && u.status === 'mengerjakan' && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/80 p-6 backdrop-blur-md">
+                    <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
+                        <span className="mx-auto inline-flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                            <Maximize className="size-7" />
+                        </span>
+                        <h2 className="mt-3 text-title">Kembali ke layar penuh</h2>
+                        <p className="mt-1 text-sm">Ujian ini wajib dikerjakan dalam layar penuh. Soal tertutup sampai layar penuh aktif lagi.</p>
+                        <Tombol penuh className="mt-5" onClick={() => void masukLayarPenuh()}>
+                            Layar penuh
+                        </Tombol>
+                    </div>
+                </div>
             )}
 
             {u.status === 'terkunci' && (

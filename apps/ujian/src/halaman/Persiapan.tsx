@@ -1,5 +1,6 @@
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
+import { KartuKesiapan } from '@/komponen/KartuKesiapan'
 import { KotakToken } from '@/komponen/KotakToken'
 import { Lencana } from '@/komponen/Lencana'
 import { Progres } from '@/komponen/Progres'
@@ -7,11 +8,13 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api, platform } from '@/lib/api'
 import { ukuranBerkas } from '@/lib/format'
+import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
 import { durasiSingkat, hariTanggal, jamMenit } from '@/lib/tanggal'
 import { ambilPaket, daftarUjian, sesiLokalUjian, simpanSesi } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
+import { terapkanPembaruan, useKesiapan } from '@/lib/useKesiapan'
 import { useLokasi, type TahapLokasi } from '@/lib/useLokasi'
 import { useUnduhPaket, type TahapUnduh } from '@/lib/useUnduhPaket'
 import { cn } from '@/lib/utils'
@@ -83,9 +86,14 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const { status, unduh } = useUnduhPaket(u)
     const wajibLokasi = !!u?.lokasi?.wajib
     const lokasi = useLokasi(wajibLokasi)
+    const kesiapan = useKesiapan(u?.level_keamanan)
 
     const mulai = useMutation({
-        mutationFn: async () => {
+        mutationFn: async (layarPenuh: Promise<boolean>) => {
+            // Ketat/Lockdown di laptop: tanpa layar penuh tidak boleh mulai.
+            if (!(await layarPenuh) && u && wajibLayarPenuh(u.level_keamanan)) {
+                throw new Error('Ujian ini wajib layar penuh. Izinkan layar penuh saat diminta browser, lalu tekan Mulai lagi.')
+            }
             // Posisi baru dicek server di /mulai — juga saat melanjutkan atau pindah perangkat.
             const posisi = wajibLokasi ? tanpaWaktu(await lokasi.posisiSegar()) : undefined
             let r
@@ -145,7 +153,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const dibuka = sekarang >= buka && sekarang <= tutup
     const selesai = u.status === 'selesai'
     const lokasiSiap = !wajibLokasi || lokasi.status.tahap === 'siap'
-    const bisaMulai = online && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
+    const perangkatSiap = kesiapan.penghalang.length === 0
+    const bisaMulai = online && perangkatSiap && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
     const offlineLokal = !online && !!lokal.data
     const galatMulai = mulai.error ? pesanGalatMulai(mulai.error) : null
 
@@ -186,6 +195,15 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                     <Aturan ikon={<Clock className="size-4" />}>Waktu mengikuti jam server; ujian terkumpul otomatis saat waktu habis.</Aturan>
                 </Kartu>
 
+                <KartuKesiapan
+                    daftar={kesiapan.daftar}
+                    penghalang={kesiapan.penghalang}
+                    onAksi={(a) => {
+                        if (a === 'perbarui') void terapkanPembaruan()
+                        else if (a === 'layar_penuh') void masukLayarPenuh()
+                    }}
+                />
+
                 {!online && (
                     <SpanduOffline>
                         {lokal.data
@@ -196,7 +214,14 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
 
                 {offlineLokal ? (
                     <Kartu>
-                        <Tombol ukuran="lg" penuh onClick={lanjutLokal}>
+                        <Tombol
+                            ukuran="lg"
+                            penuh
+                            onClick={() => {
+                                void masukLayarPenuh()
+                                lanjutLokal()
+                            }}
+                        >
                             Lanjutkan ujian
                         </Tombol>
                     </Kartu>
@@ -219,7 +244,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                         </p>
                     )}
 
-                    <Tombol ukuran="lg" penuh disabled={!bisaMulai} onClick={() => mulai.mutate()}>
+                    <Tombol ukuran="lg" penuh disabled={!bisaMulai} onClick={() => mulai.mutate(masukLayarPenuh())}>
                         {mulai.isPending ? 'Memulai…' : u.status === 'mengerjakan' ? 'Lanjutkan ujian' : 'Mulai ujian'}
                     </Tombol>
                     <p className="text-center text-xs text-slate-500">
@@ -231,7 +256,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                                 ? 'Ujian sudah ditutup.'
                                 : !siap
                                   ? 'Tombol aktif setelah paket soal selesai diunduh.'
-                                  : !lokasiSiap
+                                  : !perangkatSiap
+                                    ? `Perbaiki dulu: ${kesiapan.penghalang.map((i) => i.judul.toLowerCase()).join(', ')}.`
+                                    : !lokasiSiap
                                     ? 'Tombol aktif setelah posisimu didapat.'
                                     : token.length < 6
                                     ? 'Masukkan 6 karakter token.'

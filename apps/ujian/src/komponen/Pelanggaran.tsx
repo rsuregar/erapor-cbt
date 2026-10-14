@@ -108,8 +108,9 @@ export function PemberitahuanPelanggaran({ k, r, onTutup }: { k: Kejadian; r: Ri
 
     const sisa = r.ambang - k.ke
 
+    // Di atas lapisan "kembali ke layar penuh" (z-40), di bawah dialog (z-50).
     return (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-30 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-[45] flex justify-center px-4">
             <div role="status" aria-live="polite" className="pointer-events-auto flex w-full max-w-md animate-turun items-start gap-3 rounded-md bg-ink px-4 py-3 text-white shadow-lg">
                 <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-500" />
                 <div className="min-w-0 flex-1">
