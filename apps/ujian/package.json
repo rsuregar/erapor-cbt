@@ -8,7 +8,9 @@
     "build": "tsc --noEmit -p . && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
-    "cap:sync": "npm run build && cap sync"
+    "cap:sync": "npm run build && cap sync",
+    "pratinjau": "vite build && vite preview --strictPort",
+    "pratinjau:demo": "VITE_DEMO=1 vite build --outDir dist-demo && vite preview --outDir dist-demo --strictPort"
   },
   "dependencies": {
     "@capacitor/app": "^7.0.0",

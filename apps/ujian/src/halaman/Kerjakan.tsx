@@ -2,6 +2,7 @@ import { alasanKunci, DialogKesempatanTerakhir, IndikatorPelanggaran, Pemberitah
 import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { waktuMundur } from '@/lib/format'
 import { sesi as sesiAkun } from '@/lib/sesi'
+import { useOnline } from '@/lib/useOnline'
 import { usePelanggaran } from '@/lib/usePelanggaran'
 import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
 import { cn } from '@/lib/utils'
@@ -126,6 +127,15 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         return () => clearTimeout(t)
     }, [dibukaPengawas])
 
+    // Koneksi: event browser (seketika) + hasil sinkron (server tak terjangkau walau "online").
+    const online = useOnline()
+    const offline = !online || !u.koneksi.online
+    const [sempatOffline, setSempatOffline] = useState(false)
+    useEffect(() => {
+        if (offline) setSempatOffline(true)
+        else if (u.koneksi.tertunda === 0) setSempatOffline(false)
+    }, [offline, u.koneksi.tertunda])
+
     const ringkas = useMemo(() => hitung(soal, u.jawaban), [soal, u.jawaban])
 
     if (u.status === 'memuat') return <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Membuka ujian…" />
@@ -154,7 +164,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             <Layar
                 ikon={<CloudOff className="size-9 text-amber-500" />}
                 judul="Menunggu internet"
-                isi={`Jawaban tersimpan di perangkat dan akan terkirim otomatis begitu tersambung (${u.koneksi.tertunda} menunggu). Jangan hapus aplikasi atau datanya.`}
+                isi={`${u.koneksi.tertunda > 0 ? `${u.koneksi.tertunda} jawaban tersimpan di perangkat` : 'Semua jawaban sudah tersimpan'} — pengumpulan dikirim otomatis begitu tersambung. Jangan tutup aplikasi atau hapus datanya.`}
             />
         )
     }
@@ -195,6 +205,29 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                     </div>
                 </div>
             </header>
+
+            {offline ? (
+                <div role="status" className="border-b border-amber-100 bg-amber-100">
+                    <div className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
+                        <CloudOff className="mt-0.5 size-4 shrink-0" />
+                        <p>
+                            <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
+                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung. Jangan tutup atau hapus data aplikasi.
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                sempatOffline && (
+                    <div role="status" className="border-b border-sky-100 bg-sky-100">
+                        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5 text-sm text-sky-600">
+                            <Loader2 className="size-4 shrink-0 animate-spin" />
+                            <p>
+                                <b>Tersambung lagi.</b> Mengirim {u.koneksi.tertunda} jawaban…
+                            </p>
+                        </div>
+                    </div>
+                )
+            )}
 
             {tampilPesan && (
                 <div className="border-b border-amber-100 bg-amber-100">

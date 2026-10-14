@@ -1,4 +1,6 @@
-import { dekripsiPaket, PenyimpananIndexedDb, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type UjianRingkas } from '@erapor-cbt/exam-core'
+import { api } from '@/lib/api'
+import { sesi as akun } from '@/lib/sesi'
+import { dekripsiPaket, GalatApi, PenyimpananIndexedDb, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type UjianRingkas } from '@erapor-cbt/exam-core'
 
 /**
  * Penyimpanan lokal ujian (IndexedDB; adapter SQLite untuk app menyusul).
@@ -12,6 +14,8 @@ export const CACHE_MEDIA = 'cbt-media'
 export type SesiUjian = {
     mulai: MulaiRespons
     ujian: { id: number; nama: string; mapel: string | null; level_keamanan: UjianRingkas['level_keamanan'] }
+    /** uuid murid yang memulai — sesi murid lain di perangkat yang sama tidak bisa dibuka */
+    pemilik: string | null
     /** selisih jam server − jam perangkat saat /mulai (ms), untuk memulihkan jam setelah muat ulang */
     selisihJam: number
 }
@@ -24,7 +28,42 @@ export async function simpanSesi(sesi: SesiUjian): Promise<void> {
     await penyimpanan.simpan(`attempt:${sesi.mulai.attempt_id}:sesi`, sesi)
 }
 
-export const ambilSesi = (attemptId: number) => penyimpanan.ambil<SesiUjian>(`attempt:${attemptId}:sesi`)
+export async function ambilSesi(attemptId: number): Promise<SesiUjian | null> {
+    const s = await penyimpanan.ambil<SesiUjian>(`attempt:${attemptId}:sesi`)
+
+    return s && s.pemilik === akun.uuid() ? s : null
+}
+
+/**
+ * Ujian yang sudah dimulai di perangkat ini dan belum terkumpul (kunci
+ * dibuang setelah kumpul). Dipakai untuk melanjutkan tanpa /mulai saat offline.
+ */
+export async function sesiLokalUjian(ujianId: number): Promise<SesiUjian | null> {
+    for (const k of await penyimpanan.daftarKunci('attempt:')) {
+        if (!k.endsWith(':sesi')) continue
+        const s = await penyimpanan.ambil<SesiUjian>(k)
+        if (s?.ujian.id === ujianId && s.pemilik === akun.uuid()) return s
+    }
+
+    return null
+}
+
+export type DaftarUjian = { data: UjianRingkas[]; dariCache: boolean; pada: number }
+
+/** GET /ujian dengan cadangan lokal: offline tetap menampilkan daftar terakhir. */
+export async function daftarUjian(): Promise<DaftarUjian> {
+    try {
+        const data = await api.daftarUjian()
+        const hasil = { data, dariCache: false, pada: Date.now() }
+        await penyimpanan.simpan(`daftar-ujian:${akun.uuid()}`, hasil)
+
+        return hasil
+    } catch (e) {
+        const tersimpan = e instanceof GalatApi && e.sementara ? await penyimpanan.ambil<DaftarUjian>(`daftar-ujian:${akun.uuid()}`) : null
+        if (tersimpan) return { ...tersimpan, dariCache: true }
+        throw e
+    }
+}
 
 /** Sesi + isi paket terdekripsi untuk layar mengerjakan. */
 export async function muatUjian(attemptId: number): Promise<{ sesi: SesiUjian; isi: IsiPaket } | null> {

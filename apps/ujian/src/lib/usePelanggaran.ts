@@ -3,7 +3,11 @@ import { penyimpanan } from '@/lib/ujian'
 import { GalatApi, type EntriPelanggaran, type JenisPelanggaran, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Jenis yang tidak ikut ambang kunci (sama dengan JenisPelanggaran::tidakDihitung() di server). */
+/**
+ * Jenis yang tidak ikut ambang kunci (JenisPelanggaran::tidakDihitung() di
+ * server). `keluar_lokasi` juga tidak dihitung, tapi hanya dicatat server dari
+ * detak.lokasi — app tidak pernah mengirimnya.
+ */
 const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline'])
 
 /** Tinggal sebentar (mis. menarik panel notifikasi) tidak dihitung. */

@@ -5,9 +5,12 @@ import { sesi } from './sesi'
 
 let demo = false
 
-/** Mode demo hanya ada di `npm run dev` (import.meta.env.DEV dibuang saat build). */
+/**
+ * Mode demo hanya di `npm run dev` dan `npm run pratinjau:demo` (VITE_DEMO=1).
+ * Build produksi: kondisinya konstan false, data demo dibuang.
+ */
 export function aturDemo(aktif: boolean): void {
-    demo = import.meta.env.DEV && aktif
+    demo = (import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && aktif
 }
 
 export const api = new KlienApi({
@@ -16,7 +19,7 @@ export const api = new KlienApi({
     saatTidakSah: () => {
         void sesi.keluar().then(() => window.location.assign('/masuk'))
     },
-    fetch: (url, init) => (import.meta.env.DEV && (demo || sesi.token() === TOKEN_DEMO) ? fetchDemo(url, init) : globalThis.fetch(url, init)),
+    fetch: (url, init) => ((import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && (demo || sesi.token() === TOKEN_DEMO) ? fetchDemo(url, init) : globalThis.fetch(url, init)),
 })
 
 /** `perangkat.platform` di kontrak: app Capacitor atau PWA. */

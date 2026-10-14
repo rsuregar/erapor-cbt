@@ -1,9 +1,12 @@
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
+import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { sesi } from '@/lib/sesi'
+import { daftarUjian, penyimpanan } from '@/lib/ujian'
+import { useOnline } from '@/lib/useOnline'
 import { durasiSingkat, hariTanggal, jamMenit, tanggalGanda } from '@/lib/tanggal'
 import { cn } from '@/lib/utils'
 import type { UjianRingkas } from '@erapor-cbt/exam-core'
@@ -39,14 +42,21 @@ function kelompokkan(daftar: UjianRingkas[], sekarang: number): Record<Kelompok,
 /** Daftar ujian murid: hari ini, mendatang, riwayat (PRD M-02). */
 export default function Beranda() {
     const navigate = useNavigate()
-    const ujian = useQuery({ queryKey: ['ujian'], queryFn: () => api.daftarUjian(), refetchInterval: 60_000 })
+    const online = useOnline()
+    // networkMode always: offline tetap menjalankan queryFn, yang jatuh ke salinan lokal (bawaan Query menjedanya).
+    const ujian = useQuery({ queryKey: ['ujian'], queryFn: daftarUjian, refetchInterval: 60_000, networkMode: 'always' })
+    // Tersambung lagi: segarkan daftar.
+    useEffect(() => {
+        if (online) void ujian.refetch()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [online])
     const [sekarang, setSekarang] = useState(Date.now())
     useEffect(() => {
         const t = setInterval(() => setSekarang(Date.now()), 30_000)
 
         return () => clearInterval(t)
     }, [])
-    const kelompok = kelompokkan(ujian.data ?? [], sekarang)
+    const kelompok = kelompokkan(ujian.data?.data ?? [], sekarang)
     const nama = sesi.nama()
 
     return (
@@ -72,6 +82,7 @@ export default function Beranda() {
                         aria-label="Keluar"
                         onClick={async () => {
                             await api.keluar().catch(() => undefined)
+                            await penyimpanan.hapus(`daftar-ujian:${sesi.uuid()}`)
                             await sesi.keluar()
                             await navigate({ to: '/masuk' })
                         }}
@@ -82,6 +93,9 @@ export default function Beranda() {
             </KepalaFitur>
 
             <main className="mx-auto max-w-3xl space-y-6 px-4 pt-5">
+                {(!online || ujian.data?.dariCache) && (
+                    <SpanduOffline pada={ujian.data?.pada}>Ujian yang sudah kamu mulai di perangkat ini tetap bisa dilanjutkan.</SpanduOffline>
+                )}
                 {ujian.isPending && <Kerangka />}
                 {ujian.isError && (
                     <Kartu className="border-coral-100 bg-coral-100 text-sm font-medium text-coral-600">
@@ -103,7 +117,7 @@ export default function Beranda() {
                     ),
                 )}
 
-                {ujian.data?.length === 0 && (
+                {ujian.data?.data.length === 0 && (
                     <Kartu nada="sunken" className="flex flex-col items-center gap-2 py-10 text-center">
                         <CalendarClock className="size-10 text-primary-300" />
                         <p className="font-semibold text-ink">Belum ada ujian</p>

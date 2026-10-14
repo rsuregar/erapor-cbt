@@ -15,17 +15,17 @@ function ujian(): UjianRingkas[] {
         {
             id: 1, nama: 'Penilaian Akhir Semester Ganjil', mapel: 'Matematika', dibuka_pada: j(-20), ditutup_pada: j(100),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 8, level_keamanan: 'ketat',
-            sesi: { nama: 'Sesi 1', ruang: 'Lab Komputer 1' }, status: st.status ?? 'belum_mulai', attempt_id: st.mulai ? ATTEMPT : null, bisa_unduh: true, hasil_tersedia: false,
+            sesi: { nama: 'Sesi 1', ruang: 'Lab Komputer 1' }, lokasi: { wajib: true, radius_meter: 150 }, status: st.status ?? 'belum_mulai', attempt_id: st.mulai ? ATTEMPT : null, bisa_unduh: true, hasil_tersedia: false,
         },
         {
             id: 2, nama: 'Ulangan Harian Bab 3', mapel: 'Bahasa Arab', dibuka_pada: j(60 * 26), ditutup_pada: j(60 * 27),
             durasi_menit: 45, tambahan_waktu_menit: 0, jumlah_soal: 20, level_keamanan: 'dasar',
-            sesi: { nama: 'Sesi 2', ruang: 'Kelas 8A' }, status: 'belum_mulai', attempt_id: null, bisa_unduh: false, hasil_tersedia: false,
+            sesi: { nama: 'Sesi 2', ruang: 'Kelas 8A' }, lokasi: { wajib: false, radius_meter: null }, status: 'belum_mulai', attempt_id: null, bisa_unduh: false, hasil_tersedia: false,
         },
         {
             id: 3, nama: 'Penilaian Tengah Semester', mapel: 'Ilmu Pengetahuan Alam', dibuka_pada: j(-60 * 72), ditutup_pada: j(-60 * 70),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 25, level_keamanan: 'lockdown',
-            sesi: null, status: 'selesai', attempt_id: 31, bisa_unduh: false, hasil_tersedia: true,
+            sesi: null, lokasi: { wajib: true, radius_meter: 150 }, status: 'selesai', attempt_id: 31, bisa_unduh: false, hasil_tersedia: true,
         },
     ]
 }
@@ -54,6 +54,8 @@ type Keadaan = {
     kunci?: string
     pelanggaran?: number
     terkunciPada?: number
+    /** detak.lokasi terakhir, untuk memeriksa pengiriman posisi */
+    detakLokasi?: unknown
     jawaban?: Record<string, { jawaban: EntriJawaban['jawaban']; seq: number; ragu: boolean }>
 }
 
@@ -136,6 +138,8 @@ function sinkron(entri: EntriJawaban[]) {
 
 /** fetch tiruan untuk KlienApi. */
 export async function fetchDemo(url: string | URL | Request, init?: RequestInit): Promise<Response> {
+    // Seperti fetch asli: tanpa jaringan → TypeError (KlienApi menjadikannya galat JARINGAN).
+    if (!navigator.onLine) throw new TypeError('Failed to fetch')
     const jalur = String(url)
     const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
     await new Promise((r) => setTimeout(r, 300))
@@ -153,6 +157,10 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
     }
     if (jalur.endsWith('/cbt/ujian/1/mulai')) {
         if (isi?.token === '000000') return json({ message: 'Token salah.', kode: 'TOKEN_SALAH' }, 422)
+        // Lokasi (ujian 1 wajib di sekolah). Token 000001 = pura-pura di luar area.
+        if (!isi?.lokasi) return json({ message: 'Lokasi diperlukan.', kode: 'LOKASI_DIPERLUKAN', radius_meter: 150 }, 422)
+        if (isi.lokasi.akurasi_m > 200) return json({ message: 'Lokasi kurang akurat.', kode: 'LOKASI_TIDAK_AKURAT', akurasi_meter: isi.lokasi.akurasi_m }, 422)
+        if (isi?.token === '000001') return json({ message: 'Di luar area sekolah.', kode: 'DI_LUAR_LOKASI', jarak_meter: 2350, radius_meter: 150 }, 403)
         if (st.status === 'selesai') return json({ message: 'Ujian sudah dikumpulkan.', kode: 'SUDAH_SELESAI' }, 409)
         st.mulai ??= new Date().toISOString()
         st.status ??= 'mengerjakan'
@@ -162,11 +170,14 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
 
         return json({
             attempt_id: ATTEMPT, kunci: st.kunci, waktu_server: new Date().toISOString(), mulai_pada: st.mulai,
-            berakhir_pada: new Date(mulai + 90 * 60_000).toISOString(), minimal_kumpul_pada: null, ambang_pelanggaran: AMBANG, jawaban_tersimpan: st.jawaban ?? {},
+            berakhir_pada: new Date(mulai + 90 * 60_000).toISOString(), minimal_kumpul_pada: null, ambang_pelanggaran: AMBANG, level_keamanan: 'ketat', lokasi_wajib: true, jawaban_tersimpan: st.jawaban ?? {},
         })
     }
     if (jalur.endsWith(`/cbt/attempt/${ATTEMPT}/sinkron`)) {
         if (st.status === 'selesai') return json({ message: 'Sudah selesai.', kode: 'SUDAH_SELESAI' }, 409)
+
+        st.detakLokasi = isi?.detak?.lokasi ?? null
+        simpan()
 
         return json(sinkron(isi?.entri ?? []))
     }

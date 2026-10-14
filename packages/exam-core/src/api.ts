@@ -4,6 +4,7 @@ import type {
     Detak,
     HasilRespons,
     KodeGalat,
+    Lokasi,
     MulaiRespons,
     PaketTerenkripsi,
     PelanggaranRespons,
@@ -71,8 +72,9 @@ export class KlienApi {
         return this.minta('GET', `/cbt/ujian/${ujianId}/paket`, undefined, true, onProgres)
     }
 
-    mulai(ujianId: number, token: string, perangkatId: string, perangkat?: PerangkatInfo): Promise<MulaiRespons> {
-        return this.minta('POST', `/cbt/ujian/${ujianId}/mulai`, { token, perangkat_id: perangkatId, perangkat })
+    /** `lokasi` wajib bila `UjianRingkas.lokasi.wajib` (galat LOKASI_DIPERLUKAN bila tidak dikirim). */
+    mulai(ujianId: number, token: string, perangkatId: string, perangkat?: PerangkatInfo, lokasi?: Lokasi): Promise<MulaiRespons> {
+        return this.minta('POST', `/cbt/ujian/${ujianId}/mulai`, { token, perangkat_id: perangkatId, perangkat, lokasi })
     }
 
     sinkron(attemptId: number, entri: EntriJawaban[], detak?: Detak): Promise<SinkronRespons> {

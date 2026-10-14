@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
 import { GalatApi, JamServer, Outbox, Penyinkron, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -8,6 +9,9 @@ export type StatusUjian = 'memuat' | 'mengerjakan' | 'terkunci' | 'mengumpulkan'
 export type IsiJawaban = Record<string, { jawaban: Jawaban; ragu: boolean }>
 
 const JEDA_TEKS_MS = 700
+
+/** Kontrak: detak.lokasi = posisi terakhir yang diketahui; GPS tidak perlu dipaksa tiap 15 detik. */
+const SELANG_LOKASI_MS = 60_000
 
 /**
  * Satu sesi mengerjakan: jawaban (outbox lokal dulu, PRD "offline-first"),
@@ -27,6 +31,7 @@ export function useSesiUjian(attemptId: number) {
     const jam = useRef<JamServer>()
     const penyinkron = useRef<Penyinkron>()
     const soalAktif = useRef<number | null>(null)
+    const posisi = useRef<PosisiDidapat | null>(null)
     const tundaTeks = useRef(new Map<number, ReturnType<typeof setTimeout>>())
     const statusRef = useRef<StatusUjian>('memuat')
     statusRef.current = status
@@ -66,7 +71,11 @@ export function useSesiUjian(attemptId: number) {
                 outbox: o,
                 attemptId,
                 jam: j,
-                detak: () => ({ soal_aktif: soalAktif.current, kiosk_aktif: null }),
+                detak: () => ({
+                    soal_aktif: soalAktif.current,
+                    kiosk_aktif: null,
+                    ...(sesi.mulai.lokasi_wajib && posisi.current ? { lokasi: tanpaWaktu(posisi.current) } : {}),
+                }),
                 saatRespons: (r) => {
                     setBerakhir(r.berakhir_pada)
                     if (r.pesan_pengawas && r.pesan_pada) setPesan({ teks: r.pesan_pengawas, pada: r.pesan_pada })
@@ -97,6 +106,20 @@ export function useSesiUjian(attemptId: number) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [attemptId])
+
+    // Posisi untuk detak (ujian di sekolah). Gagal membaca GPS bukan galat ujian — coba lagi nanti.
+    const lokasiWajib = !!data?.sesi.mulai.lokasi_wajib
+    useEffect(() => {
+        if (!lokasiWajib || status !== 'mengerjakan') return
+        const baca = () =>
+            void ambilPosisi({ maksUmurMs: SELANG_LOKASI_MS })
+                .then((p) => (posisi.current = p))
+                .catch(() => undefined)
+        baca()
+        const t = setInterval(baca, SELANG_LOKASI_MS)
+
+        return () => clearInterval(t)
+    }, [lokasiWajib, status])
 
     const selesai = useCallback(async () => {
         penyinkron.current?.henti()

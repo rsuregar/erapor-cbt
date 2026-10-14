@@ -32,6 +32,8 @@ export type UjianRingkas = {
     jumlah_soal: number
     level_keamanan: 'dasar' | 'ketat' | 'lockdown'
     sesi: { nama: string; ruang: string | null } | null
+    /** wajib = hanya bisa dikerjakan di sekolah; minta izin GPS sebelum Mulai. */
+    lokasi: { wajib: boolean; radius_meter: number | null }
     status: StatusPengerjaan
     attempt_id: number | null
     bisa_unduh: boolean
@@ -74,6 +76,19 @@ export type PerangkatInfo = {
     kiosk_aktif?: boolean | null
 }
 
+/**
+ * Posisi perangkat (kontrak § Lokasi ujian). Titik sekolah tidak pernah
+ * dikirim/diterima klien — server yang membandingkan.
+ */
+export type Lokasi = {
+    lat: number
+    lng: number
+    /** coords.accuracy dari OS, meter */
+    akurasi_m: number
+    /** mock location menurut OS (Android); PWA selalu false */
+    palsu?: boolean
+}
+
 /** POST /ujian/{ujian}/mulai */
 export type MulaiRespons = {
     attempt_id: number
@@ -83,6 +98,9 @@ export type MulaiRespons = {
     berakhir_pada: string
     minimal_kumpul_pada: string | null
     ambang_pelanggaran: number
+    level_keamanan: UjianRingkas['level_keamanan']
+    /** true = sertakan `detak.lokasi` di setiap sinkron */
+    lokasi_wajib: boolean
     jawaban_tersimpan: Record<string, { jawaban: Jawaban; seq: number; ragu: boolean }>
 }
 
@@ -99,6 +117,8 @@ export type Detak = {
     soal_aktif?: number | null
     offline_ms?: number
     kiosk_aktif?: boolean | null
+    /** posisi terakhir yang diketahui, bila MulaiRespons.lokasi_wajib */
+    lokasi?: Lokasi
 }
 
 /** POST /attempt/{attempt}/sinkron */
@@ -168,4 +188,10 @@ export type KodeGalat =
     | 'BELUM_BISA_UNDUH'
     | 'BELUM_DIRILIS'
     | 'FORMAT_SALAH'
+    // Lokasi ujian (/mulai)
+    | 'LOKASI_DIPERLUKAN'
+    | 'LOKASI_TIDAK_AKURAT'
+    | 'LOKASI_PALSU'
+    | 'DI_LUAR_LOKASI'
+    | 'LOKASI_BELUM_DIATUR'
     | (string & {})

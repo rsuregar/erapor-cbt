@@ -21,7 +21,7 @@ export default function Masuk() {
             return api.masuk(nis.trim(), sandi)
         },
         onSuccess: async ({ data }) => {
-            await sesi.masuk(data.access_token, (data.user?.name as string) ?? null)
+            await sesi.masuk(data.access_token, (data.user?.name as string) ?? null, data.uuid)
             await navigate({ to: '/' })
         },
     })
@@ -86,7 +86,7 @@ export default function Masuk() {
                         {masuk.isPending ? 'Memeriksa…' : 'Masuk'}
                     </Tombol>
                     <p className="text-center text-xs text-slate-500">Lupa kata sandi? Hubungi wali kelas atau admin sekolah.</p>
-                    {import.meta.env.DEV && <p className="text-center text-micro text-slate-400">Dev: username &quot;demo&quot; (sandi bebas) memakai data contoh.</p>}
+                    {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && <p className="text-center text-micro text-slate-400">Dev: username &quot;demo&quot; (sandi bebas) memakai data contoh.</p>}
                 </form>
 
                 <footer className="mx-auto mt-8 max-w-md text-center text-xs text-slate-500">

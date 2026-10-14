@@ -8,6 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // hasil build yang sama dari dist/.
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '')
+    const proxy = { '/api': { target: env.ERAPOR_DEV_URL || 'https://www.erapor.test', changeOrigin: true, secure: false } }
     const versi = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version as string
 
     return {
@@ -54,9 +55,10 @@ export default defineConfig(({ mode }) => {
             port: 5180,
             // Dev: /api diteruskan ke e-Rapor lokal, jadi tidak perlu CORS.
             // Build (PWA/Capacitor) memakai VITE_API_URL absolut.
-            proxy: {
-                '/api': { target: env.ERAPOR_DEV_URL || 'https://www.erapor.test', changeOrigin: true, secure: false },
-            },
+            proxy,
         },
+        // `npm run pratinjau`: build + service worker — satu-satunya cara menguji offline
+        // (dev server tidak memasang service worker; memuat ulang saat offline = halaman offline browser).
+        preview: { port: 5181, proxy },
     }
 })
