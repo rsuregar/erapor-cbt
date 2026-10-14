@@ -4,7 +4,7 @@ import { api, aturDemo } from '@/lib/api'
 import { sesi } from '@/lib/sesi'
 import { GalatApi } from '@erapor-cbt/exam-core'
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react'
 import { useState } from 'react'
 
@@ -86,6 +86,9 @@ export default function Masuk() {
                         {masuk.isPending ? 'Memeriksa…' : 'Masuk'}
                     </Tombol>
                     <p className="text-center text-xs text-slate-500">Lupa kata sandi? Hubungi wali kelas atau admin sekolah.</p>
+                    <Link to="/panduan" className="block text-center text-sm font-semibold text-primary">
+                        Cara memasang aplikasi ujian →
+                    </Link>
                     {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && <p className="text-center text-micro text-slate-400">Dev: username &quot;demo&quot; (sandi bebas) memakai data contoh.</p>}
                 </form>
 

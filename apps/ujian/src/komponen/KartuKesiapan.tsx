@@ -59,7 +59,7 @@ export function KartuKesiapan({
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-ink">{i.judul}</p>
                         <p className="text-sm text-slate-700">{i.keterangan}</p>
-                        {i.aksi && i.aksi !== 'layar_penuh' && i.aksi !== 'panduan' && (
+                        {i.aksi && i.aksi !== 'layar_penuh' && (
                             <Tombol varian="outline" ukuran="sm" className="mt-2" onClick={() => onAksi(i.aksi!)}>
                                 {LABEL_AKSI[i.aksi]}
                             </Tombol>

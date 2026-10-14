@@ -201,6 +201,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                     onAksi={(a) => {
                         if (a === 'perbarui') void terapkanPembaruan()
                         else if (a === 'layar_penuh') void masukLayarPenuh()
+                        else if (a === 'panduan') void navigate({ to: '/panduan' })
                     }}
                 />
 

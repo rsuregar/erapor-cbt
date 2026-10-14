@@ -4,6 +4,8 @@ import 'katex/dist/katex.min.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+// Tangkap beforeinstallprompt sedini mungkin (hanya muncul sekali per muat).
+import './lib/pasang'
 import { router } from './router'
 
 const queryClient = new QueryClient({

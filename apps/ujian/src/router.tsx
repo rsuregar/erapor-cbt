@@ -1,9 +1,11 @@
+import { jenisPerangkat } from '@/lib/perangkat'
 import { sesi } from '@/lib/sesi'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import Beranda from './halaman/Beranda'
 import Hasil from './halaman/Hasil'
 import Kerjakan from './halaman/Kerjakan'
 import Masuk from './halaman/Masuk'
+import Panduan, { type UntukPanduan } from './halaman/Panduan'
 import Persiapan from './halaman/Persiapan'
 
 const akar = createRootRoute({ component: Outlet })
@@ -16,6 +18,20 @@ const masuk = createRoute({
         if (sesi.token()) throw redirect({ to: '/' })
     },
     component: Masuk,
+})
+
+/** Panduan pasang aplikasi & kunci layar — terbuka tanpa login (disiapkan sebelum hari ujian). */
+const panduan = createRoute({
+    getParentRoute: () => akar,
+    path: '/panduan',
+    validateSearch: (s: Record<string, unknown>): { untuk?: UntukPanduan } =>
+        s.untuk === 'ios' || s.untuk === 'android' || s.untuk === 'laptop' ? { untuk: s.untuk } : {},
+    component: function HalamanPanduan() {
+        const { untuk } = panduan.useSearch()
+        const j = jenisPerangkat()
+
+        return <Panduan untuk={untuk ?? (j === 'desktop' ? 'laptop' : j)} />
+    },
 })
 
 /** Semua rute di bawah ini butuh login. */
@@ -59,7 +75,7 @@ const hasil = createRoute({
 })
 
 export const router = createRouter({
-    routeTree: akar.addChildren([masuk, terlindungi.addChildren([beranda, persiapan, kerjakan, hasil])]),
+    routeTree: akar.addChildren([masuk, panduan, terlindungi.addChildren([beranda, persiapan, kerjakan, hasil])]),
 })
 
 declare module '@tanstack/react-router' {

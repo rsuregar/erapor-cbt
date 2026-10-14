@@ -23,7 +23,7 @@ disebut.
 | 6.7 | Lanjut di perangkat lain setelah reset pengawas | Kode jadi | S3 |
 | 7.2 | Deteksi keluar dari ujian, terkunci di ambang | Kode jadi | S3 |
 | 7.3 | Cek kesiapan perangkat sebelum Mulai | Kode jadi — browser, versi (pembaruan PWA), tampilan (standalone / layar penuh), ukuran layar, penyimpanan, baterai; Ketat/Lockdown di laptop wajib layar penuh selama ujian. Versi app minimum menunggu kontrak (7.7) | S3 → S5 |
-| 7.4 | Panduan jalur cadangan PWA | Belum | S3 → S5 |
+| 7.4 | Panduan jalur cadangan PWA | Kode jadi — `/panduan` tanpa login: pasang aplikasi + Akses Terpandu (iOS) / Sematkan Aplikasi (Android) / laptop, ilustrasi per langkah, tombol Pasang sekarang | S3 → S5 |
 | 7.5 | Watermark; blok salin/klik kanan/cetak | Sebagian — watermark jadi; blokir → S5 | S3 → S5 |
 | 7.6 | Muat ulang di Lockdown → terkunci | Selesai (dibuka pengawas) | S3 |
 | 7.7 | App Capacitor Android/iOS, kunci layar, SQLite, geolokasi native (deteksi lokasi palsu) | Belum — baru `capacitor.config.ts` | S3 → S5 |

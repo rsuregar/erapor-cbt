@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import type { UjianRingkas } from '@erapor-cbt/exam-core'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { BookOpenCheck, CalendarClock, Clock, ListChecks, LogOut, MapPin, RefreshCw, Trophy } from 'lucide-react'
+import { BookOpenCheck, CalendarClock, ChevronRight, Smartphone, Clock, ListChecks, LogOut, MapPin, RefreshCw, Trophy } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const STATUS: Record<UjianRingkas['status'], [string, NadaLencana]> = {
@@ -124,6 +124,17 @@ export default function Beranda() {
                         <p className="text-sm text-slate-500">Ujian yang dijadwalkan guru akan muncul di sini.</p>
                     </Kartu>
                 )}
+
+                <Link to="/panduan" className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition active:scale-[0.99]">
+                    <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary">
+                        <Smartphone className="size-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-ink">Panduan perangkat</span>
+                        <span className="block text-sm text-slate-500">Pasang aplikasi ujian & kunci layar bersama pengawas</span>
+                    </span>
+                    <ChevronRight className="size-5 text-slate-400" />
+                </Link>
             </main>
         </div>
     )
