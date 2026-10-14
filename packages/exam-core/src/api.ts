@@ -66,8 +66,9 @@ export class KlienApi {
         return (await this.minta<{ data: UjianRingkas[] }>('GET', '/cbt/ujian')).data
     }
 
-    paket(ujianId: number): Promise<PaketTerenkripsi> {
-        return this.minta('GET', `/cbt/ujian/${ujianId}/paket`)
+    /** Pra-unduh paket; `onProgres(diterima, total)` — total null bila server tidak memberi Content-Length. */
+    paket(ujianId: number, onProgres?: (diterima: number, total: number | null) => void): Promise<PaketTerenkripsi> {
+        return this.minta('GET', `/cbt/ujian/${ujianId}/paket`, undefined, true, onProgres)
     }
 
     mulai(ujianId: number, token: string, perangkatId: string, perangkat?: PerangkatInfo): Promise<MulaiRespons> {
@@ -94,7 +95,13 @@ export class KlienApi {
         return this.minta('GET', `/cbt/attempt/${attemptId}/hasil`)
     }
 
-    private async minta<T>(metode: string, jalur: string, isi?: unknown, berToken = true): Promise<T> {
+    private async minta<T>(
+        metode: string,
+        jalur: string,
+        isi?: unknown,
+        berToken = true,
+        onProgres?: (diterima: number, total: number | null) => void,
+    ): Promise<T> {
         const kepala: Record<string, string> = { Accept: 'application/json' }
         if (berToken) {
             const token = await this.opsi.ambilToken()
@@ -115,7 +122,7 @@ export class KlienApi {
             throw new GalatApi('JARINGAN', 'Tidak tersambung ke server.', 0)
         }
 
-        const data = (await respons.json().catch(() => ({}))) as Record<string, unknown>
+        const data = (respons.ok && onProgres ? await bacaDenganProgres(respons, onProgres) : await respons.json().catch(() => ({}))) as Record<string, unknown>
         if (respons.ok) return data as T
 
         // 401 saat login = kredensial salah, bukan sesi berakhir.
@@ -125,5 +132,38 @@ export class KlienApi {
         }
         const { message, kode, ...lain } = data
         throw new GalatApi((kode as KodeGalat) ?? (respons.status === 401 ? 'TIDAK_SAH' : 'TIDAK_DIKENAL'), String(message ?? `Galat ${respons.status}`), respons.status, lain)
+    }
+}
+
+/** Baca badan respons JSON sambil melaporkan byte yang sudah diterima. */
+async function bacaDenganProgres(respons: Response, onProgres: (diterima: number, total: number | null) => void): Promise<unknown> {
+    const total = Number(respons.headers.get('Content-Length')) || null
+    if (!respons.body) {
+        const teks = await respons.text()
+        onProgres(teks.length, total)
+
+        return JSON.parse(teks)
+    }
+    const pembaca = respons.body.getReader()
+    const potongan: Uint8Array[] = []
+    let diterima = 0
+    onProgres(0, total)
+    for (;;) {
+        const { done, value } = await pembaca.read()
+        if (done) break
+        potongan.push(value)
+        diterima += value.length
+        onProgres(diterima, total)
+    }
+    const semua = new Uint8Array(diterima)
+    let posisi = 0
+    for (const p of potongan) {
+        semua.set(p, posisi)
+        posisi += p.length
+    }
+    try {
+        return JSON.parse(new TextDecoder().decode(semua))
+    } catch {
+        throw new GalatApi('JARINGAN', 'Unduhan paket terputus. Coba lagi.', 0)
     }
 }

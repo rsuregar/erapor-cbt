@@ -79,6 +79,7 @@ export type MulaiRespons = {
     attempt_id: number
     kunci: string
     waktu_server: string
+    mulai_pada: string
     berakhir_pada: string
     minimal_kumpul_pada: string | null
     ambang_pelanggaran: number

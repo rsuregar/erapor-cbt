@@ -39,8 +39,9 @@ export class Penyinkron {
     private readonly mono: () => number
 
     constructor(private readonly o: OpsiPenyinkron) {
-        this.st = o.setTimeout ?? setTimeout
-        this.ct = o.clearTimeout ?? clearTimeout
+        // Diikat ke globalThis: dipanggil sebagai method (this.st) di browser → "Illegal invocation".
+        this.st = o.setTimeout ?? globalThis.setTimeout.bind(globalThis)
+        this.ct = o.clearTimeout ?? globalThis.clearTimeout.bind(globalThis)
         this.mono = o.monotonik ?? (() => performance.now())
     }
 

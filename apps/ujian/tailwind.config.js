@@ -5,6 +5,8 @@
  */
 /** @type {import('tailwindcss').Config} */
 export default {
+    // Renderer soal punya kelas dark:; app belum bertema gelap, jadi jangan ikut preferensi OS.
+    darkMode: 'class',
     content: ['./index.html', './src/**/*.{ts,tsx}', '../../packages/question-renderer/src/**/*.{ts,tsx}'],
     theme: {
         extend: {
@@ -74,6 +76,13 @@ export default {
             transitionDuration: { fast: '120ms', base: '200ms', slow: '320ms' },
             transitionTimingFunction: { standard: 'cubic-bezier(0.4, 0, 0.2, 1)', out: 'cubic-bezier(0.16, 1, 0.3, 1)' },
             letterSpacing: { tight: '-0.02em', caps: '0.08em' },
+            keyframes: {
+                'progres-tak-tentu': { '0%': { left: '-35%' }, '100%': { left: '100%' } },
+                goyang: { '0%,100%': { transform: 'translateX(0)' }, '20%,60%': { transform: 'translateX(-6px)' }, '40%,80%': { transform: 'translateX(6px)' } },
+                turun: { '0%': { opacity: '0', transform: 'translateY(-8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                denyut: { '0%': { transform: 'scale(1)' }, '40%': { transform: 'scale(1.35)' }, '100%': { transform: 'scale(1)' } },
+            },
+            animation: { goyang: 'goyang 320ms ease-in-out', turun: 'turun 220ms ease-out', denyut: 'denyut 600ms ease-out 2' },
         },
     },
     plugins: [],

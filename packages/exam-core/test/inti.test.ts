@@ -147,4 +147,14 @@ describe('KlienApi', () => {
         await expect(api.masuk('514450087', 'salah')).rejects.toMatchObject({ status: 401 })
         expect(saatTidakSah).not.toHaveBeenCalled()
     })
+
+    it('melaporkan progres unduh paket', async () => {
+        const badan = JSON.stringify({ versi: 'v', algoritma: 'AES-256-GCM', iv: 'a', aad: 'b', isi: 'c', media: [] })
+        const fetch = vi.fn(async () => new Response(badan, { status: 200, headers: { 'Content-Length': String(badan.length) } }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', fetch })
+        const progres: [number, number | null][] = []
+        const paket = await api.paket(12, (d, t) => progres.push([d, t]))
+        expect(paket.versi).toBe('v')
+        expect(progres.at(-1)).toEqual([badan.length, badan.length])
+    })
 })

@@ -1,56 +1,51 @@
 import { cn } from '@/lib/utils'
-import { useRef } from 'react'
+import { useState } from 'react'
 
 /**
  * Token ujian 6 karakter, satu kotak per huruf — besar dan mudah dibaca
- * dari papan tulis. Huruf otomatis kapital; tempel sekaligus didukung.
+ * dari papan tulis. Satu input asli tak terlihat di atas kotak-kotak, supaya
+ * ketik cepat, tempel, isi-otomatis keyboard, dan hapus selalu konsisten.
  */
 export function KotakToken({ nilai, onUbah, galat, nonaktif }: { nilai: string; onUbah: (v: string) => void; galat?: boolean; nonaktif?: boolean }) {
-    const kotak = useRef<(HTMLInputElement | null)[]>([])
+    const [fokus, setFokus] = useState(false)
     const huruf = nilai.padEnd(6, ' ').slice(0, 6).split('')
-    const rapikan = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '')
-
-    const isi = (mulai: number, teks: string) => {
-        const bersih = rapikan(teks)
-        if (!bersih) return
-        const baru = (nilai.slice(0, mulai) + bersih).slice(0, 6)
-        onUbah(baru)
-        kotak.current[Math.min(baru.length, 5)]?.focus()
-    }
+    const aktif = Math.min(nilai.length, 5)
 
     return (
-        <div className="mx-auto flex max-w-sm justify-center gap-1.5 sm:gap-2" onPaste={(e) => (e.preventDefault(), isi(0, e.clipboardData.getData('text')))}>
+        <div className="relative mx-auto flex max-w-sm justify-center gap-1.5 sm:gap-2">
             {huruf.map((h, i) => (
-                <input
+                <div
                     key={i}
-                    ref={(el) => {
-                        kotak.current[i] = el
-                    }}
-                    value={h.trim()}
-                    disabled={nonaktif}
-                    inputMode="text"
-                    autoCapitalize="characters"
-                    autoComplete="one-time-code"
-                    maxLength={1}
-                    aria-label={`Huruf token ${i + 1}`}
-                    onChange={(e) => isi(i, e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Backspace') {
-                            e.preventDefault()
-                            const sampai = h.trim() ? i : i - 1
-                            if (sampai >= 0) {
-                                onUbah(nilai.slice(0, sampai))
-                                kotak.current[sampai]?.focus()
-                            }
-                        }
-                    }}
+                    aria-hidden
                     className={cn(
-                        'aspect-square w-0 min-w-0 max-w-14 flex-1 rounded-md border-2 bg-white text-center font-display text-h3 font-semibold uppercase text-ink outline-none transition focus:border-primary focus:shadow-ring',
+                        'flex aspect-square w-0 min-w-0 max-w-14 flex-1 items-center justify-center rounded-md border-2 bg-white font-display text-h3 font-semibold text-ink transition',
                         galat ? 'border-coral-500' : 'border-slate-200',
+                        fokus && i === aktif && !galat && 'border-primary shadow-ring',
                         nonaktif && 'opacity-50',
                     )}
-                />
+                >
+                    {h.trim() || (fokus && i === aktif ? <span className="h-6 w-0.5 animate-pulse rounded-full bg-primary" /> : null)}
+                </div>
             ))}
+            <input
+                value={nilai}
+                disabled={nonaktif}
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="one-time-code"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={6}
+                aria-label="Token ujian (6 karakter)"
+                onFocus={(e) => {
+                    setFokus(true)
+                    const el = e.currentTarget
+                    requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length))
+                }}
+                onBlur={() => setFokus(false)}
+                onChange={(e) => onUbah(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                className="absolute inset-0 h-full w-full cursor-text appearance-none border-0 bg-transparent p-0 text-[16px] text-transparent caret-transparent outline-none selection:bg-transparent"
+            />
         </div>
     )
 }
