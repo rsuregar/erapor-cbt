@@ -175,6 +175,8 @@ export type HasilRespons = {
     tuntas: boolean | null
     dikumpulkan_pada: string | null
     tampilkan_pembahasan: boolean
+    pembahasan_ditunda?: boolean
+    pembahasan_terbuka_pada?: string | null
     soal: (SoalPaket & {
         jawaban: Jawaban
         skor: number | null

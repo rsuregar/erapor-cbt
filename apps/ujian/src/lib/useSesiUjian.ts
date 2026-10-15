@@ -38,6 +38,8 @@ export function useSesiUjian(attemptId: number) {
     const tundaTeks = useRef(new Map<number, ReturnType<typeof setTimeout>>())
     const statusRef = useRef<StatusUjian>('memuat')
     statusRef.current = status
+    const sedangKumpul = useRef(false)
+    const kumpulRef = useRef<() => Promise<void>>(async () => {})
 
     const msSejakMulai = useCallback(() => {
         if (!jam.current || !data) return undefined
@@ -94,6 +96,9 @@ export function useSesiUjian(attemptId: number) {
             })
             penyinkron.current = p
             p.mulai()
+            if (kumpulTertunda) {
+                void kumpulRef.current()
+            }
         })()
 
         const segarkan = () => void penyinkron.current?.kirim()
@@ -184,47 +189,55 @@ export function useSesiUjian(attemptId: number) {
      * "menunggu sinkron" (tersimpan, bertahan muat ulang) dan coba terus.
      */
     const kumpul = useCallback(async () => {
-        if (!outbox.current || !penyinkron.current) return
-        setGalatKumpul(null)
-        setStatus('mengumpulkan')
-        await tulisSemuaTertunda()
-        await penyimpanan.simpan(`attempt:${attemptId}:kumpul`, true)
-        const ms = msSejakMulai()
+        if (!outbox.current || !penyinkron.current || sedangKumpul.current) return
+        sedangKumpul.current = true
+        try {
+            setGalatKumpul(null)
+            setStatus('mengumpulkan')
+            await tulisSemuaTertunda()
+            await penyimpanan.simpan(`attempt:${attemptId}:kumpul`, true)
+            const ms = msSejakMulai()
 
-        for (;;) {
-            await penyinkron.current.kirim()
-            if ((await outbox.current.jumlahTertunda()) === 0) {
-                try {
-                    await api.kumpul(attemptId, ms)
-                    await selesai()
-
-                    return
-                } catch (e) {
-                    const g = e instanceof GalatApi ? e : null
-                    if (g?.kode === 'SUDAH_SELESAI') {
+            for (;;) {
+                await penyinkron.current.kirim()
+                if ((await outbox.current.jumlahTertunda()) === 0) {
+                    try {
+                        await api.kumpul(attemptId, ms)
                         await selesai()
 
                         return
-                    }
-                    if (!g?.sementara) {
-                        await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
-                        setGalatKumpul(g?.message ?? 'Gagal mengumpulkan.')
-                        setStatus(g?.kode === 'TERKUNCI' ? 'terkunci' : 'mengerjakan')
+                    } catch (e) {
+                        const g = e instanceof GalatApi ? e : null
+                        if (g?.kode === 'SUDAH_SELESAI') {
+                            await selesai()
 
-                        return
+                            return
+                        }
+                        if (!g?.sementara) {
+                            await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
+                            setGalatKumpul(g?.message ?? 'Gagal mengumpulkan.')
+                            setStatus(g?.kode === 'TERKUNCI' ? 'terkunci' : 'mengerjakan')
+
+                            return
+                        }
                     }
                 }
+                setStatus('menunggu_sinkron')
+                await new Promise((r) => setTimeout(r, 5000))
             }
-            setStatus('menunggu_sinkron')
-            await new Promise((r) => setTimeout(r, 5000))
+        } finally {
+            sedangKumpul.current = false
         }
     }, [attemptId, msSejakMulai, selesai, tulisSemuaTertunda])
 
+    kumpulRef.current = kumpul
+
     // Kumpul yang tertunda sebelum app ditutup: lanjutkan otomatis.
     useEffect(() => {
-        if (status === 'menunggu_sinkron' && data && penyinkron.current) void kumpul()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data])
+        if (status === 'menunggu_sinkron' && data && penyinkron.current) {
+            void kumpul()
+        }
+    }, [status, data, kumpul])
 
     return {
         data,
@@ -238,6 +251,10 @@ export function useSesiUjian(attemptId: number) {
         msSejakMulai,
         jawab,
         kumpul,
+        batalKumpul: async () => {
+            await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
+            setStatus('mengerjakan')
+        },
         /** Kunci dari balasan /pelanggaran; sinkron berikutnya membukanya bila pengawas membuka. */
         tandaiTerkunci: () => {
             if (statusRef.current === 'mengerjakan') setStatus('terkunci')

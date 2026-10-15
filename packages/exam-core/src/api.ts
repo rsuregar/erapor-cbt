@@ -35,6 +35,8 @@ export type OpsiKlien = {
     /** mis. https://erapor.alakhyar.sch.id/api */
     baseUrl: string
     ambilToken: () => string | null | Promise<string | null>
+    /** Id acak per instalasi perangkat (wajib pada mulai, sinkron, pelanggaran, kumpul) */
+    ambilPerangkatId?: () => string | null | Promise<string | null>
     /** dipanggil saat 401 — token kedaluwarsa/dicabut */
     saatTidakSah?: () => void
     fetch?: typeof fetch
@@ -53,6 +55,10 @@ export class KlienApi {
 
     constructor(private readonly opsi: OpsiKlien) {
         this.fetch = opsi.fetch ?? globalThis.fetch.bind(globalThis)
+    }
+
+    private async idPerangkat(pilihan?: string): Promise<string | undefined> {
+        return pilihan ?? (await this.opsi.ambilPerangkatId?.()) ?? undefined
     }
 
     masuk(email: string, password: string): Promise<MasukRespons> {
@@ -74,24 +80,36 @@ export class KlienApi {
     }
 
     /** `lokasi` wajib bila `UjianRingkas.lokasi.wajib` (galat LOKASI_DIPERLUKAN bila tidak dikirim). */
-    mulai(ujianId: number, token: string, perangkatId: string, perangkat?: PerangkatInfo, lokasi?: Lokasi): Promise<MulaiRespons> {
-        return this.minta('POST', `/cbt/ujian/${ujianId}/mulai`, { token, perangkat_id: perangkatId, perangkat, lokasi })
+    async mulai(ujianId: number, token: string, perangkatId?: string, perangkat?: PerangkatInfo, lokasi?: Lokasi): Promise<MulaiRespons> {
+        const id = (await this.idPerangkat(perangkatId)) ?? ''
+        return this.minta('POST', `/cbt/ujian/${ujianId}/mulai`, { token, perangkat_id: id, perangkat, lokasi })
     }
 
-    sinkron(attemptId: number, entri: EntriJawaban[], detak?: Detak): Promise<SinkronRespons> {
-        return this.minta('POST', `/cbt/attempt/${attemptId}/sinkron`, { entri, detak })
+    async sinkron(attemptId: number, entri: EntriJawaban[], detak?: Detak, perangkatId?: string): Promise<SinkronRespons> {
+        const id = await this.idPerangkat(perangkatId)
+        return this.minta('POST', `/cbt/attempt/${attemptId}/sinkron`, {
+            ...(id ? { perangkat_id: id } : {}),
+            entri,
+            detak,
+        })
     }
 
-    pelanggaran(attemptId: number, entri: EntriPelanggaran[], bukti: Record<string, Blob> = {}): Promise<PelanggaranRespons> {
+    async pelanggaran(attemptId: number, entri: EntriPelanggaran[], bukti: Record<string, Blob> = {}, perangkatId?: string): Promise<PelanggaranRespons> {
+        const id = await this.idPerangkat(perangkatId)
         const form = new FormData()
+        if (id) form.append('perangkat_id', id)
         form.append('entri', JSON.stringify(entri))
         for (const [nama, berkas] of Object.entries(bukti)) form.append(nama, berkas, `${nama}.webp`)
 
         return this.minta('POST', `/cbt/attempt/${attemptId}/pelanggaran`, form)
     }
 
-    kumpul(attemptId: number, waktuKlienMs?: number): Promise<{ status: string }> {
-        return this.minta('POST', `/cbt/attempt/${attemptId}/kumpul`, { waktu_klien_ms: waktuKlienMs })
+    async kumpul(attemptId: number, waktuKlienMs?: number, perangkatId?: string): Promise<{ status: string }> {
+        const id = await this.idPerangkat(perangkatId)
+        return this.minta('POST', `/cbt/attempt/${attemptId}/kumpul`, {
+            ...(id ? { perangkat_id: id } : {}),
+            waktu_klien_ms: waktuKlienMs,
+        })
     }
 
     hasil(attemptId: number): Promise<HasilRespons> {

@@ -190,7 +190,16 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 ikon={<CloudOff className="size-9 text-amber-500" />}
                 judul="Menunggu internet"
                 isi={`${u.koneksi.tertunda > 0 ? `${u.koneksi.tertunda} jawaban tersimpan di perangkat` : 'Semua jawaban sudah tersimpan'} — pengumpulan dikirim otomatis begitu tersambung. Jangan tutup aplikasi atau hapus datanya.`}
-            />
+            >
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <Tombol onClick={() => void kumpul()}>
+                        Coba kirim sekarang
+                    </Tombol>
+                    <Tombol varian="outline" onClick={() => void u.batalKumpul()}>
+                        Kembali ke soal
+                    </Tombol>
+                </div>
+            </Layar>
         )
     }
 

@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { RenderKonten, type TiptapNode } from '@erapor-cbt/question-renderer'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { MessageSquareText } from 'lucide-react'
+import { Info, MessageSquareText } from 'lucide-react'
 
 const angka = (n: number | null) => (n === null ? '—' : String(n).replace('.', ','))
 
@@ -43,6 +43,21 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
             <main className="mx-auto max-w-3xl space-y-3 px-4 pt-5">
                 {hasil.isPending && <p className="text-slate-500">Memuat…</p>}
                 {hasil.isError && <Kartu nada="sunken" className="text-center text-slate-500">{hasil.error.message}</Kartu>}
+
+                {/* Banner info penundaan pembahasan */}
+                {h?.pembahasan_ditunda && (
+                    <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50/80 p-3.5 text-xs text-sky-900">
+                        <Info className="size-4 shrink-0 text-sky-600 mt-0.5" />
+                        <div>
+                            <p className="font-semibold">Ujian Masih Berlangsung</p>
+                            <p className="mt-0.5 text-sky-800">
+                                Nilai akhir Anda sudah tercatat di atas. Kunci jawaban dan pembahasan per butir soal akan otomatis terbuka setelah seluruh jadwal ujian berakhir
+                                {h.pembahasan_terbuka_pada ? ` (${new Date(h.pembahasan_terbuka_pada).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})` : ''}.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {h?.soal.map((s) => {
                     const penuh = s.skor !== null && s.skor >= s.bobot
                     return (
@@ -52,7 +67,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                 <span className="ml-auto">
                                     {s.anulir === 'dikeluarkan' ? (
                                         <Lencana nada="neutral">Dianulir</Lencana>
-                                    ) : (
+                                    ) : s.skor === null ? null : (
                                         <Lencana nada={penuh ? 'green' : s.skor ? 'amber' : 'red'}>
                                             {angka(s.skor)} / {angka(s.bobot)}
                                         </Lencana>

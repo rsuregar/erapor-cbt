@@ -9,6 +9,8 @@ let nama: string | null = null
 let uuid: string | null = null
 let nis: string | null = null
 
+let perangkatIdCache: string | null = null
+
 export const sesi = {
     async muat(): Promise<void> {
         if (token !== undefined) return
@@ -60,10 +62,15 @@ export const sesi = {
 
     /** Id acak per instalasi — kontrak: `perangkat_id`. */
     async perangkatId(): Promise<string> {
+        if (perangkatIdCache) return perangkatIdCache
         const ada = (await Preferences.get({ key: 'perangkat_id' })).value
-        if (ada) return ada
+        if (ada) {
+            perangkatIdCache = ada
+            return ada
+        }
         const baru = crypto.randomUUID()
         await Preferences.set({ key: 'perangkat_id', value: baru })
+        perangkatIdCache = baru
 
         return baru
     },

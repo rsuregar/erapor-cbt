@@ -16,6 +16,7 @@ export function aturDemo(aktif: boolean): void {
 export const api = new KlienApi({
     baseUrl: import.meta.env.VITE_API_URL || '/api',
     ambilToken: () => sesi.token(),
+    ambilPerangkatId: () => sesi.perangkatId(),
     saatTidakSah: () => {
         void sesi.keluar().then(() => window.location.assign('/masuk'))
     },

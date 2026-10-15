@@ -157,4 +157,34 @@ describe('KlienApi', () => {
         expect(paket.versi).toBe('v')
         expect(progres.at(-1)).toEqual([badan.length, badan.length])
     })
+
+    it('menyertakan perangkat_id pada sinkron, pelanggaran, dan kumpul dari ambilPerangkatId', async () => {
+        const fetch = vi.fn(async () => new Response(JSON.stringify({ status: 'ok', diakui: {} }), { status: 200 }))
+        const api = new KlienApi({
+            baseUrl: '/api',
+            ambilToken: () => 't',
+            ambilPerangkatId: () => 'device-uuid-123',
+            fetch,
+        })
+
+        await api.sinkron(10, [{ soal_id: 1, seq: 1, jawaban: 'A' }])
+        const [, initSinkron] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+        expect(JSON.parse(String(initSinkron.body))).toMatchObject({
+            perangkat_id: 'device-uuid-123',
+            entri: [{ soal_id: 1, seq: 1, jawaban: 'A' }],
+        })
+
+        await api.kumpul(10, 15000)
+        const [, initKumpul] = fetch.mock.calls[1] as unknown as [string, RequestInit]
+        expect(JSON.parse(String(initKumpul.body))).toMatchObject({
+            perangkat_id: 'device-uuid-123',
+            waktu_klien_ms: 15000,
+        })
+
+        await api.pelanggaran(10, [{ jenis: 'pindah_tab', mulai_ms: 5000 }])
+        const [, initPelanggaran] = fetch.mock.calls[2] as unknown as [string, RequestInit]
+        const formData = initPelanggaran.body as FormData
+        expect(formData.get('perangkat_id')).toBe('device-uuid-123')
+    })
 })
+
