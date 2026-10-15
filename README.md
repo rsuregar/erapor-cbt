@@ -76,7 +76,7 @@ Uji offline butuh service worker, yang tidak dipasang oleh `npm run dev`:
 `npm run pratinjau` (port 5181) atau `npm run pratinjau:demo` (dengan data
 demo) di `apps/ujian`.
 
-### Android
+### Android & iOS (Lokal)
 
 Butuh JDK 21 (`brew install openjdk@21`) dan Android SDK
 (`~/Library/Android/sdk`, dicatat di `android/local.properties`). Proyek
@@ -91,7 +91,7 @@ npm run android:apk        # build produksi (isi VITE_API_URL) → android/app/b
 npm run android:apk:demo   # dengan data demo (masuk: demo / sandi bebas), tanpa server
 ```
 
-Pasang ke BlueStacks: nyalakan **Setelan → Lanjutan → Android Debug Bridge**,
+Pasang ke emulator / BlueStacks: nyalakan **Setelan → Lanjutan → Android Debug Bridge**,
 lalu (port sesuai yang ditampilkan BlueStacks):
 
 ```bash
@@ -99,13 +99,25 @@ lalu (port sesuai yang ditampilkan BlueStacks):
 ~/Library/Android/sdk/platform-tools/adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-iOS belum dibuat (butuh Xcode); selama pilot iPhone/iPad memakai PWA +
-Akses Terpandu (lihat `/panduan`).
+Untuk platform iOS (Xcode):
+```bash
+cd apps/ujian
+npx cap add ios     # jika belum diinisialisasi
+npx cap sync ios
+npx cap open ios
+```
 
-Saat dev, Vite meneruskan `/api` ke e-Rapor lokal (`ERAPOR_DEV_URL`, bawaan
-`https://www.erapor.test`), jadi tidak perlu `.env` dan tidak terhalang CORS.
-Build PWA/Capacitor wajib mengisi `VITE_API_URL` absolut
-(lihat `apps/ujian/.env.example`).
+Panduan lengkap build manual Android & iOS serta konfigurasi signing release dapat dibaca di:
+👉 **[Panduan Build Mobile dan CI/CD](docs/panduan-build-dan-cicd.md)**.
+
+## CI/CD (GitHub Actions)
+
+Repositori ini telah disiapkan dengan 3 alur otomatis GitHub Actions:
+- **CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))**: Menjalankan lint, typecheck, unit test, dan build uji coba pada setiap PR dan push ke branch `main`.
+- **Deploy PWA ([`.github/workflows/deploy-pwa.yml`](.github/workflows/deploy-pwa.yml))**: Deploy otomatis berkas PWA ke web server staging/produksi via SSH.
+- **Build Mobile APK & iOS ([`.github/workflows/build-mobile.yml`](.github/workflows/build-mobile.yml))**: Kompilasi installer Android APK dan iOS Archive (.xcarchive) otomatis saat rilis tag (misal `v1.0.0` atau `release-prod*`) atau dijalankan manual dari tab **Actions** di GitHub.
+
+Detail variabel secret dan cara trigger workflow dapat dibaca di **[`docs/panduan-build-dan-cicd.md`](docs/panduan-build-dan-cicd.md)**.
 
 ## Yang harus disiapkan di e-Rapor
 
@@ -117,3 +129,4 @@ Build PWA/Capacitor wajib mengisi `VITE_API_URL` absolut
 
 Status per story ada di [`docs/progres.md`](docs/progres.md) (salinan dari
 Backlog MVP e-Rapor).
+

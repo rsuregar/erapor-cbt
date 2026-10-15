@@ -23,12 +23,12 @@ const PASANG: Record<UntukPanduan, Langkah[]> = {
         { teks: <>Buka alamat ujian di <b>Safari</b>, lalu ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas) di bagian bawah.</>, adegan: 'ios-bagikan' },
         { teks: <>Gulir ke bawah, pilih <b>Tambahkan ke Layar Utama</b>.</>, adegan: 'ios-tambah' },
         { teks: <>Ketuk <b>Tambah</b> di pojok kanan atas.</>, adegan: 'ios-konfirmasi' },
-        { teks: <>Mulai sekarang, buka ujian dari ikon <b>Ujian</b> di layar utama — bukan dari Safari.</>, adegan: 'layar-utama' },
+        { teks: <>Mulai sekarang, buka ujian dari ikon <b>CBT Al Akhyar</b> di layar utama — bukan dari Safari.</>, adegan: 'layar-utama' },
     ],
     android: [
         { teks: <>Buka alamat ujian di <b>Chrome</b>, lalu ketuk menu <b>⋮</b> di kanan atas.</>, adegan: 'android-menu' },
         { teks: <>Pilih <b>Instal aplikasi</b> (di sebagian HP: <b>Tambahkan ke layar utama</b>), lalu ketuk <b>Instal</b>.</>, adegan: 'android-instal' },
-        { teks: <>Buka ujian dari ikon <b>Ujian</b> di layar utama — bukan dari Chrome.</>, adegan: 'layar-utama' },
+        { teks: <>Buka ujian dari ikon <b>CBT Al Akhyar</b> di layar utama — bukan dari Chrome.</>, adegan: 'layar-utama' },
     ],
     laptop: [
         { teks: <>Pakai <b>Chrome</b> atau <b>Edge</b> versi terbaru. Bila ada ikon pasang di bilah alamat, pasang aplikasinya agar bisa dibuka offline.</> },
@@ -43,7 +43,7 @@ const KUNCI: Record<UntukPanduan, { judul: string; pengantar: ReactNode; langkah
         pengantar: 'Mengunci iPhone/iPad di aplikasi ujian. Kode keluarnya diketik pengawas, jadi murid tidak bisa keluar sendiri.',
         langkah: [
             { teks: <>Buka <b>Pengaturan → Aksesibilitas → Akses Terpandu</b>, nyalakan. Di <b>Pengaturan Kode Sandi</b>, pengawas yang mengetik kodenya.</>, adegan: 'ios-akses-terpandu' },
-            { teks: <>Buka aplikasi Ujian, lalu klik <b>tombol samping 3×</b> (iPhone/iPad dengan tombol Home: klik <b>Home 3×</b>).</>, adegan: 'ios-klik-tiga' },
+            { teks: <>Buka aplikasi CBT Al Akhyar, lalu klik <b>tombol samping 3×</b> (iPhone/iPad dengan tombol Home: klik <b>Home 3×</b>).</>, adegan: 'ios-klik-tiga' },
             { teks: <>Ketuk <b>Mulai</b> di kanan atas. Setelah ujian terkumpul, pengawas klik 3× lagi dan mengetik kode untuk mengakhiri.</>, adegan: 'ios-mulai-terpandu' },
         ],
     },
@@ -59,7 +59,7 @@ const KUNCI: Record<UntukPanduan, { judul: string; pengantar: ReactNode; langkah
                 ),
                 adegan: 'android-sematkan-setelan',
             },
-            { teks: <>Buka aplikasi Ujian, buka layar <b>Ringkasan</b> (tombol kotak, atau geser ke atas lalu tahan). Ketuk ikon aplikasi di atas kartunya → <b>Sematkan</b>.</>, adegan: 'android-sematkan' },
+            { teks: <>Buka aplikasi CBT Al Akhyar, buka layar <b>Ringkasan</b> (tombol kotak, atau geser ke atas lalu tahan). Ketuk ikon aplikasi di atas kartunya → <b>Sematkan</b>.</>, adegan: 'android-sematkan' },
             { teks: <>Setelah ujian terkumpul: tahan <b>Kembali</b> + <b>Ringkasan</b> bersamaan (atau geser ke atas lalu tahan), masukkan PIN.</>, adegan: 'android-lepas' },
         ],
     },

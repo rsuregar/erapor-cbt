@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Ujian Al Akhyar</string>
-    <string name="title_activity_main">Ujian Al Akhyar</string>
+    <string name="app_name">CBT Al Akhyar</string>
+    <string name="title_activity_main">CBT Al Akhyar</string>
     <string name="package_name">sch.alakhyar.ujian</string>
     <string name="custom_url_scheme">sch.alakhyar.ujian</string>
 </resources>

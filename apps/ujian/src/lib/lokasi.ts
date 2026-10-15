@@ -1,5 +1,5 @@
-import { adaNative, ambilLokasiNative, izinLokasiNative } from '@/lib/native'
-import type { Lokasi } from '@erapor-cbt/exam-core'
+import { adaNative, ambilLokasiNative, izinLokasiNative } from "@/lib/native";
+import type { Lokasi } from "@erapor-cbt/exam-core";
 
 /**
  * Posisi perangkat untuk ujian "di sekolah" (kontrak § Lokasi ujian).
@@ -7,35 +7,53 @@ import type { Lokasi } from '@erapor-cbt/exam-core'
  * palsu dari OS. PWA: Geolocation web, `palsu` selalu false.
  */
 
-export type GalatLokasi = 'DITOLAK' | 'TIDAK_ADA' | 'WAKTU_HABIS' | 'TIDAK_DIDUKUNG'
+export type GalatLokasi =
+    | "DITOLAK"
+    | "TIDAK_ADA"
+    | "WAKTU_HABIS"
+    | "TIDAK_DIDUKUNG";
 
-export type PosisiDidapat = Lokasi & { pada: number }
+export type PosisiDidapat = Lokasi & { pada: number };
 
 /** Server menolak akurasi > 200 m; tetap kirim, tapi beri tahu murid lebih dulu. */
-export const BATAS_AKURASI_M = 200
+export const BATAS_AKURASI_M = 200;
 
 export function dukungLokasi(): boolean {
-    return adaNative() || (typeof navigator !== 'undefined' && 'geolocation' in navigator)
+    return (
+        adaNative() ||
+        (typeof navigator !== "undefined" && "geolocation" in navigator)
+    );
 }
 
-export async function ambilPosisi(opsi: { maksUmurMs?: number; batasMs?: number } = {}): Promise<PosisiDidapat> {
+export async function ambilPosisi(
+    opsi: { maksUmurMs?: number; batasMs?: number } = {},
+): Promise<PosisiDidapat> {
     if (adaNative()) {
         try {
-            const p = await ambilLokasiNative({ maksUmurMs: opsi.maksUmurMs ?? 0, batasMs: opsi.batasMs ?? 20_000 })
+            const p = await ambilLokasiNative({
+                maksUmurMs: opsi.maksUmurMs ?? 0,
+                batasMs: opsi.batasMs ?? 20_000,
+            });
 
-            return { ...p, pada: Date.now() }
+            return { ...p, pada: Date.now() };
         } catch (e) {
-            const kode = (e as { code?: string }).code
+            const kode = (e as { code?: string }).code;
 
-            throw galat(kode === 'DITOLAK' || kode === 'TIDAK_ADA' || kode === 'WAKTU_HABIS' ? kode : 'TIDAK_ADA')
+            throw galat(
+                kode === "DITOLAK" ||
+                    kode === "TIDAK_ADA" ||
+                    kode === "WAKTU_HABIS"
+                    ? kode
+                    : "TIDAK_ADA",
+            );
         }
     }
 
     return new Promise((selesai, gagal) => {
         if (!dukungLokasi()) {
-            gagal(galat('TIDAK_DIDUKUNG'))
+            gagal(galat("TIDAK_DIDUKUNG"));
 
-            return
+            return;
         }
         navigator.geolocation.getCurrentPosition(
             (p) =>
@@ -46,38 +64,60 @@ export async function ambilPosisi(opsi: { maksUmurMs?: number; batasMs?: number 
                     palsu: false,
                     pada: Date.now(),
                 }),
-            (e) => gagal(galat(e.code === e.PERMISSION_DENIED ? 'DITOLAK' : e.code === e.TIMEOUT ? 'WAKTU_HABIS' : 'TIDAK_ADA')),
-            { enableHighAccuracy: true, timeout: opsi.batasMs ?? 20_000, maximumAge: opsi.maksUmurMs ?? 0 },
-        )
-    })
+            (e) =>
+                gagal(
+                    galat(
+                        e.code === e.PERMISSION_DENIED
+                            ? "DITOLAK"
+                            : e.code === e.TIMEOUT
+                              ? "WAKTU_HABIS"
+                              : "TIDAK_ADA",
+                    ),
+                ),
+            {
+                enableHighAccuracy: true,
+                timeout: opsi.batasMs ?? 20_000,
+                maximumAge: opsi.maksUmurMs ?? 0,
+            },
+        );
+    });
 }
 
 /** 'granted' | 'denied' | 'prompt', atau null bila browser tidak memberi tahu (Safari lama). */
 export async function izinLokasi(): Promise<PermissionState | null> {
     try {
-        if (adaNative()) return await izinLokasiNative()
-        return (await navigator.permissions.query({ name: 'geolocation' })).state
+        if (adaNative()) return await izinLokasiNative();
+        return (await navigator.permissions.query({ name: "geolocation" }))
+            .state;
     } catch {
-        return null
+        return null;
     }
 }
 
-export const tanpaWaktu = ({ lat, lng, akurasi_m, palsu }: PosisiDidapat): Lokasi => ({ lat, lng, akurasi_m, palsu })
+export const tanpaWaktu = ({
+    lat,
+    lng,
+    akurasi_m,
+    palsu,
+}: PosisiDidapat): Lokasi => ({ lat, lng, akurasi_m, palsu });
 
 function galat(kode: GalatLokasi) {
-    return Object.assign(new Error(kode), { kode })
+    return Object.assign(new Error(kode), { kode });
 }
 
 export function kodeGalatLokasi(e: unknown): GalatLokasi {
-    return (e as { kode?: GalatLokasi })?.kode ?? 'TIDAK_ADA'
+    return (e as { kode?: GalatLokasi })?.kode ?? "TIDAK_ADA";
 }
 
 /** Petunjuk membuka izin lokasi yang sudah ditolak — beda per platform. */
 export function petunjukIzin(): string {
-    if (adaNative()) return 'Buka Setelan → Aplikasi → Ujian Al Akhyar → Izin → Lokasi → Izinkan. Pastikan Lokasi (GPS) di panel cepat menyala.'
-    const ua = navigator.userAgent
-    if (/iPhone|iPad|iPod/.test(ua)) return 'Buka Pengaturan → Privasi & Keamanan → Layanan Lokasi, nyalakan, lalu izinkan untuk browser/aplikasi ini.'
-    if (/Android/.test(ua)) return 'Ketuk ikon gembok/pengaturan di sebelah alamat, pilih Izin → Lokasi → Izinkan. Pastikan GPS (Lokasi) di panel cepat menyala.'
+    if (adaNative())
+        return "Buka Setelan → Aplikasi → CBT Al Akhyar → Izin → Lokasi → Izinkan. Pastikan Lokasi (GPS) di panel cepat menyala.";
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    if (/iPhone|iPad|iPod/.test(ua))
+        return "Buka Pengaturan → Privasi & Keamanan → Layanan Lokasi, nyalakan, lalu izinkan untuk browser/aplikasi ini.";
+    if (/Android/.test(ua))
+        return "Ketuk ikon gembok/pengaturan di sebelah alamat, pilih Izin → Lokasi → Izinkan. Pastikan GPS (Lokasi) di panel cepat menyala.";
 
-    return 'Klik ikon gembok di sebelah alamat situs, izinkan Lokasi, lalu muat ulang halaman.'
+    return "Klik ikon gembok di sebelah alamat situs, izinkan Lokasi, lalu muat ulang halaman.";
 }
