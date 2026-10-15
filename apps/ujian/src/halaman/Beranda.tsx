@@ -1,5 +1,6 @@
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
+import { FotoMurid } from '@/komponen/FotoMurid'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { kelasTombol, Tombol } from '@/komponen/Tombol'
@@ -58,13 +59,14 @@ export default function Beranda() {
     }, [])
     const kelompok = kelompokkan(ujian.data?.data ?? [], sekarang)
     const nama = sesi.nama()
+    const murid = ujian.data?.data[0]?.murid
 
     return (
         <div className="min-h-full pb-10">
             <KepalaFitur
                 judul={nama ? `Assalamu'alaikum, ${nama.split(' ')[0]}` : "Assalamu'alaikum"}
                 subjudul={tanggalGanda(new Date(sekarang))}
-                kanan={<img src="/brand/logogram.png" alt="" className="size-11 rounded-full bg-white p-0.5" />}
+                kanan={<FotoMurid nama={murid?.nama ?? nama ?? 'Murid'} foto={murid?.foto} className="bg-white" />}
             >
                 <div className="flex items-center gap-2">
                     <div className="mr-auto flex items-center gap-2 text-sm font-semibold">

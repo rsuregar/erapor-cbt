@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { sesi as akun } from '@/lib/sesi'
-import { dekripsiPaket, GalatApi, PenyimpananIndexedDb, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type UjianRingkas } from '@erapor-cbt/exam-core'
+import { dekripsiPaket, GalatApi, PenyimpananIndexedDb, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type InfoAplikasi, type UjianRingkas } from '@erapor-cbt/exam-core'
 
 /**
  * Penyimpanan lokal ujian (IndexedDB; adapter SQLite untuk app menyusul).
@@ -48,13 +48,13 @@ export async function sesiLokalUjian(ujianId: number): Promise<SesiUjian | null>
     return null
 }
 
-export type DaftarUjian = { data: UjianRingkas[]; dariCache: boolean; pada: number }
+export type DaftarUjian = { data: UjianRingkas[]; aplikasi?: InfoAplikasi; dariCache: boolean; pada: number }
 
 /** GET /ujian dengan cadangan lokal: offline tetap menampilkan daftar terakhir. */
 export async function daftarUjian(): Promise<DaftarUjian> {
     try {
-        const data = await api.daftarUjian()
-        const hasil = { data, dariCache: false, pada: Date.now() }
+        const { data, aplikasi } = await api.daftarUjian()
+        const hasil = { data, aplikasi, dariCache: false, pada: Date.now() }
         await penyimpanan.simpan(`daftar-ujian:${akun.uuid()}`, hasil)
 
         return hasil

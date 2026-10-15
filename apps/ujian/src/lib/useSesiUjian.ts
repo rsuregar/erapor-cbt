@@ -1,5 +1,6 @@
 import { api } from '@/lib/api'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
+import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
 import { GalatApi, JamServer, Outbox, Penyinkron, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -32,6 +33,8 @@ export function useSesiUjian(attemptId: number) {
     const penyinkron = useRef<Penyinkron>()
     const soalAktif = useRef<number | null>(null)
     const posisi = useRef<PosisiDidapat | null>(null)
+    /** kiosk_aktif di detak: null di PWA (web tidak bisa membaca kunci OS) */
+    const kios = useRef<boolean | null>(null)
     const tundaTeks = useRef(new Map<number, ReturnType<typeof setTimeout>>())
     const statusRef = useRef<StatusUjian>('memuat')
     statusRef.current = status
@@ -73,7 +76,7 @@ export function useSesiUjian(attemptId: number) {
                 jam: j,
                 detak: () => ({
                     soal_aktif: soalAktif.current,
-                    kiosk_aktif: null,
+                    kiosk_aktif: kios.current,
                     ...(sesi.mulai.lokasi_wajib && posisi.current ? { lokasi: tanpaWaktu(posisi.current) } : {}),
                 }),
                 saatRespons: (r) => {
@@ -121,8 +124,30 @@ export function useSesiUjian(attemptId: number) {
         return () => clearInterval(t)
     }, [lokasiWajib, status])
 
+    // App native: sematkan layar selama mengerjakan (juga setelah app dibuka ulang), laporkan statusnya.
+    const levelUjian = data?.sesi.ujian.level_keamanan
+    useEffect(() => {
+        if (!adaNative() || status !== 'mengerjakan' || !levelUjian) return
+        let batal = false
+        const baca = async () => {
+            const aktif = await statusKunciLayar()
+            if (!batal) kios.current = aktif
+        }
+        void (async () => {
+            if (levelUjian !== 'dasar' && !(await statusKunciLayar())) kios.current = await kunciLayar()
+            await baca()
+        })()
+        const t = setInterval(() => void baca(), 10_000)
+
+        return () => {
+            batal = true
+            clearInterval(t)
+        }
+    }, [status, levelUjian])
+
     const selesai = useCallback(async () => {
         penyinkron.current?.henti()
+        await lepasKunciLayar()
         const ujianId = data?.sesi.ujian.id ?? (await muatUjian(attemptId).catch(() => null))?.sesi.ujian.id
         if (ujianId) await bersihkan(attemptId, ujianId)
         setStatus('selesai')

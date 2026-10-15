@@ -25,6 +25,8 @@ export type UjianRingkas = {
     id: number
     nama: string
     mapel: string | null
+    /** Identitas peserta untuk konfirmasi sebelum ujian; foto null bila belum ada. */
+    murid: { id: number; nama: string; foto: string | null }
     dibuka_pada: string
     ditutup_pada: string
     durasi_menit: number
@@ -39,6 +41,15 @@ export type UjianRingkas = {
     bisa_unduh: boolean
     hasil_tersedia: boolean
 }
+
+/** Versi app native (kontrak § Versi aplikasi). null = tidak dicek / belum ada. */
+export type InfoAplikasi = {
+    versi_minimum: { android: string | null; ios: string | null }
+    tautan_pembaruan: { android: string | null; ios: string | null }
+}
+
+/** GET /ujian — `aplikasi` berlaku global, bukan per ujian. */
+export type DaftarUjianRespons = { data: UjianRingkas[]; aplikasi?: InfoAplikasi }
 
 /** GET /ujian/{ujian}/paket (terenkripsi) */
 export type PaketTerenkripsi = {
@@ -194,4 +205,6 @@ export type KodeGalat =
     | 'LOKASI_PALSU'
     | 'DI_LUAR_LOKASI'
     | 'LOKASI_BELUM_DIATUR'
+    // Versi app native lebih lama dari minimum (426)
+    | 'VERSI_USANG'
     | (string & {})

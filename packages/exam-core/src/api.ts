@@ -1,6 +1,7 @@
 import type {
     EntriJawaban,
     EntriPelanggaran,
+    DaftarUjianRespons,
     Detak,
     HasilRespons,
     KodeGalat,
@@ -10,7 +11,6 @@ import type {
     PelanggaranRespons,
     PerangkatInfo,
     SinkronRespons,
-    UjianRingkas,
 } from './kontrak'
 
 /** Galat dari server ({ message, kode }) atau jaringan (kode JARINGAN). */
@@ -63,8 +63,9 @@ export class KlienApi {
         return this.minta('POST', '/auth/logout')
     }
 
-    async daftarUjian(): Promise<UjianRingkas[]> {
-        return (await this.minta<{ data: UjianRingkas[] }>('GET', '/cbt/ujian')).data
+    /** Daftar ujian + info versi aplikasi (level atas). */
+    daftarUjian(): Promise<DaftarUjianRespons> {
+        return this.minta<DaftarUjianRespons>('GET', '/cbt/ujian')
     }
 
     /** Pra-unduh paket; `onProgres(diterima, total)` — total null bila server tidak memberi Content-Length. */

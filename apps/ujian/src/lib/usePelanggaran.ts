@@ -1,4 +1,6 @@
 import { api, platform } from '@/lib/api'
+import { adaNative } from '@/lib/native'
+import { App } from '@capacitor/app'
 import { penyimpanan } from '@/lib/ujian'
 import { GalatApi, type EntriPelanggaran, type JenisPelanggaran, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -160,12 +162,15 @@ export function usePelanggaran(opsi: {
         const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
 
         document.addEventListener('visibilitychange', visibilitas)
+        // App native: perpindahan ke latar belakang dilaporkan OS, lebih andal dari event WebView.
+        const statusApp = adaNative() ? App.addListener('appStateChange', ({ isActive }) => (isActive ? kembali() : pergi())) : null
         window.addEventListener('blur', pergi)
         window.addEventListener('focus', kembali)
         window.addEventListener('pagehide', pergi)
 
         return () => {
             document.removeEventListener('visibilitychange', visibilitas)
+            void statusApp?.then((h) => h.remove())
             window.removeEventListener('blur', pergi)
             window.removeEventListener('focus', kembali)
             window.removeEventListener('pagehide', pergi)

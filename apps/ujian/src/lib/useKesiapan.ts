@@ -1,5 +1,5 @@
 import { menghalangi, periksa, type KeadaanTambahan } from '@/lib/kesiapan'
-import type { UjianRingkas } from '@erapor-cbt/exam-core'
+import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
 import { useEffect, useMemo, useState } from 'react'
 
 type Baterai = EventTarget & { level: number; charging: boolean }
@@ -25,7 +25,7 @@ export async function terapkanPembaruan(): Promise<void> {
 }
 
 /** Cek kesiapan yang diperbarui saat layar, orientasi, layar penuh, pembaruan, atau baterai berubah. */
-export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined) {
+export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined, aplikasi?: InfoAplikasi) {
     const [detak, setDetak] = useState(0)
     const [tambahan, setTambahan] = useState<KeadaanTambahan>({ pembaruanTersedia: false, ruangBebas: null, baterai: null })
 
@@ -74,9 +74,9 @@ export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined) {
 
     return useMemo(() => {
         if (!level) return { daftar: [], penghalang: [] }
-        const daftar = periksa(level, tambahan)
+        const daftar = periksa(level, { ...tambahan, aplikasi })
 
         return { daftar, penghalang: menghalangi(daftar, level) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [level, tambahan, detak])
+    }, [level, tambahan, detak, aplikasi])
 }

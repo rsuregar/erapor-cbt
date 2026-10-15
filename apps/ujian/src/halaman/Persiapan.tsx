@@ -1,6 +1,7 @@
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
 import { KartuKesiapan } from '@/komponen/KartuKesiapan'
+import { FotoMurid } from '@/komponen/FotoMurid'
 import { KotakToken } from '@/komponen/KotakToken'
 import { Lencana } from '@/komponen/Lencana'
 import { Progres } from '@/komponen/Progres'
@@ -8,6 +9,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api, platform } from '@/lib/api'
 import { ukuranBerkas } from '@/lib/format'
+import { kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
@@ -37,6 +39,7 @@ const PESAN_MULAI: Record<string, string> = {
     LOKASI_DIPERLUKAN: 'Ujian ini hanya bisa dikerjakan di sekolah. Izinkan akses lokasi lalu coba lagi.',
     LOKASI_PALSU: 'Terdeteksi aplikasi lokasi palsu. Matikan aplikasi tersebut lalu coba lagi.',
     LOKASI_BELUM_DIATUR: 'Lokasi sekolah belum diatur untuk ujian ini. Hubungi pengawas.',
+    VERSI_USANG: 'Versi aplikasi sudah usang. Perbarui aplikasi lalu coba lagi.',
 }
 
 const PESAN_LOKASI_PERANGKAT: Record<string, string> = {
@@ -52,6 +55,9 @@ function pesanGalatMulai(e: Error): string {
     const m = (k: string) => Math.round(Number(e.data[k] ?? 0))
     if (e.kode === 'DI_LUAR_LOKASI') {
         return `Kamu berada ±${jarak(m('jarak_meter'))} dari sekolah (batas ${m('radius_meter')} m). Ujian ini hanya bisa dikerjakan di area sekolah — bila kamu mendapat izin, minta pengawas memberi izin dari luar sekolah.`
+    }
+    if (e.kode === 'VERSI_USANG' && e.data.versi_minimum) {
+        return `Versi aplikasi ${__VERSI_APP__} sudah usang (minimum ${String(e.data.versi_minimum)}). Perbarui aplikasi lalu coba lagi.`
     }
     if (e.kode === 'LOKASI_TIDAK_AKURAT') {
         return `Sinyal GPS kurang akurat (±${m('akurasi_meter')} m). Pindah ke dekat jendela atau ruang terbuka, tunggu sebentar, lalu coba lagi.`
@@ -78,15 +84,16 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     }, [])
 
     const online = useOnline()
-    const ujian = useQuery({ queryKey: ['ujian'], queryFn: daftarUjian, select: (d) => d.data.find((u) => u.id === ujianId), networkMode: 'always' })
+    const ujian = useQuery({ queryKey: ['ujian'], queryFn: daftarUjian, select: (d) => ({ u: d.data.find((u) => u.id === ujianId), aplikasi: d.aplikasi }), networkMode: 'always' })
     // Sudah dimulai di perangkat ini? Offline tetap bisa dilanjutkan tanpa /mulai.
     const lokal = useQuery({ queryKey: ['sesi-lokal', ujianId], queryFn: () => sesiLokalUjian(ujianId), networkMode: 'always' })
     const lanjutLokal = () => lokal.data && navigate({ to: '/kerjakan/$attemptId', params: { attemptId: lokal.data.mulai.attempt_id }, replace: true })
-    const u = ujian.data
+    const u = ujian.data?.u
+    const aplikasi = ujian.data?.aplikasi
     const { status, unduh } = useUnduhPaket(u)
     const wajibLokasi = !!u?.lokasi?.wajib
     const lokasi = useLokasi(wajibLokasi)
-    const kesiapan = useKesiapan(u?.level_keamanan)
+    const kesiapan = useKesiapan(u?.level_keamanan, aplikasi)
 
     const mulai = useMutation({
         mutationFn: async (layarPenuh: Promise<boolean>) => {
@@ -96,6 +103,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
             }
             // Posisi baru dicek server di /mulai — juga saat melanjutkan atau pindah perangkat.
             const posisi = wajibLokasi ? tanpaWaktu(await lokasi.posisiSegar()) : undefined
+            // App native, Ketat/Lockdown: sematkan layar dulu supaya kiosk_aktif yang dilaporkan benar.
+            const kios = u && u.level_keamanan !== 'dasar' ? await kunciLayar() : await statusKunciLayar()
             let r
             try {
                 r = await api.mulai(
@@ -105,8 +114,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                     {
                         platform: platform(),
                         versi_app: __VERSI_APP__,
-                        // PWA tidak bisa membaca status kunci OS; pengawas memverifikasi manual.
-                        kiosk_aktif: platform() === 'pwa' ? null : false,
+                        // PWA tidak bisa membaca status kunci OS (null); pengawas memverifikasi manual.
+                        kiosk_aktif: kios,
                     },
                     posisi,
                 )
@@ -129,6 +138,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         },
         onSuccess: (r) => navigate({ to: '/kerjakan/$attemptId', params: { attemptId: r.attempt_id }, replace: true }),
         onError: (e) => {
+            // Belum jadi mulai: jangan biarkan murid tersemat di halaman persiapan.
+            void lepasKunciLayar()
             if (e instanceof GalatApi && e.kode === 'TOKEN_SALAH') {
                 setGoyang((n) => n + 1)
                 setToken('')
@@ -165,10 +176,10 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
             <main className="mx-auto max-w-xl space-y-4 px-4 pt-5">
                 <Kartu className="space-y-3">
                     <div className="flex items-center gap-3">
-                        <img src="/brand/logogram.png" alt="" className="size-11" />
+                        <FotoMurid nama={u.murid.nama} foto={u.murid.foto} ukuran="lg" className="ring-primary-100" />
                         <div>
                             <p className="text-xs text-slate-500">Peserta</p>
-                            <p className="font-bold text-ink">{sesi.nama() ?? '—'}</p>
+                            <p className="font-bold text-ink">{u.murid.nama}</p>
                         </div>
                     </div>
                     <dl className="grid grid-cols-2 gap-3 border-t border-dashed border-slate-200 pt-3 text-sm">
@@ -202,7 +213,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                     daftar={kesiapan.daftar}
                     penghalang={kesiapan.penghalang}
                     onAksi={(a) => {
-                        if (a === 'perbarui') void terapkanPembaruan()
+                        const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
+                        // App native: buka toko/APK sekolah di browser; PWA: pasang service worker baru.
+                        if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
                         else if (a === 'layar_penuh') void masukLayarPenuh()
                         else if (a === 'panduan') void navigate({ to: '/panduan' })
                     }}
@@ -223,6 +236,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                             penuh
                             onClick={() => {
                                 void masukLayarPenuh()
+                                if (u.level_keamanan !== 'dasar') void kunciLayar()
                                 lanjutLokal()
                             }}
                         >

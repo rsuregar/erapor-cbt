@@ -1,6 +1,7 @@
 import { platform } from '@/lib/api'
 import { hpMiring, jenisPerangkat, layarDibagi, layarPenuhAktif, standalone } from '@/lib/perangkat'
-import type { UjianRingkas } from '@erapor-cbt/exam-core'
+import { versiUsang } from '@/lib/versi'
+import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
 
 /**
  * Cek kesiapan perangkat sebelum Mulai (story 7.3, PRD alur hari ujian #2).
@@ -24,6 +25,8 @@ export type ItemCek = {
 
 export type KeadaanTambahan = {
     pembaruanTersedia: boolean
+    /** dari GET /ujian (kontrak § Versi aplikasi) */
+    aplikasi?: InfoAplikasi
     ruangBebas: number | null
     baterai: { level: number; mengisi: boolean } | null
 }
@@ -46,14 +49,28 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
             : { kunci: 'browser', judul: 'Browser', hasil: 'lulus', keterangan: 'Mendukung penyimpanan offline dan enkripsi soal.' },
     )
 
+    const p = platform()
+    const minimum = p !== 'pwa' ? t.aplikasi?.versi_minimum[p] : null
     daftar.push(
-        t.pembaruanTersedia
-            ? { kunci: 'versi', judul: 'Versi aplikasi', hasil: 'peringatan', aksi: 'perbarui', keterangan: 'Versi baru tersedia. Perbarui sekarang, sebelum ujian dimulai.' }
-            : { kunci: 'versi', judul: 'Versi aplikasi', hasil: 'lulus', keterangan: `Versi ${__VERSI_APP__}` },
+        versiUsang(__VERSI_APP__, minimum)
+            ? {
+                  kunci: 'versi',
+                  judul: 'Versi aplikasi',
+                  hasil: 'gagal',
+                  wajib: true,
+                  aksi: t.aplikasi?.tautan_pembaruan[p as 'android' | 'ios'] ? 'perbarui' : undefined,
+                  keterangan: `Versi ${__VERSI_APP__} sudah usang (minimum ${minimum}). Perbarui aplikasi sebelum ujian${t.aplikasi?.tautan_pembaruan[p as 'android' | 'ios'] ? '.' : ' — minta tautan pembaruan ke pengawas.'}`,
+              }
+            : t.pembaruanTersedia
+              ? { kunci: 'versi', judul: 'Versi aplikasi', hasil: 'peringatan', aksi: 'perbarui', keterangan: 'Versi baru tersedia. Perbarui sekarang, sebelum ujian dimulai.' }
+              : { kunci: 'versi', judul: 'Versi aplikasi', hasil: 'lulus', keterangan: `Versi ${__VERSI_APP__}` },
     )
 
     if (asli) {
         daftar.push({ kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
+        if (level !== 'dasar') {
+            daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.' })
+        }
     } else if (jenis === 'desktop') {
         daftar.push(
             layarPenuhAktif()

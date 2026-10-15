@@ -72,15 +72,35 @@ npm run typecheck
 npm run build      # apps/ujian/dist (PWA)
 ```
 
-Android/iOS (butuh Android Studio / Xcode):
+Uji offline butuh service worker, yang tidak dipasang oleh `npm run dev`:
+`npm run pratinjau` (port 5181) atau `npm run pratinjau:demo` (dengan data
+demo) di `apps/ujian`.
+
+### Android
+
+Butuh JDK 21 (`brew install openjdk@21`) dan Android SDK
+(`~/Library/Android/sdk`, dicatat di `android/local.properties`). Proyek
+`apps/ujian/android` ada di repo; plugin native lokal di
+`android/app/src/main/java/sch/alakhyar/ujian/` (FLAG_SECURE, sematkan layar,
+lokasi dengan deteksi lokasi palsu).
 
 ```bash
 cd apps/ujian
-npx cap add android
-npx cap add ios
-npm run cap:sync
-npx cap open android
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+npm run android:apk        # build produksi (isi VITE_API_URL) → android/app/build/outputs/apk/debug/app-debug.apk
+npm run android:apk:demo   # dengan data demo (masuk: demo / sandi bebas), tanpa server
 ```
+
+Pasang ke BlueStacks: nyalakan **Setelan → Lanjutan → Android Debug Bridge**,
+lalu (port sesuai yang ditampilkan BlueStacks):
+
+```bash
+~/Library/Android/sdk/platform-tools/adb connect 127.0.0.1:5555
+~/Library/Android/sdk/platform-tools/adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+iOS belum dibuat (butuh Xcode); selama pilot iPhone/iPad memakai PWA +
+Akses Terpandu (lihat `/panduan`).
 
 Saat dev, Vite meneruskan `/api` ke e-Rapor lokal (`ERAPOR_DEV_URL`, bawaan
 `https://www.erapor.test`), jadi tidak perlu `.env` dan tidak terhalang CORS.
@@ -95,10 +115,5 @@ Build PWA/Capacitor wajib mengisi `VITE_API_URL` absolut
 
 ## Status
 
-- [x] Kerangka monorepo, exam-core (API, dekripsi, outbox, jam, sinkron), uji.
-- [x] Masuk, daftar ujian (hari ini / mendatang / riwayat), persiapan (tampilan), hasil — gaya Al Akhyar Design System.
-- [ ] Persiapan: pra-unduh paket + media, token, mulai.
-- [ ] Layar mengerjakan bergaya Bluebook, ragu-ragu, navigasi soal, timer.
-- [ ] Deteksi & antrean pelanggaran, layar terkunci, pesan pengawas.
-- [ ] Adapter SQLite (Capacitor), plugin kunci layar Android/iOS.
-- [ ] Panduan pasang PWA + kunci OS per perangkat (PRD M-14).
+Status per story ada di [`docs/progres.md`](docs/progres.md) (salinan dari
+Backlog MVP e-Rapor).

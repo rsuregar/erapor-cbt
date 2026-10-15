@@ -13,17 +13,17 @@ function ujian(): UjianRingkas[] {
 
     return [
         {
-            id: 1, nama: 'Penilaian Akhir Semester Ganjil', mapel: 'Matematika', dibuka_pada: j(-20), ditutup_pada: j(100),
+            id: 1, nama: 'Penilaian Akhir Semester Ganjil', mapel: 'Matematika', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(-20), ditutup_pada: j(100),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 8, level_keamanan: 'ketat',
             sesi: { nama: 'Sesi 1', ruang: 'Lab Komputer 1' }, lokasi: { wajib: true, radius_meter: 150 }, status: st.status ?? 'belum_mulai', attempt_id: st.mulai ? ATTEMPT : null, bisa_unduh: true, hasil_tersedia: false,
         },
         {
-            id: 2, nama: 'Ulangan Harian Bab 3', mapel: 'Bahasa Arab', dibuka_pada: j(60 * 26), ditutup_pada: j(60 * 27),
+            id: 2, nama: 'Ulangan Harian Bab 3', mapel: 'Bahasa Arab', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(60 * 26), ditutup_pada: j(60 * 27),
             durasi_menit: 45, tambahan_waktu_menit: 0, jumlah_soal: 20, level_keamanan: 'dasar',
             sesi: { nama: 'Sesi 2', ruang: 'Kelas 8A' }, lokasi: { wajib: false, radius_meter: null }, status: 'belum_mulai', attempt_id: null, bisa_unduh: false, hasil_tersedia: false,
         },
         {
-            id: 3, nama: 'Penilaian Tengah Semester', mapel: 'Ilmu Pengetahuan Alam', dibuka_pada: j(-60 * 72), ditutup_pada: j(-60 * 70),
+            id: 3, nama: 'Penilaian Tengah Semester', mapel: 'Ilmu Pengetahuan Alam', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(-60 * 72), ditutup_pada: j(-60 * 70),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 25, level_keamanan: 'lockdown',
             sesi: null, lokasi: { wajib: true, radius_meter: 150 }, status: 'selesai', attempt_id: 31, bisa_unduh: false, hasil_tersedia: true,
         },
@@ -146,7 +146,7 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
 
     if (jalur.endsWith('/auth/login')) return json({ data: { access_token: TOKEN_DEMO, uuid: 'demo', user: { name: 'Ahmad Fauzan Hidayat' } } })
     if (jalur.endsWith('/auth/logout')) return json({ message: 'ok' })
-    if (jalur.endsWith('/cbt/ujian')) return json({ data: ujian() })
+    if (jalur.endsWith('/cbt/ujian')) return json({ data: ujian(), aplikasi: { versi_minimum: { android: null, ios: null }, tautan_pembaruan: { android: null, ios: null } } })
     if (/\/cbt\/attempt\/\d+\/hasil$/.test(jalur)) return json(hasil())
 
     const isi = typeof init?.body === 'string' ? JSON.parse(init.body) : null

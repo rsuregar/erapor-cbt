@@ -1,3 +1,5 @@
+import { adaNative } from '@/lib/native'
+import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
@@ -58,12 +60,15 @@ export function useProteksiKonten(aktif: boolean) {
         peristiwa.forEach(([n, f]) => document.addEventListener(n, f, true))
         document.addEventListener('keydown', tombol, true)
         window.addEventListener('beforeprint', cetak)
+        // Android: tombol Kembali tidak boleh menutup layar ujian (selama ada pendengar, Capacitor tidak menutup app).
+        const kembali = adaNative() ? App.addListener('backButton', () => kabari('Tombol kembali dinonaktifkan selama ujian.')) : null
 
         return () => {
             document.body.classList.remove('ujian-berjalan')
             peristiwa.forEach(([n, f]) => document.removeEventListener(n, f, true))
             document.removeEventListener('keydown', tombol, true)
             window.removeEventListener('beforeprint', cetak)
+            void kembali?.then((h) => h.remove())
             clearTimeout(timer.current)
         }
     }, [aktif, kabari])
