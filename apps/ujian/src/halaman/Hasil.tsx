@@ -18,7 +18,6 @@ import {
     Lightbulb,
     MessageSquareText,
     MinusCircle,
-    Printer,
     Target,
     TrendingUp,
     XCircle,
@@ -111,7 +110,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 <div className="pointer-events-none absolute -left-16 bottom-0 size-72 rounded-full bg-sky-400/10 blur-2xl print:hidden" aria-hidden="true" />
 
                 <div className="relative mx-auto max-w-3xl space-y-4">
-                    {/* Top Bar: Back & Print */}
+                    {/* Top Bar: Back */}
                     <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 print:hidden">
                         <button
                             onClick={() => navigate({ to: '/' })}
@@ -120,15 +119,6 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         >
                             <ChevronLeft className="size-4" />
                             <span>Kembali ke Beranda</span>
-                        </button>
-
-                        <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
-                            aria-label="Cetak hasil ujian"
-                        >
-                            <Printer className="size-3.5" />
-                            <span className="hidden sm:inline">Cetak Hasil</span>
                         </button>
                     </div>
 
@@ -464,15 +454,6 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         onClick={() => navigate({ to: '/' })}
                     >
                         Kembali ke Beranda
-                    </Tombol>
-                    <Tombol
-                        varian="outline"
-                        ukuran="lg"
-                        className="rounded-xl font-bold py-3.5 w-full sm:w-auto px-6"
-                        ikonKiri={<Printer className="size-4" />}
-                        onClick={() => window.print()}
-                    >
-                        Cetak / Simpan Hasil
                     </Tombol>
                 </div>
             </main>
