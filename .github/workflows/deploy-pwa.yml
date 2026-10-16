@@ -11,6 +11,20 @@ on:
           - staging
           - production
         default: staging
+      deploy_mode:
+        description: 'PWA Deployment Mode'
+        type: choice
+        required: true
+        options:
+          - normal
+          - web_disabled
+          - maintenance
+        default: normal
+      custom_message:
+        description: 'Custom Notice Message (opsional jika mode web_disabled / maintenance)'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: deploy-pwa-${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/release-prod') && 'production' || 'staging') }}
@@ -25,10 +39,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -70,12 +84,25 @@ jobs:
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
         run: |
-          npm run build -w @erapor-cbt/ujian
+          DEPLOY_MODE="${{ inputs.deploy_mode || 'normal' }}"
+          echo "=========================================="
+          echo "Deploy Environment : ${{ steps.env.outputs.target }}"
+          echo "Deploy Mode        : $DEPLOY_MODE"
+          echo "=========================================="
+
+          if [ "$DEPLOY_MODE" = "maintenance" ] || [ "$DEPLOY_MODE" = "web_disabled" ]; then
+            node scripts/generate-maintenance-pwa.mjs \
+              --mode "$DEPLOY_MODE" \
+              --message "${{ inputs.custom_message }}" \
+              --target "${{ steps.env.outputs.target }}"
+          else
+            npm run build -w @erapor-cbt/ujian
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwa-dist-${{ steps.env.outputs.target }}
+          name: pwa-dist-${{ steps.env.outputs.target }}-${{ inputs.deploy_mode || 'normal' }}
           path: apps/ujian/dist/
 
       - name: Deploy to Server via SSH
@@ -89,3 +116,11 @@ jobs:
           source: 'apps/ujian/dist/*'
           target: ${{ steps.env.outputs.deploy_path }}
           strip_components: 3
+
+      - name: Deploy to Cloudflare
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+

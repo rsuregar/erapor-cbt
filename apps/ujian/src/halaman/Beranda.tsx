@@ -3,11 +3,10 @@ import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
-import { api } from '@/lib/api'
-import { isNative, isTauri, keluarAplikasiTauri } from '@/lib/native'
+import { isNative, isTauri, keluarAplikasi } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
-import { daftarUjian, penyimpanan } from '@/lib/ujian'
+import { daftarUjian } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
 import { Capacitor } from '@capacitor/core'
@@ -94,6 +93,20 @@ export default function Beranda() {
         return () => clearInterval(t)
     }, [])
 
+    // Cheatsheet: Shortcut keyboard untuk keluar aplikasi (Ctrl+Shift+Q atau Ctrl+Shift+X)
+    useEffect(() => {
+        const tanganiKeydown = (e: KeyboardEvent) => {
+            const isModifier = e.ctrlKey || e.metaKey || e.altKey
+            if (isModifier && e.shiftKey && (e.key === 'Q' || e.key === 'q' || e.key === 'X' || e.key === 'x')) {
+                e.preventDefault()
+                setModalKeluar(true)
+            }
+        }
+
+        window.addEventListener('keydown', tanganiKeydown)
+        return () => window.removeEventListener('keydown', tanganiKeydown)
+    }, [])
+
     const daftarSemua = ujian.data?.data ?? []
     const kelompok = kelompokkan(daftarSemua, sekarang)
     const nama = sesi.nama()
@@ -112,10 +125,10 @@ export default function Beranda() {
     const tanganiKeluar = async () => {
         setProsesKeluar(true)
         try {
-            await api.keluar().catch(() => undefined)
-            await penyimpanan.hapus(`daftar-ujian:${sesi.uuid()}`)
-            await sesi.keluar()
-            await navigate({ to: '/masuk' })
+            await keluarAplikasi()
+            if (!isNative()) {
+                await navigate({ to: '/masuk' })
+            }
         } finally {
             setProsesKeluar(false)
         }
@@ -153,8 +166,8 @@ export default function Beranda() {
 
                             <button
                                 className="inline-flex size-8 sm:size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-coral-500/80 hover:text-white active:scale-95"
-                                aria-label="Keluar dari akun"
-                                title="Keluar akun"
+                                aria-label="Tutup dan keluar dari aplikasi"
+                                title="Tutup dan keluar"
                                 onClick={() => setModalKeluar(true)}
                             >
                                 <LogOut className="size-3.5 sm:size-4" />
@@ -363,30 +376,33 @@ export default function Beranda() {
                 </footer>
             </main>
 
-            {/* Modal Konfirmasi Keluar */}
+            {/* Modal Konfirmasi Tutup dan Keluar */}
             {modalKeluar && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-sm space-y-4 rounded-lg bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+                    <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
                         <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
                             <LogOut className="size-5" />
                         </div>
                         <div>
-                            <h3 className="text-base sm:text-lg font-bold text-ink">Keluar dari Akun?</h3>
+                            <h3 className="text-base sm:text-lg font-bold text-ink">Tutup dan Keluar?</h3>
                             <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                Pastikan Anda tidak sedang mengerjakan ujian aktif. Anda perlu memasukkan NIS dan kata sandi kembali untuk masuk.
+                                Pastikan Anda tidak sedang mengerjakan ujian aktif. Akun Anda akan otomatis di-logout dan aplikasi akan ditutup.
                             </p>
+                            <div className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 border border-slate-100 space-y-1">
+                                <div className="font-semibold text-slate-700 flex items-center gap-1">
+                                    <span>💡 Pintasan Keluar (Cheatsheet):</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                    Tekan <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + Q</kbd> kapan saja untuk membuka dialog keluar ini.
+                                </p>
+                            </div>
                         </div>
                         <div className="flex items-center justify-end gap-2.5 pt-1">
                             <Tombol varian="outline" ukuran="sm" onClick={() => setModalKeluar(false)} disabled={prosesKeluar}>
                                 Batal
                             </Tombol>
-                            {isTauri() && (
-                                <Tombol varian="secondary" ukuran="sm" onClick={() => void keluarAplikasiTauri()} disabled={prosesKeluar}>
-                                    Tutup Aplikasi
-                                </Tombol>
-                            )}
                             <Tombol varian="danger" ukuran="sm" onClick={tanganiKeluar} disabled={prosesKeluar}>
-                                {prosesKeluar ? 'Memproses…' : 'Ya, Keluar Akun'}
+                                {prosesKeluar ? 'Memproses…' : 'Tutup dan Keluar'}
                             </Tombol>
                         </div>
                     </div>

@@ -53,18 +53,42 @@ Jika ingin CI/CD otomatis menandatangani APK Release di Android:
 
 ---
 
-## 3. Menjalankan Build Manual via GitHub Actions
+## 3. Menjalankan Build Manual & Versioning via GitHub Actions
 
-Anda tidak harus selalu push commit untuk membangun APK atau deploy PWA. Bisa dijalankan manual lewat browser:
+Anda tidak harus selalu push commit untuk membangun aplikasi atau deploy PWA. Bisa dijalankan manual lewat browser atau via tag Git:
 
+### A. Parameter Workflow Dispatch (Manual Run):
 1. Buka tab **Actions** di repositori GitHub.
-2. Pilih workflow **"Build Mobile Apps (APK & iOS)"** atau **"Deploy PWA"** di bilah kiri.
+2. Pilih workflow sesuai platform (**Build Android APK**, **Build Desktop Windows**, **Build Desktop macOS**, atau **Build iOS App**).
 3. Klik tombol **Run workflow**.
-4. Pilih parameter:
-   * **Target Platform**: `all`, `android`, atau `ios`.
-   * **Target Environment**: `staging` atau `production`.
-   * **Build Type**: `release` atau `debug`.
-5. Klik **Run workflow**. Setelah selesai (sekitar 3–5 menit), buka hasil run dan unduh file APK/iOS di bagian **Artifacts**.
+4. Parameter yang tersedia:
+   * **Target Environment**: `production` atau `staging`.
+   * **Build Type** *(khusus Android)*: `release` atau `debug`.
+   * **Version Name / SemVer**: (opsional, contoh: `1.0.0`) — jika dikosongkan, CI otomatis mengambil dari tag git atau `package.json`.
+   * **Build Number / Version Code**: (opsional, contoh: `42`) — jika dikosongkan, CI otomatis memakai nomor urut build GitHub (`github.run_number`).
+5. Klik **Run workflow**. Hasil build dapat diunduh di bagian **Artifacts** dengan nama terstruktur:
+   * Android: `ujian-al-akhyar-[env]-v[version]-b[build]` (file APK di dalamnya bernama `ujian-al-akhyar-[env]-v[version]-b[build]-[type].apk`)
+   * Windows: `cbt-al-akhyar-windows-[env]-v[version]-b[build]` (`.exe` NSIS & `.msi`)
+   * macOS: `cbt-al-akhyar-macos-[env]-v[version]-b[build]` (`.dmg`)
+   * iOS: `ujian-al-akhyar-ios-[env]-v[version]-b[build].xcarchive.zip`
+
+### B. Trigger Otomatis via Git Tag:
+Ketika push tag versi baru, workflow akan otomatis mengekstrak nomor versi dari tag:
+* `git tag v1.0.0` → Menjalankan build semua platform dengan versi `1.0.0`.
+* `git tag android-1.0.0` / `windows-1.0.0` / `macos-1.0.0` / `ios-1.0.0` → Menjalankan build spesifik platform dengan versi `1.0.0`.
+
+### C. Mode Deploy PWA (Progressive Web App):
+Saat menjalankan workflow **Deploy PWA**, Anda dapat memilih mode operasi:
+1. **`normal`**: Membangun & mendeploy aplikasi web CBT lengkap seperti biasa.
+2. **`web_disabled`**: Menonaktifkan akses ujian via web browser (misal saat PTS/PAS agar siswa tidak bisa curang membuka tab lain di browser). Menampilkan laman resmi Al Akhyar yang mengarahkan peserta untuk memakai aplikasi resmi (Windows, Mac, Android, atau iOS) serta otomatis membersihkan cache PWA di browser peserta.
+3. **`maintenance`**: Mode pemeliharaan sistem dengan pesan informatif dan status perbaikan.
+4. **`custom_message`**: Pesan khusus tambahan (opsional) yang ingin ditampilkan kepada peserta saat mode `web_disabled` atau `maintenance` aktif.
+
+### D. Sinkronisasi Versi Lokal (`scripts/set-version.mjs`):
+Sebelum build manual di komputer lokal, Anda dapat menyinkronkan versi seluruh platform (package.json, Tauri, Android build.gradle, Cargo.toml) dengan:
+```bash
+node scripts/set-version.mjs 1.0.0 42
+```
 
 ---
 
@@ -160,20 +184,36 @@ Selain deploy via SSH/SCP ke server sendiri, front-end PWA `erapor-cbt` adalah *
 
 ---
 
-### A. Cara Deploy ke Cloudflare (Workers / Pages)
+### A. Cara Deploy ke Cloudflare (Workers Static Assets / Pages)
 
-1. Masuk ke dashboard [Cloudflare](https://dash.cloudflare.com/) → **Compute (Workers & Pages)** → **Create application** → **Connect to Git**.
-2. Pilih repositori `erapor-cbt` dan branch `main`.
-3. Masukkan konfigurasi build:
-   * **Framework preset**: `None` atau `Vite`
-   * **Build command**: `npm run build`
-   * **Build output directory**: `apps/ujian/dist`
-   * **Root directory**: *(Biarkan kosong / root repositori)*
-4. Tambahkan **Environment Variables**:
-   * `VITE_API_URL`: URL API Laravel backend (misal `https://erapor.alakhyar.sch.id/api`)
-5. Klik **Save and Deploy**.
+Proyek ini telah dikonfigurasi dengan berkas [`wrangler.json`](../wrangler.json) yang otomatis melayani static assets `./apps/ujian/dist` dengan SPA routing.
 
-*(Catatan: Konfigurasi SPA routing sudah otomatis ditangani oleh `wrangler.json` dengan `"not_found_handling": "single-page-application"`).*
+#### 1. Perintah Cepat via Terminal (CLI):
+```bash
+# A. Deploy Versi Normal (PWA Penuh):
+npm run deploy:cf:normal
+
+# B. Deploy Mode Akses Web Dinonaktifkan (Wajib Pakai Aplikasi Mobile/Desktop):
+npm run deploy:cf:disabled
+
+# C. Deploy Mode Maintenance (Pemeliharaan Server / Sinkronisasi Nilai):
+npm run deploy:cf:maintenance
+```
+
+*(Semua mode pemeliharaan dan penonaktifan web secara otomatis menyertakan pembersih Service Worker & Cache PWA agar browser siswa langsung ter-reset).*
+
+#### 2. Deploy Otomatis via GitHub Actions:
+Workflow [`.github/workflows/deploy-pwa.yml`](../.github/workflows/deploy-pwa.yml) mendukung Cloudflare secara otomatis:
+1. Tambahkan secret di GitHub (`Settings → Secrets and variables → Actions`):
+   - `CLOUDFLARE_API_TOKEN`: API Token Cloudflare Anda (dengan izin Edit Cloudflare Workers/Pages).
+   - `CLOUDFLARE_ACCOUNT_ID`: Account ID Cloudflare Anda.
+2. Jalankan workflow **Deploy PWA** via menu `Actions` → `Run workflow`.
+3. Pilih opsi **PWA Deployment Mode**:
+   - `normal`
+   - `web_disabled`
+   - `maintenance`
+4. GitHub Actions akan mengompilasi dan mengunggah langsung ke Cloudflare dalam hitungan detik.
+
 
 ---
 

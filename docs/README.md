@@ -13,3 +13,15 @@ Direktori ini berisi dokumentasi teknis, operasional, dan panduan rilis untuk ap
 
 2. **[Progres & Status Implementasi](progres.md)**
    - Status pengerjaan backlog MVP dan story fitur ujian murid.
+
+3. **[Cheatsheet Admin & Pintasan Keluar](cheatsheet-admin.md)**
+   - Kombinasi tombol dan gestur rahasia admin untuk keluar aplikasi tanpa login.
+   - Prosedur penutupan aplikasi dan pembersihan sesi untuk pengawas ujian.
+
+4. **[Panduan Mode Maintenance & Disabled Web di Cloudflare](panduan-maintenance-dan-cloudflare.md)**
+   - 3 Opsi lengkap pengelolaan mode pemeliharaan dan penonaktifan web:
+     - Opsi 1: Build & Deploy via Wrangler / GitHub Actions (Paling bersih membersihkan cache PWA).
+     - Opsi 2: Instan via Cloudflare Dashboard (WAF Custom Rule dalam 3 detik tanpa build).
+     - Opsi 3: Middleware Cloudflare Worker dengan Environment Variable toggle.
+   - Prosedur Operasional Standar (SOP) dan checklist admin sebelum & sesudah ujian.
+

@@ -15,9 +15,10 @@ export default defineConfig(({ mode }) => {
             secure: false,
         },
     };
-    const versi = JSON.parse(
+    const pkgVersion = JSON.parse(
         readFileSync(new URL("./package.json", import.meta.url), "utf8"),
     ).version as string;
+    const versi = process.env.VITE_APP_VERSION || env.VITE_APP_VERSION || pkgVersion;
 
     return {
         // Dilaporkan ke server saat /mulai (perangkat.versi_app).

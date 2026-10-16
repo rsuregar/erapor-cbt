@@ -90,8 +90,20 @@ export function useSesiUjian(attemptId: number) {
                 },
                 saatStatusKoneksi: (online, tertunda) => setKoneksi({ online, tertunda }),
                 saatGalat: (g) => {
-                    if (g.kode === 'TERKUNCI') setStatus('terkunci')
-                    else if (g.kode === 'SUDAH_SELESAI') void selesai()
+                    const pesan = (g.message || '').toLowerCase()
+                    const kode = (g.kode || '').toUpperCase()
+                    if (kode === 'TERKUNCI') {
+                        setStatus('terkunci')
+                    } else if (
+                        kode === 'SUDAH_SELESAI' ||
+                        kode === 'SELESAI' ||
+                        kode === 'SUDAH_DITUTUP' ||
+                        g.status === 409 ||
+                        pesan.includes('selesai') ||
+                        pesan.includes('dikumpulkan')
+                    ) {
+                        void selesai()
+                    }
                 },
             })
             penyinkron.current = p
@@ -161,6 +173,7 @@ export function useSesiUjian(attemptId: number) {
     /** Simpan jawaban: tampil seketika, tulis lokal, kirim. Teks ditunda sebentar (tiap ketukan tidak perlu ditulis). */
     const jawab = useCallback(
         (soalId: number, isi: Jawaban, ragu: boolean, opsi: { teks?: boolean } = {}) => {
+            if (statusRef.current === 'selesai') return
             setJawaban((j) => ({ ...j, [soalId]: { jawaban: isi, ragu } }))
             const tulis = async () => {
                 tundaTeks.current.delete(soalId)
@@ -208,7 +221,16 @@ export function useSesiUjian(attemptId: number) {
                         return
                     } catch (e) {
                         const g = e instanceof GalatApi ? e : null
-                        if (g?.kode === 'SUDAH_SELESAI') {
+                        const pesan = (g?.message || '').toLowerCase()
+                        const kode = (g?.kode || '').toUpperCase()
+                        if (
+                            kode === 'SUDAH_SELESAI' ||
+                            kode === 'SELESAI' ||
+                            kode === 'SUDAH_DITUTUP' ||
+                            g?.status === 409 ||
+                            pesan.includes('selesai') ||
+                            pesan.includes('dikumpulkan')
+                        ) {
                             await selesai()
 
                             return

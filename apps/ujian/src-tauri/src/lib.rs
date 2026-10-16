@@ -16,6 +16,7 @@ pub fn run() {
             }
             Ok(())
         })
+        .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![keluar_aplikasi])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

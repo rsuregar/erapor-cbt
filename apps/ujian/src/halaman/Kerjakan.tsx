@@ -10,7 +10,7 @@ import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
 import { cn } from '@/lib/utils'
 import type { Jawaban as JawabanInti, SoalPaket } from '@erapor-cbt/exam-core'
 import { TampilanSoal, type DokumenTiptap, type Jawaban, type Opsi, type SoalTampil } from '@erapor-cbt/question-renderer'
-import { Link, useBlocker } from '@tanstack/react-router'
+import { Link, useBlocker, useNavigate } from '@tanstack/react-router'
 import {
     AlertTriangle,
     Bookmark,
@@ -59,6 +59,7 @@ function keTampil(s: SoalPaket, stimulus: Record<string, { judul: string | null;
  * layar lebar), kaki (nomor + panel navigasi, Kembali/Lanjut), tinjauan.
  */
 export default function Kerjakan({ attemptId }: { attemptId: number }) {
+    const navigate = useNavigate()
     const u = useSesiUjian(attemptId)
     const level = u.data?.sesi.ujian.level_keamanan
     const wajibLp = !!level && wajibLayarPenuh(level)
@@ -69,6 +70,19 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
         return () => document.removeEventListener('fullscreenchange', ubah)
     }, [])
+
+    // Jika status ujian menjadi selesai (dikumpulkan murid, waktu habis,
+    // atau dipaksa kumpul oleh pengawas dari dashboard e-Rapor),
+    // otomatis arahkan murid kembali ke dashboard / beranda setelah jeda singkat.
+    useEffect(() => {
+        if (u.status === 'selesai') {
+            const timer = setTimeout(() => {
+                void navigate({ to: '/', replace: true })
+            }, 1800)
+
+            return () => clearTimeout(timer)
+        }
+    }, [u.status, navigate])
     const p = usePelanggaran({
         pantauLayarPenuh: wajibLp,
         attemptId,
@@ -190,10 +204,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     }
     if (u.status === 'selesai') {
         return (
-            <Layar ikon={<CheckCircle2 className="size-10 text-green-500" />} judul="Jawaban terkumpul" isi="Terima kasih. Nilai bisa dilihat setelah dirilis guru.">
-                <Link to="/" className={kelasTombol('primary')} replace>
-                    Kembali ke beranda
-                </Link>
+            <Layar
+                ikon={<CheckCircle2 className="size-12 text-emerald-500 animate-bounce" />}
+                judul="Ujian Selesai & Jawaban Terkumpul"
+                isi="Ujian telah selesai dan jawaban Anda berhasil dikumpulkan ke server. Mengalihkan Anda kembali ke dashboard..."
+            >
+                <div className="mt-4 flex flex-col items-center gap-2">
+                    <Link to="/" className={kelasTombol('primary')} replace>
+                        Kembali ke beranda sekarang
+                    </Link>
+                    <p className="text-[11px] text-slate-400">Otomatis dialihkan ke dashboard…</p>
+                </div>
             </Layar>
         )
     }

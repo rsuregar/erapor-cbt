@@ -6,6 +6,18 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        {
+          "url": "https://*/*"
+        },
+        {
+          "url": "http://*/*"
+        }
+      ]
+    }
   ]
 }

@@ -2,7 +2,7 @@ import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
-import { isNative, isTauri } from "@/lib/native";
+import { isNative, isTauri, keluarAplikasi } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -18,11 +18,12 @@ import {
     HelpCircle,
     IdCard,
     LockKeyhole,
+    Power,
     ShieldCheck,
     Sparkles,
     WifiOff,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
@@ -31,6 +32,37 @@ export default function Masuk() {
     const [nis, setNis] = useState("");
     const [sandi, setSandi] = useState("");
     const [lihat, setLihat] = useState(false);
+    const [modalAdminKeluar, setModalAdminKeluar] = useState(false);
+    const klikAdminRef = useRef(0);
+    const timerKlikRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Cheatsheet Admin: Shortcut keyboard untuk keluar aplikasi tanpa login
+    useEffect(() => {
+        const tanganiKeydown = (e: KeyboardEvent) => {
+            const isModifier = e.ctrlKey || e.metaKey || e.altKey;
+            if (isModifier && e.shiftKey && (e.key === "Q" || e.key === "q" || e.key === "X" || e.key === "x")) {
+                e.preventDefault();
+                setModalAdminKeluar(true);
+            }
+        };
+
+        window.addEventListener("keydown", tanganiKeydown);
+        return () => window.removeEventListener("keydown", tanganiKeydown);
+    }, []);
+
+    // Cheatsheet Admin: 5x ketuk cepat pada logo / versi untuk layar sentuh / mouse
+    const tanganiKlikRahasiaAdmin = () => {
+        if (timerKlikRef.current) clearTimeout(timerKlikRef.current);
+        timerKlikRef.current = setTimeout(() => {
+            klikAdminRef.current = 0;
+        }, 3000);
+
+        klikAdminRef.current += 1;
+        if (klikAdminRef.current >= 5) {
+            klikAdminRef.current = 0;
+            setModalAdminKeluar(true);
+        }
+    };
 
     const masuk = useMutation({
         mutationFn: () => {
@@ -79,9 +111,22 @@ export default function Masuk() {
                         <img
                             src="/brand/lockup-putih.png"
                             alt="Sekolah Islam Al Akhyar"
-                            className="h-10 sm:h-11 w-auto drop-shadow-sm"
+                            className="h-10 sm:h-11 w-auto drop-shadow-sm cursor-pointer select-none"
+                            onClick={tanganiKlikRahasiaAdmin}
+                            title="CBT Al Akhyar (Ketuk 5x untuk keluar admin)"
                         />
-                        <IndikatorKoneksi online={online} tema="gelap" />
+                        <div className="flex items-center gap-2">
+                            <IndikatorKoneksi online={online} tema="gelap" />
+                            <button
+                                type="button"
+                                onClick={() => setModalAdminKeluar(true)}
+                                className="inline-flex size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-coral-500 hover:text-white active:scale-95"
+                                title="Tutup / Keluar Aplikasi (Pintasan: Ctrl+Shift+Q)"
+                                aria-label="Tutup / Keluar Aplikasi"
+                            >
+                                <Power className="size-4" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Greeting Chip */}
@@ -267,9 +312,14 @@ export default function Masuk() {
                             <span>Koneksi aman e-Rapor &bull; Platform Ujian Resmi</span>
                         </div>
                         <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">
+                            <button
+                                type="button"
+                                onClick={tanganiKlikRahasiaAdmin}
+                                className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600 transition hover:bg-slate-200 select-none cursor-pointer"
+                                title="Versi Aplikasi (Ketuk 5x untuk keluar admin)"
+                            >
                                 v{__VERSI_APP__}
-                            </span>
+                            </button>
                             <span>&bull;</span>
                             <span>
                                 {isTauri()
@@ -281,6 +331,9 @@ export default function Masuk() {
                                       : 'Web PWA'}
                             </span>
                         </div>
+                        <div className="mt-1 rounded-md bg-slate-100/80 px-2.5 py-1 text-[11px] text-slate-500 border border-slate-200/60 text-center">
+                            Pintasan Keluar: Tekan <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-300 font-semibold text-slate-700">Ctrl + Shift + Q</kbd> atau klik tombol <Power className="inline size-3 text-coral-600 -mt-0.5" /> di pojok atas
+                        </div>
                         <p className="text-[11px] text-slate-400">
                             Yayasan Pendidikan Islam Al Akhyar &bull;{" "}
                             <span className="font-semibold text-primary">
@@ -290,6 +343,56 @@ export default function Masuk() {
                     </footer>
                 </div>
             </div>
+
+            {/* Modal Cheatsheet Admin: Tutup Aplikasi Tanpa Login */}
+            {modalAdminKeluar && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+                        <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
+                            <Power className="size-5" />
+                        </div>
+                        <div>
+                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                Mode Admin / Pengawas
+                            </span>
+                            <h3 className="mt-1 text-base sm:text-lg font-bold text-ink">
+                                Tutup Aplikasi CBT?
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                                Aplikasi akan ditutup dan seluruh sesi akun yang tersisa akan otomatis di-logout untuk keamanan.
+                            </p>
+                            <div className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 border border-slate-100 space-y-1">
+                                <div className="font-semibold text-slate-700 flex items-center gap-1">
+                                    <span>💡 Pintasan Keluar (Cheatsheet):</span>
+                                </div>
+                                <ul className="list-disc list-inside text-[11px] text-slate-500 space-y-0.5">
+                                    <li>Keyboard: <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + Q</kbd> atau <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + X</kbd></li>
+                                    <li>Layar Sentuh: Ketuk logo atau teks versi 5× berturut-turut</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2.5 pt-1">
+                            <Tombol
+                                varian="outline"
+                                ukuran="sm"
+                                onClick={() => setModalAdminKeluar(false)}
+                            >
+                                Batal
+                            </Tombol>
+                            <Tombol
+                                varian="danger"
+                                ukuran="sm"
+                                onClick={async () => {
+                                    setModalAdminKeluar(false);
+                                    await keluarAplikasi();
+                                }}
+                            >
+                                Tutup Aplikasi
+                            </Tombol>
+                        </div>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

@@ -16,6 +16,16 @@ on:
           - staging
           - production
         default: production
+      version_name:
+        description: 'Version Name / SemVer (e.g. 1.0.0 - kosongkan untuk ambil dari tag/package.json)'
+        required: false
+        type: string
+        default: ''
+      build_number:
+        description: 'Build Number / Version Code (e.g. 1, 42 - kosongkan untuk pakai run number)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-macos:
@@ -26,10 +36,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Setup Rust toolchain
@@ -38,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Determine API URL
+      - name: Determine Target Environment & API URL
         id: env
         run: |
           TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
@@ -46,9 +56,51 @@ jobs:
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
+      - name: Determine App Version & Build Number
+        id: version
+        run: |
+          VERSION="${{ inputs.version_name }}"
+          if [ -z "$VERSION" ]; then
+            if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+              RAW_TAG="${{ github.ref_name }}"
+              VERSION=$(echo "$RAW_TAG" | sed -E 's/^(android|ios|macos|windows|desktop)-//' | sed -E 's/^v//')
+            fi
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./apps/ujian/package.json').version")
+          fi
+          VERSION=$(echo "$VERSION" | sed 's/^v//')
+          if [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+            VERSION="${VERSION}.0.0"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            VERSION="${VERSION}.0"
+          fi
+
+          BUILD_NUM="${{ inputs.build_number }}"
+          if [ -z "$BUILD_NUM" ]; then
+            BUILD_NUM="${{ github.run_number }}"
+          fi
+          BUILD_NUM=$(echo "$BUILD_NUM" | tr -dc '0-9')
+          if [ -z "$BUILD_NUM" ] || [ "$BUILD_NUM" -eq 0 ]; then
+            BUILD_NUM="1"
+          fi
+
+          echo "version_name=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUM" >> $GITHUB_OUTPUT
+          echo "=========================================="
+          echo "Target Environment : ${{ steps.env.outputs.target }}"
+          echo "App Version Name   : $VERSION"
+          echo "App Build Number   : $BUILD_NUM"
+          echo "=========================================="
+
+      - name: Apply App Version
+        run: |
+          node scripts/set-version.mjs "${{ steps.version.outputs.version_name }}" "${{ steps.version.outputs.build_number }}"
+
       - name: Build Web App & Desktop macOS App
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
+          VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
@@ -57,5 +109,5 @@ jobs:
       - name: Upload macOS DMG Installer
         uses: actions/upload-artifact@v4
         with:
-          name: cbt-al-akhyar-macos-${{ steps.env.outputs.target }}
+          name: cbt-al-akhyar-macos-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
           path: apps/ujian/src-tauri/target/release/bundle/dmg/*.dmg

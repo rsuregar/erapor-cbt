@@ -23,6 +23,16 @@ on:
           - release
           - debug
         default: release
+      version_name:
+        description: 'Version Name / SemVer (e.g. 1.0.0 - kosongkan untuk ambil dari tag/package.json)'
+        required: false
+        type: string
+        default: ''
+      build_number:
+        description: 'Build Number / Version Code (e.g. 1, 42 - kosongkan untuk pakai run number)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-android:
@@ -33,10 +43,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Setup Java 21
@@ -51,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Determine API URL
+      - name: Determine Target Environment & API URL
         id: env
         run: |
           TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
@@ -59,9 +69,51 @@ jobs:
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
+      - name: Determine App Version & Build Number
+        id: version
+        run: |
+          VERSION="${{ inputs.version_name }}"
+          if [ -z "$VERSION" ]; then
+            if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+              RAW_TAG="${{ github.ref_name }}"
+              VERSION=$(echo "$RAW_TAG" | sed -E 's/^(android|ios|macos|windows|desktop)-//' | sed -E 's/^v//')
+            fi
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./apps/ujian/package.json').version")
+          fi
+          VERSION=$(echo "$VERSION" | sed 's/^v//')
+          if [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+            VERSION="${VERSION}.0.0"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            VERSION="${VERSION}.0"
+          fi
+
+          BUILD_NUM="${{ inputs.build_number }}"
+          if [ -z "$BUILD_NUM" ]; then
+            BUILD_NUM="${{ github.run_number }}"
+          fi
+          BUILD_NUM=$(echo "$BUILD_NUM" | tr -dc '0-9')
+          if [ -z "$BUILD_NUM" ] || [ "$BUILD_NUM" -eq 0 ]; then
+            BUILD_NUM="1"
+          fi
+
+          echo "version_name=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUM" >> $GITHUB_OUTPUT
+          echo "=========================================="
+          echo "Target Environment : ${{ steps.env.outputs.target }}"
+          echo "App Version Name   : $VERSION"
+          echo "App Build Number   : $BUILD_NUM"
+          echo "=========================================="
+
+      - name: Apply App Version
+        run: |
+          node scripts/set-version.mjs "${{ steps.version.outputs.version_name }}" "${{ steps.version.outputs.build_number }}"
+
       - name: Build Web App & Sync Capacitor Android
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
+          VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
@@ -80,10 +132,16 @@ jobs:
         run: |
           cd apps/ujian/android
           BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
           if [ "$BUILD_TYPE" = "debug" ] || [ "${{ steps.keystore.outputs.has_keystore }}" != "true" ]; then
-            ./gradlew assembleDebug
+            ./gradlew assembleDebug \
+              -PversionCode="${BUILD_NUMBER}" \
+              -PversionName="${VERSION_NAME}"
           else
             ./gradlew assembleRelease \
+              -PversionCode="${BUILD_NUMBER}" \
+              -PversionName="${VERSION_NAME}" \
               -Pandroid.injected.signing.store.file="release.keystore" \
               -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
               -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_KEY_ALIAS }}" \
@@ -93,12 +151,27 @@ jobs:
       - name: Locate Generated APK
         id: apk
         run: |
-          APK_PATH=$(find apps/ujian/android/app/build/outputs/apk -name "*.apk" | head -n 1)
-          echo "path=$APK_PATH" >> $GITHUB_OUTPUT
-          echo "Found APK at: $APK_PATH"
+          TARGET="${{ steps.env.outputs.target }}"
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+
+          ORIGINAL_APK=$(find apps/ujian/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$ORIGINAL_APK" ]; then
+            echo "Error: APK not found"
+            exit 1
+          fi
+
+          DIRNAME=$(dirname "$ORIGINAL_APK")
+          NAMED_APK="$DIRNAME/ujian-al-akhyar-${TARGET}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
+          cp "$ORIGINAL_APK" "$NAMED_APK"
+
+          echo "path=$NAMED_APK" >> $GITHUB_OUTPUT
+          echo "Found APK at: $ORIGINAL_APK"
+          echo "Created named APK: $NAMED_APK"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ujian-al-akhyar-${{ steps.env.outputs.target }}.apk
+          name: ujian-al-akhyar-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
           path: ${{ steps.apk.outputs.path }}
