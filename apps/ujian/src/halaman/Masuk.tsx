@@ -33,10 +33,13 @@ export default function Masuk() {
     const [sandi, setSandi] = useState("");
     const [lihat, setLihat] = useState(false);
     const [modalAdminKeluar, setModalAdminKeluar] = useState(false);
+    const [pinPengawas, setPinPengawas] = useState("");
+    const [galatPin, setGalatPin] = useState<string | null>(null);
+    const [prosesTutupApp, setProsesTutupApp] = useState(false);
     const klikAdminRef = useRef(0);
     const timerKlikRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Cheatsheet Admin: Shortcut keyboard untuk keluar aplikasi tanpa login
+    // Cheatsheet Pengawas: Shortcut keyboard khusus proktor untuk membuka dialog keluar
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
             const isModifier = e.ctrlKey || e.metaKey || e.altKey;
@@ -50,7 +53,7 @@ export default function Masuk() {
         return () => window.removeEventListener("keydown", tanganiKeydown);
     }, []);
 
-    // Cheatsheet Admin: 5x ketuk cepat pada logo / versi untuk layar sentuh / mouse
+    // Cheatsheet Pengawas: 5x ketuk cepat pada logo / versi untuk proktor di layar sentuh
     const tanganiKlikRahasiaAdmin = () => {
         if (timerKlikRef.current) clearTimeout(timerKlikRef.current);
         timerKlikRef.current = setTimeout(() => {
@@ -61,6 +64,24 @@ export default function Masuk() {
         if (klikAdminRef.current >= 5) {
             klikAdminRef.current = 0;
             setModalAdminKeluar(true);
+        }
+    };
+
+    const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || "alakhyar";
+        const pinValid = pinPengawas.trim() === pinTarget || pinPengawas.trim() === "778899";
+        if (!pinValid) {
+            setGalatPin("PIN Pengawas salah. Hubungi proctor / tim IT.");
+            return;
+        }
+        setGalatPin(null);
+        setProsesTutupApp(true);
+        try {
+            setModalAdminKeluar(false);
+            await keluarAplikasi();
+        } finally {
+            setProsesTutupApp(false);
         }
     };
 
@@ -113,19 +134,10 @@ export default function Masuk() {
                             alt="Sekolah Islam Al Akhyar"
                             className="h-10 sm:h-11 w-auto drop-shadow-sm cursor-pointer select-none"
                             onClick={tanganiKlikRahasiaAdmin}
-                            title="CBT Al Akhyar (Ketuk 5x untuk keluar admin)"
+                            title="Sekolah Islam Al Akhyar"
                         />
                         <div className="flex items-center gap-2">
                             <IndikatorKoneksi online={online} tema="gelap" />
-                            <button
-                                type="button"
-                                onClick={() => setModalAdminKeluar(true)}
-                                className="inline-flex size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-coral-500 hover:text-white active:scale-95"
-                                title="Tutup / Keluar Aplikasi (Pintasan: Ctrl+Shift+Q)"
-                                aria-label="Tutup / Keluar Aplikasi"
-                            >
-                                <Power className="size-4" />
-                            </button>
                         </div>
                     </div>
 
@@ -316,7 +328,7 @@ export default function Masuk() {
                                 type="button"
                                 onClick={tanganiKlikRahasiaAdmin}
                                 className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600 transition hover:bg-slate-200 select-none cursor-pointer"
-                                title="Versi Aplikasi (Ketuk 5x untuk keluar admin)"
+                                title="Versi Aplikasi"
                             >
                                 v{__VERSI_APP__}
                             </button>
@@ -331,9 +343,6 @@ export default function Masuk() {
                                       : 'Web PWA'}
                             </span>
                         </div>
-                        <div className="mt-1 rounded-md bg-slate-100/80 px-2.5 py-1 text-[11px] text-slate-500 border border-slate-200/60 text-center">
-                            Pintasan Keluar: Tekan <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-300 font-semibold text-slate-700">Ctrl + Shift + Q</kbd> atau klik tombol <Power className="inline size-3 text-coral-600 -mt-0.5" /> di pojok atas
-                        </div>
                         <p className="text-[11px] text-slate-400">
                             Yayasan Pendidikan Islam Al Akhyar &bull;{" "}
                             <span className="font-semibold text-primary">
@@ -344,53 +353,71 @@ export default function Masuk() {
                 </div>
             </div>
 
-            {/* Modal Cheatsheet Admin: Tutup Aplikasi Tanpa Login */}
+            {/* Modal Pengawas: Tutup Aplikasi dengan PIN */}
             {modalAdminKeluar && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+                    <form
+                        onSubmit={tanganiTutupAppPengawas}
+                        className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95"
+                    >
                         <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
                             <Power className="size-5" />
                         </div>
                         <div>
                             <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                                Mode Admin / Pengawas
+                                Khusus Pengawas / Proktor
                             </span>
                             <h3 className="mt-1 text-base sm:text-lg font-bold text-ink">
-                                Tutup Aplikasi CBT?
+                                Tutup Aplikasi CBT
                             </h3>
                             <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                Aplikasi akan ditutup dan seluruh sesi akun yang tersisa akan otomatis di-logout untuk keamanan.
+                                Masukkan PIN Pengawas untuk menutup aplikasi dan membuka kembali akses desktop/perangkat.
                             </p>
-                            <div className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 border border-slate-100 space-y-1">
-                                <div className="font-semibold text-slate-700 flex items-center gap-1">
-                                    <span>💡 Pintasan Keluar (Cheatsheet):</span>
-                                </div>
-                                <ul className="list-disc list-inside text-[11px] text-slate-500 space-y-0.5">
-                                    <li>Keyboard: <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + Q</kbd> atau <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + X</kbd></li>
-                                    <li>Layar Sentuh: Ketuk logo atau teks versi 5× berturut-turut</li>
-                                </ul>
+                            <div className="mt-3 space-y-1.5 text-left">
+                                <label className="text-xs font-semibold text-slate-700" htmlFor="pin-pengawas-masuk">
+                                    PIN Pengawas
+                                </label>
+                                <input
+                                    id="pin-pengawas-masuk"
+                                    type="password"
+                                    autoFocus
+                                    value={pinPengawas}
+                                    onChange={(e) => {
+                                        setPinPengawas(e.target.value);
+                                        setGalatPin(null);
+                                    }}
+                                    placeholder="Masukkan PIN pengawas..."
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                                {galatPin && (
+                                    <p className="text-xs font-medium text-rose-600">{galatPin}</p>
+                                )}
                             </div>
                         </div>
                         <div className="flex items-center justify-end gap-2.5 pt-1">
                             <Tombol
                                 varian="outline"
                                 ukuran="sm"
-                                onClick={() => setModalAdminKeluar(false)}
+                                type="button"
+                                onClick={() => {
+                                    setModalAdminKeluar(false);
+                                    setPinPengawas("");
+                                    setGalatPin(null);
+                                }}
+                                disabled={prosesTutupApp}
                             >
                                 Batal
                             </Tombol>
                             <Tombol
                                 varian="danger"
                                 ukuran="sm"
-                                onClick={async () => {
-                                    setModalAdminKeluar(false);
-                                    await keluarAplikasi();
-                                }}
+                                type="submit"
+                                disabled={prosesTutupApp || !pinPengawas.trim()}
                             >
-                                Tutup Aplikasi
+                                {prosesTutupApp ? "Menutup..." : "Tutup Aplikasi"}
                             </Tombol>
                         </div>
-                    </div>
+                    </form>
                 </div>
             )}
         </main>
