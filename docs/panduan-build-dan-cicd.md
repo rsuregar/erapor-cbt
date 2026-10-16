@@ -148,13 +148,13 @@ Selain deploy via SSH/SCP ke server sendiri, front-end PWA `erapor-cbt` adalah *
 | **Bandwidth** | **Gratis Unlimited** 🌟 | Gratis 100 GB / bulan | Gratis 100 GB / bulan |
 | **Edge CDN Indonesia** | **Edge Jakarta** (Ultra-low latency) | Global CDN (Singapura) | Global CDN |
 | **Kemudahan Setup** | Sangat mudah (Connect GitHub) | Sangat mudah (Connect GitHub) | Sangat mudah (Connect GitHub) |
-| **SPA Routing** | Berkas [`_redirects`](../apps/ujian/public/_redirects) | Berkas [`vercel.json`](../vercel.json) | Berkas [`netlify.toml`](../netlify.toml) |
+| **SPA Routing** | Berkas [`wrangler.json`](../wrangler.json) | Berkas [`vercel.json`](../vercel.json) | Berkas [`netlify.toml`](../netlify.toml) |
 
 ---
 
-### A. Cara Deploy ke Cloudflare Pages (Sangat Direkomendasikan)
+### A. Cara Deploy ke Cloudflare (Workers / Pages)
 
-1. Masuk ke dashboard [Cloudflare](https://dash.cloudflare.com/) → **Compute (Workers & Pages)** → **Create application** → tab **Pages** → **Connect to Git**.
+1. Masuk ke dashboard [Cloudflare](https://dash.cloudflare.com/) → **Compute (Workers & Pages)** → **Create application** → **Connect to Git**.
 2. Pilih repositori `erapor-cbt` dan branch `main`.
 3. Masukkan konfigurasi build:
    * **Framework preset**: `None` atau `Vite`
@@ -165,7 +165,7 @@ Selain deploy via SSH/SCP ke server sendiri, front-end PWA `erapor-cbt` adalah *
    * `VITE_API_URL`: URL API Laravel backend (misal `https://erapor.alakhyar.sch.id/api`)
 5. Klik **Save and Deploy**.
 
-*(Catatan: Aturan SPA rewrite `/* /index.html 200` sudah otomatis terpasang di `apps/ujian/public/_redirects`).*
+*(Catatan: Konfigurasi SPA routing sudah otomatis ditangani oleh `wrangler.json` dengan `"not_found_handling": "single-page-application"`).*
 
 ---
 
