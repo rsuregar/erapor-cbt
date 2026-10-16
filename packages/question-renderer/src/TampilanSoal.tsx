@@ -86,7 +86,7 @@ export default function TampilanSoal({
     return (
         <div className={kelasGrid}>
             {soal.stimulus && (
-                <section className={duaKolom ? kelasKiri : 'mb-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700'}>
+                <section className={duaKolom ? kelasKiri : 'mb-5 rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700'}>
                     <div className="mb-3.5 flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-slate-700">
                         <div className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-800 border border-sky-200/70 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800">
                             <svg viewBox="0 0 24 24" className="size-3.5 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2">
@@ -105,7 +105,7 @@ export default function TampilanSoal({
 
             <div className={kelasKanan}>
                 {(nomor !== undefined || onRagu) && (
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/90 bg-slate-100/75 p-2 sm:px-3 sm:py-2 dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-slate-200/90 bg-slate-100/75 p-2 sm:px-3 sm:py-2 dark:border-slate-700 dark:bg-slate-800">
                         <div className="flex items-center gap-2">
                             {nomor !== undefined && (
                                 <span className="inline-flex h-7 sm:h-8 items-center justify-center rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-xs dark:bg-slate-100 dark:text-slate-900 tabular-nums">
@@ -219,7 +219,7 @@ function IsianJawaban({
                         return (
                             <label
                                 key={o.id}
-                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3.5 py-3 transition-all duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
+                                className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 px-3.5 py-3 transition-all duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
                                     aktif
                                         ? 'border-sky-600 bg-sky-50/70 shadow-2xs dark:border-sky-500 dark:bg-sky-950/40'
                                         : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600'

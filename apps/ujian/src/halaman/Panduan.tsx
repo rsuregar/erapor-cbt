@@ -84,7 +84,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                 subjudul="Siapkan sehari sebelum ujian"
                 onKembali={() => (history.length > 1 ? history.back() : navigate({ to: '/' }))}
             >
-                <div role="tablist" className="grid grid-cols-3 gap-1 rounded-md bg-white/15 p-1">
+                <div role="tablist" className="grid grid-cols-3 gap-1 rounded-lg bg-white/15 p-1">
                     {TAB.map((t) => (
                         <button
                             key={t.id}
@@ -95,7 +95,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                                 void navigate({ to: '/panduan', search: { untuk: t.id }, replace: true })
                             }}
                             className={cn(
-                                'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-sm px-2 text-xs font-bold transition active:scale-[0.97] sm:text-sm',
+                                'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold transition active:scale-[0.97] sm:text-sm',
                                 untuk === t.id ? 'bg-white text-primary shadow-sm' : 'text-white',
                             )}
                         >
@@ -109,7 +109,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
             <main className="mx-auto max-w-2xl space-y-5 px-4 pt-5">
                 <Bagian nomor={1} judul={untuk === 'laptop' ? 'Siapkan browser' : 'Pasang aplikasi ujian'}>
                     {pasang.terpasang ? (
-                        <p className="flex items-center gap-2 rounded-sm bg-green-100 px-3 py-2.5 text-sm font-semibold text-green-600">
+                        <p className="flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2.5 text-sm font-semibold text-green-600">
                             <CheckCircle2 className="size-4" /> Aplikasi sudah terpasang dan dibuka dari layar utama.
                         </p>
                     ) : (
@@ -125,7 +125,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
 
                 <Bagian nomor={2} judul={untuk === 'laptop' ? 'Saat ujian' : `Kunci layar: ${kunci.judul}`} ikon={<Lock className="size-4" />}>
                     <p className="text-sm text-slate-700">{kunci.pengantar}</p>
-                    {untuk !== 'laptop' && <p className="rounded-sm bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-600">Dinyalakan bersama pengawas di ruang ujian, sebelum token diberikan.</p>}
+                    {untuk !== 'laptop' && <p className="rounded-lg bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-600">Dinyalakan bersama pengawas di ruang ujian, sebelum token diberikan.</p>}
                     <DaftarLangkah langkah={kunci.langkah} />
                 </Bagian>
 
@@ -158,7 +158,7 @@ function DaftarLangkah({ langkah }: { langkah: Langkah[] }) {
     return (
         <ol className="space-y-3">
             {langkah.map((l, i) => (
-                <li key={i} className="flex items-center gap-4 rounded-md bg-slate-50 p-3">
+                <li key={i} className="flex items-center gap-4 rounded-lg bg-slate-50 p-3">
                     <div className="min-w-0 flex-1">
                         <p className="text-micro font-bold uppercase tracking-caps text-primary">Langkah {i + 1}</p>
                         <p className="mt-1 text-sm leading-relaxed text-ink">{l.teks}</p>

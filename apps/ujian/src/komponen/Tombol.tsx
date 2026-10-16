@@ -11,9 +11,9 @@ const VARIAN = {
 } as const
 
 const UKURAN = {
-    sm: 'text-sm px-3.5 py-2 gap-1.5 rounded-md',
+    sm: 'text-sm px-3.5 py-2 gap-1.5 rounded-lg',
     md: 'text-body px-5 py-[11px] gap-2 rounded-lg',
-    lg: 'text-body-lg px-6 py-3.5 gap-2 rounded-xl font-bold',
+    lg: 'text-body-lg px-6 py-3.5 gap-2 rounded-lg font-bold',
 } as const
 
 const DASAR =

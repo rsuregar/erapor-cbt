@@ -547,7 +547,7 @@ function StatusSimpan({ online, tertunda }: { online: boolean; tertunda: number 
 
 function kelasNomor(terjawab: boolean, ragu: boolean, aktif: boolean) {
     return cn(
-        'relative inline-flex aspect-square items-center justify-center rounded-xl border-2 text-sm font-bold transition active:scale-95 shadow-2xs',
+        'relative inline-flex aspect-square items-center justify-center rounded-lg border-2 text-sm font-bold transition active:scale-95 shadow-2xs',
         terjawab ? 'border-primary bg-primary text-white shadow-xs' : 'border-dashed border-slate-300 bg-white text-ink hover:border-slate-400',
         aktif && 'ring-2 ring-slate-900 ring-offset-2',
         ragu && 'border-amber-500 bg-amber-50 text-amber-900',
@@ -571,7 +571,7 @@ function PanelNomor({
 }) {
     return (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 backdrop-blur-xs sm:items-center p-0 sm:p-4" onClick={onTutup}>
-            <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-lg border border-slate-200" onClick={(e) => e.stopPropagation()}>
                 <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
                     <h2 className="text-base sm:text-lg font-bold text-ink">Daftar Nomor Soal</h2>
                     <button onClick={onTutup} aria-label="Tutup" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
@@ -591,7 +591,7 @@ function PanelNomor({
                         )
                     })}
                 </div>
-                <Tombol varian="secondary" penuh className="mt-6 rounded-xl font-bold py-3" onClick={onTinjau}>
+                <Tombol varian="secondary" penuh className="mt-6 rounded-lg font-bold py-3" onClick={onTinjau}>
                     Ke Halaman Tinjauan
                 </Tombol>
             </div>
@@ -601,7 +601,7 @@ function PanelNomor({
 
 function Legenda() {
     return (
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
             <span className="inline-flex items-center gap-1.5 font-medium">
                 <span className="size-3.5 rounded-sm bg-primary" /> Sudah Dijawab
             </span>
@@ -641,7 +641,7 @@ function Tinjauan({
                 <Angka label="Ragu-ragu" nilai={ringkas.ragu} kelas="bg-amber-50 border border-amber-200/80 text-amber-800" />
                 <Angka label="Kosong" nilai={ringkas.kosong} kelas={ringkas.kosong ? 'bg-coral-50 border border-coral-200/80 text-coral-700' : 'bg-slate-100 border border-slate-200 text-slate-700'} />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
                 <Legenda />
                 <div className="grid grid-cols-6 gap-2 sm:grid-cols-10 pt-1">
                     {soal.map((s, i) => {
@@ -657,12 +657,12 @@ function Tinjauan({
                 </div>
             </div>
             {galat && (
-                <p role="alert" className="flex items-center gap-2 rounded-xl bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
+                <p role="alert" className="flex items-center gap-2 rounded-lg bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
                     <AlertTriangle className="size-4 shrink-0" />
                     <span>{galat}</span>
                 </p>
             )}
-            <Tombol ukuran="lg" penuh onClick={onKumpul} className="rounded-xl font-bold py-3.5 shadow-md shadow-primary/25">
+            <Tombol ukuran="lg" penuh onClick={onKumpul} className="rounded-lg font-bold py-3.5 shadow-md shadow-primary/25">
                 Kumpulkan Jawaban Sekarang
             </Tombol>
         </div>
@@ -671,7 +671,7 @@ function Tinjauan({
 
 function Angka({ label, nilai, kelas }: { label: string; nilai: number; kelas: string }) {
     return (
-        <div className={cn('rounded-xl py-3 px-2', kelas)}>
+        <div className={cn('rounded-lg py-3 px-2', kelas)}>
             <p className="font-display text-2xl sm:text-3xl font-extrabold leading-none">{nilai}</p>
             <p className="mt-1 text-xs font-semibold tracking-wide">{label}</p>
         </div>

@@ -172,7 +172,7 @@ export default function Beranda() {
                             </p>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl bg-white/10 p-1.5 sm:p-2.5 backdrop-blur-md border border-white/15">
+                        <div className="flex shrink-0 items-center gap-2 rounded-lg bg-white/10 p-1.5 sm:p-2.5 backdrop-blur-md border border-white/15">
                             <FotoMurid nama={murid?.nama ?? nama ?? 'Murid'} foto={murid?.foto} ukuran="sm" className="ring-2 ring-white/60 bg-white" />
                             <div className="hidden sm:block pr-1 text-left">
                                 <p className="text-xs font-bold leading-tight text-white line-clamp-1">{murid?.nama ?? nama ?? 'Murid'}</p>
@@ -195,7 +195,7 @@ export default function Beranda() {
                                     type="button"
                                     onClick={() => setTabAktif(item.id as KategoriTab)}
                                     className={cn(
-                                        'group relative overflow-hidden rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 text-left transition-all backdrop-blur-md border select-none',
+                                        'group relative overflow-hidden rounded-lg p-2.5 sm:p-3.5 text-left transition-all backdrop-blur-md border select-none',
                                         aktif
                                             ? 'bg-white text-ink border-white shadow-md ring-2 ring-white/50'
                                             : 'bg-white/10 text-white border-white/15 hover:bg-white/15 active:scale-[0.98]',
@@ -233,7 +233,7 @@ export default function Beranda() {
                 )}
 
                 {/* Full-width Balanced Filter Tabs Navigation */}
-                <div className="grid grid-cols-4 gap-1 rounded-xl bg-white p-1 shadow-sm border border-slate-200/80">
+                <div className="grid grid-cols-4 gap-1 rounded-lg bg-white p-1 shadow-sm border border-slate-200/80">
                     {[
                         { id: 'Semua', label: 'Semua', count: daftarSemua.length },
                         { id: 'Hari Ini', label: 'Hari Ini', count: kelompok['Hari Ini'].length },
@@ -273,7 +273,7 @@ export default function Beranda() {
 
                 {/* Error Banner */}
                 {ujian.isError && (
-                    <div className="flex items-center justify-between rounded-xl border border-coral-200 bg-coral-50 p-3 text-xs sm:text-sm font-medium text-coral-700">
+                    <div className="flex items-center justify-between rounded-lg border border-coral-200 bg-coral-50 p-3 text-xs sm:text-sm font-medium text-coral-700">
                         <span>{ujian.error.message}</span>
                         <Tombol varian="outline" ukuran="sm" onClick={() => ujian.refetch()}>
                             Coba lagi
@@ -292,8 +292,8 @@ export default function Beranda() {
 
                 {/* Empty State */}
                 {!ujian.isPending && daftarFilter.length === 0 && (
-                    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-10 px-4 text-center shadow-sm">
-                        <div className="flex size-12 items-center justify-center rounded-xl bg-primary-50 text-primary mb-2.5">
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-10 px-4 text-center shadow-sm">
+                        <div className="flex size-12 items-center justify-center rounded-lg bg-primary-50 text-primary mb-2.5">
                             <CalendarClock className="size-6" />
                         </div>
                         <h3 className="text-sm sm:text-base font-bold text-ink">Tidak ada ujian di tab ini</h3>
@@ -317,7 +317,7 @@ export default function Beranda() {
                 {/* Device & Security Guide Banner */}
                 <Link
                     to="/panduan"
-                    className="group flex items-center gap-3 rounded-xl border border-slate-200/90 bg-gradient-to-r from-sky-50/60 via-white to-white p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
+                    className="group flex items-center gap-3 rounded-lg border border-slate-200/90 bg-gradient-to-r from-sky-50/60 via-white to-white p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
                 >
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform group-hover:scale-105">
                         <Smartphone className="size-4" />
@@ -337,7 +337,7 @@ export default function Beranda() {
             {/* Modal Konfirmasi Keluar */}
             {modalKeluar && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+                    <div className="w-full max-w-sm space-y-4 rounded-lg bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
                         <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
                             <LogOut className="size-5" />
                         </div>
@@ -372,7 +372,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
     return (
         <div
             className={cn(
-                'group rounded-xl sm:rounded-2xl border bg-white p-3.5 sm:p-4.5 transition-all duration-200 shadow-sm hover:shadow-md',
+                'group rounded-lg border bg-white p-3.5 sm:p-4.5 transition-all duration-200 shadow-sm hover:shadow-md',
                 sedangDibuka && u.status !== 'selesai'
                     ? 'border-primary/40 ring-1 ring-primary/20 bg-gradient-to-br from-white via-white to-sky-50/30'
                     : 'border-slate-200/90 hover:border-slate-300',
@@ -471,7 +471,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                         <Link
                             to="/hasil/$attemptId"
                             params={{ attemptId: u.attempt_id }}
-                            className="inline-flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 active:scale-95"
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 active:scale-95"
                         >
                             <Trophy className="size-3.5 text-amber-600" />
                             <span>Hasil</span>
@@ -483,7 +483,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                             to="/ujian/$ujianId"
                             params={{ ujianId: u.id }}
                             className={cn(
-                                'inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold transition shadow-sm active:scale-95',
+                                'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition shadow-sm active:scale-95',
                                 sedangDibuka
                                     ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
                                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -509,7 +509,7 @@ function Kerangka() {
     return (
         <div className="space-y-3" aria-hidden>
             {[0, 1].map((i) => (
-                <div key={i} className="h-32 animate-pulse rounded-xl bg-white border border-slate-100 p-3.5 shadow-sm space-y-2.5">
+                <div key={i} className="h-32 animate-pulse rounded-lg bg-white border border-slate-100 p-3.5 shadow-sm space-y-2.5">
                     <div className="flex items-center justify-between">
                         <div className="h-4 w-20 rounded bg-slate-200" />
                         <div className="h-4 w-16 rounded-full bg-slate-100" />

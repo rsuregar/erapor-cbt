@@ -197,7 +197,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
             <main className="relative z-10 -mt-10 sm:-mt-12 mx-auto max-w-3xl space-y-5 px-3 sm:px-4">
                 {/* Scorecard Hero Card */}
-                <div className="rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-7 shadow-lg shadow-slate-200/50">
+                <div className="rounded-lg border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm">
                     <div className="grid gap-5 sm:grid-cols-2 sm:items-center">
                         {/* Left Side: Score & Status */}
                         <div className="space-y-2.5 border-b sm:border-b-0 sm:border-r border-slate-100 pb-4 sm:pb-0 sm:pr-6">
@@ -249,8 +249,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         </div>
 
                         {/* Right Side: Key Detail Metrics */}
-                        <div className="grid grid-cols-2 gap-3 sm:pl-2">
-                            <div className="rounded-xl bg-slate-50/80 p-3 border border-slate-100">
+                        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:pl-2">
+                            <div className="rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
                                 <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                                     <Target className="size-3 text-primary" />
                                     <span>Skor Diperoleh</span>
@@ -263,7 +263,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                 </dd>
                             </div>
 
-                            <div className="rounded-xl bg-slate-50/80 p-3 border border-slate-100">
+                            <div className="rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
                                 <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                                     <Award className="size-3 text-primary" />
                                     <span>Batas KKTP</span>
@@ -273,7 +273,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                 </dd>
                             </div>
 
-                            <div className="col-span-2 rounded-xl bg-slate-50/80 p-3 border border-slate-100">
+                            <div className="col-span-2 rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
                                 <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                                     <Clock className="size-3 text-primary" />
                                     <span>Waktu Dikumpulkan (WITA)</span>
@@ -289,59 +289,59 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 </div>
 
                 {/* 3 Quick Overview Stat Cards with Large Watermark Background */}
-                <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
-                    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
+                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
                         <CheckCircle2
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-2 -bottom-2 size-12 sm:size-14 text-emerald-500/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-emerald-500/20 opacity-12 transition group-hover:scale-110"
                         />
-                        <div className="relative z-10 space-y-1">
-                            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <div className="relative z-10 space-y-0.5 sm:space-y-1">
+                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                                 Benar Penuh
                             </p>
-                            <p className="font-display text-xl sm:text-2xl font-black text-emerald-600">
+                            <p className="font-display text-lg sm:text-2xl font-black text-emerald-600">
                                 {soalPenuh}
                             </p>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
                                 dari {totalSoal} butir soal
                             </p>
                         </div>
                     </div>
 
-                    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
                         <MinusCircle
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-2 -bottom-2 size-12 sm:size-14 text-amber-500/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-amber-500/20 opacity-12 transition group-hover:scale-110"
                         />
-                        <div className="relative z-10 space-y-1">
-                            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <div className="relative z-10 space-y-0.5 sm:space-y-1">
+                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                                 Perlu Evaluasi
                             </p>
-                            <p className="font-display text-xl sm:text-2xl font-black text-amber-600">
+                            <p className="font-display text-lg sm:text-2xl font-black text-amber-600">
                                 {soalEvaluasi}
                             </p>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
                                 skor sebagian / nol
                             </p>
                         </div>
                     </div>
 
-                    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
                         <TrendingUp
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-2 -bottom-2 size-12 sm:size-14 text-primary/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-primary/20 opacity-12 transition group-hover:scale-110"
                         />
-                        <div className="relative z-10 space-y-1">
-                            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <div className="relative z-10 space-y-0.5 sm:space-y-1">
+                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                                 Ketercapaian
                             </p>
-                            <p className="font-display text-xl sm:text-2xl font-black text-primary">
+                            <p className="font-display text-lg sm:text-2xl font-black text-primary">
                                 {h.skor_maks
                                     ? Math.round((h.skor / h.skor_maks) * 100)
                                     : 0}
                                 %
                             </p>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
                                 total skor diperoleh
                             </p>
                         </div>
@@ -350,7 +350,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
                 {/* Banner info penundaan pembahasan (bila sedang berjalan) */}
                 {h.pembahasan_ditunda && (
-                    <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 text-xs text-sky-900 shadow-xs">
+                    <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50/90 p-4 text-xs text-sky-900 shadow-xs">
                         <Info className="size-4 shrink-0 text-sky-600 mt-0.5" />
                         <div className="space-y-0.5">
                             <p className="font-bold text-sm text-sky-950">
@@ -371,13 +371,13 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 )}
 
                 {/* Filter & Toolbar Soal */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-200/80 print:hidden">
-                    <div className="flex items-center gap-1.5 rounded-xl bg-slate-200/60 p-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-2 border-t border-slate-200/80 print:hidden">
+                    <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-1 w-full sm:w-auto">
                         <button
                             type="button"
                             onClick={() => setFilter("semua")}
                             className={cn(
-                                "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
                                 filter === "semua"
                                     ? "bg-white text-ink shadow-xs"
                                     : "text-slate-600 hover:text-ink",
@@ -389,7 +389,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             type="button"
                             onClick={() => setFilter("penuh")}
                             className={cn(
-                                "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
                                 filter === "penuh"
                                     ? "bg-white text-emerald-700 shadow-xs"
                                     : "text-slate-600 hover:text-emerald-700",
@@ -401,7 +401,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             type="button"
                             onClick={() => setFilter("evaluasi")}
                             className={cn(
-                                "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
                                 filter === "evaluasi"
                                     ? "bg-white text-amber-700 shadow-xs"
                                     : "text-slate-600 hover:text-amber-700",
@@ -415,7 +415,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         <button
                             type="button"
                             onClick={toggleBukaSemua}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-700 transition"
+                            className="inline-flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-slate-200/80 sm:border-transparent bg-white sm:bg-transparent px-3 py-1.5 text-xs font-bold text-primary hover:text-primary-700 hover:bg-slate-50 sm:hover:bg-transparent transition shadow-2xs sm:shadow-none"
                         >
                             <Lightbulb className="size-3.5 text-amber-500" />
                             <span>
@@ -430,7 +430,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 {/* Daftar Butir Soal */}
                 <div className="space-y-4">
                     {daftarTampil.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
                             <p className="text-sm font-semibold">
                                 Tidak ada butir soal dalam kategori ini.
                             </p>
@@ -445,10 +445,10 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             return (
                                 <article
                                     key={s.id}
-                                    className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-xs space-y-4 transition hover:border-slate-300"
+                                    className="rounded-lg border border-slate-200/90 bg-white p-3.5 sm:p-5 shadow-xs space-y-3.5 transition hover:border-slate-300"
                                 >
                                     {/* Header Butir Soal */}
-                                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
                                         <div className="flex items-center gap-2">
                                             <span className="inline-flex h-7 sm:h-8 items-center justify-center rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-2xs tabular-nums">
                                                 Soal {s.nomor}
@@ -491,7 +491,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                     {/* Wacana / Stimulus (Bila ada) */}
                                     {s.stimulus_id &&
                                         h.stimulus?.[String(s.stimulus_id)] && (
-                                            <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-3 sm:p-4 text-xs sm:text-sm text-slate-700 space-y-2">
+                                            <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-3 sm:p-4 text-xs sm:text-sm text-slate-700 space-y-2">
                                                 <div className="flex items-center gap-1.5 font-bold text-sky-800">
                                                     <BookOpen className="size-3.5 text-sky-600" />
                                                     <span>
@@ -524,7 +524,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
                                     {/* Catatan / Komentar Guru (Bila ada) */}
                                     {s.komentar.length > 0 && (
-                                        <div className="flex items-start gap-2.5 rounded-xl bg-amber-50/80 border border-amber-200/80 p-3 text-xs sm:text-sm text-amber-900">
+                                        <div className="flex items-start gap-2.5 rounded-lg bg-amber-50/80 border border-amber-200/80 p-3 text-xs sm:text-sm text-amber-900">
                                             <MessageSquareText className="size-4 shrink-0 text-amber-600 mt-0.5" />
                                             <div className="space-y-0.5">
                                                 <p className="font-bold text-amber-950 text-xs uppercase tracking-wide">
@@ -545,7 +545,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                                 onClick={() =>
                                                     toggleAccordion(s.id)
                                                 }
-                                                className="flex w-full items-center justify-between rounded-xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 transition"
+                                                className="flex w-full items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 transition"
                                                 aria-expanded={terbuka}
                                             >
                                                 <span className="flex items-center gap-2 text-primary font-bold">
@@ -564,7 +564,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                             </button>
 
                                             {terbuka && (
-                                                <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 text-xs sm:text-sm text-slate-800 leading-relaxed space-y-2">
+                                                <div className="mt-2.5 rounded-lg border border-slate-200/80 bg-slate-50/60 p-4 text-xs sm:text-sm text-slate-800 leading-relaxed space-y-2">
                                                     <RenderKonten
                                                         doc={
                                                             s.pembahasan as TiptapNode

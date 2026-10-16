@@ -106,7 +106,7 @@ export default function Masuk() {
             <div className="relative z-10 -mt-12 sm:-mt-14 flex-1 px-4 pb-10">
                 <div className="mx-auto max-w-md">
                     <form
-                        className="relative space-y-5 rounded-2xl border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
+                        className="relative space-y-5 rounded-lg border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
                         onSubmit={(e) => {
                             e.preventDefault();
                             if (online) masuk.mutate();
@@ -126,7 +126,7 @@ export default function Masuk() {
                         {!online && (
                             <div
                                 role="status"
-                                className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 animate-in fade-in"
+                                className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 animate-in fade-in"
                             >
                                 <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
                                 <div className="space-y-0.5">
@@ -188,7 +188,7 @@ export default function Masuk() {
                         {galat && (
                             <div
                                 role="alert"
-                                className="flex items-start gap-2.5 rounded-xl border border-coral-200 bg-coral-50 p-3.5 text-xs text-coral-700 animate-in fade-in"
+                                className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-xs text-coral-700 animate-in fade-in"
                             >
                                 <AlertCircle className="mt-0.5 size-4 shrink-0 text-coral-500" />
                                 <span className="font-medium leading-normal">{galat}</span>
@@ -227,7 +227,7 @@ export default function Masuk() {
                         <div className="border-t border-slate-100 pt-4">
                             <Link
                                 to="/panduan"
-                                className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
+                                className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
                             >
                                 <span className="flex items-center gap-2">
                                     <BookOpen className="size-4 text-primary" />
