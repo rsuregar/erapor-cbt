@@ -14,9 +14,11 @@ Pada aplikasi CBT Al Akhyar mode desktop (**Exam Browser Windows** berbasis Taur
 
 ## 2. Keluar Aplikasi Tanpa Login (Layar Masuk)
 
-Ketika aplikasi CBT sedang berada di halaman **Masuk Akun Murid**, admin/pengawas dapat memicu dialog penutupan aplikasi dengan dua cara:
+Ketika aplikasi CBT sedang berada di halaman **Masuk Akun Murid**, seluruh petunjuk visual penutupan aplikasi (seperti tombol merah dan teks pintasan di footer) **sengaja disembunyikan dari siswa** agar mode kiosk tidak disalahgunakan.
 
-### A. Kombinasi Tombol Keyboard (Shortcut)
+Pengawas/admin dapat memicu dialog penutupan aplikasi dengan dua metode rahasia:
+
+### A. Kombinasi Tombol Keyboard (Rahasia Pengawas)
 Tekan salah satu kombinasi tombol berikut di keyboard:
 - `Ctrl` + `Shift` + `Q` *(Quit)*
 - `Ctrl` + `Shift` + `X` *(Exit)*
@@ -31,27 +33,28 @@ Jika perangkat menggunakan layar sentuh (tablet/laptop 2-in-1) atau tidak memili
 1. **Ketuk / klik Logo Al Akhyar** di bagian atas sebanyak **5 kali berturut-turut** (dalam waktu 3 detik).
 2. **ATAU ketuk / klik lencana Versi Aplikasi** (`v0.1.0`) di bagian footer paling bawah sebanyak **5 kali berturut-turut**.
 
-### C. Tombol Visual di Layar Masuk
-Pada sudut kanan atas layar masuk (di samping indikator status koneksi), kini tersedia **Tombol Daya / Power**:
-- Cukup klik tombol berikon daya merah/putih tersebut untuk membuka modal konfirmasi penutupan aplikasi kapan saja tanpa perlu menghafal pintasan keyboard.
-
-### Dialog Konfirmasi
-Setelah shortcut, gestur, atau tombol visual dipicu, modal **Mode Admin / Pengawas** akan muncul:
-- Klik **Tutup Aplikasi** (merah) untuk langsung menutup dan menghentikan proses aplikasi. Seluruh sesi akun yang tersisa akan otomatis dibersihkan (logout).
+### C. Keamanan Dialog: Wajib Memasukkan PIN Pengawas
+Setelah shortcut atau gestur sentuh dipicu, modal **Khusus Pengawas / Proktor** akan muncul meminta **PIN Pengawas**:
+- **PIN Pengawas Default**: `alakhyar`
+- **PIN Alternatif / Darurat**: `778899`
+- **Kustomisasi PIN**: Dapat diatur via variabel lingkungan `.env`: `VITE_PIN_PENGAWAS=pin_rahasia_anda`.
+- Masukkan PIN yang valid lalu klik **Tutup Aplikasi** (merah). Seluruh sesi akun yang tersisa akan otomatis dibersihkan (logout) dan proses aplikasi akan dihentikan secara aman ke sistem operasi.
+- Jika PIN salah, sistem akan menolak dan aplikasi tetap terkunci di mode kiosk.
 - Klik **Batal** jika ingin kembali ke layar login siswa.
 
 ---
 
 ## 3. Keluar Aplikasi Setelah Login (Layar Beranda)
 
-Jika user (siswa atau guru) sudah masuk ke aplikasi:
-1. Klik tombol **Keluar** (ikon pintu/logout) di sudut kanan atas layar Beranda, **ATAU** tekan kombinasi keyboard **`Ctrl + Shift + Q`** / **`Ctrl + Shift + X`**.
-2. Pada jendela konfirmasi, klik **"Tutup dan Keluar"**.
-3. Saat diklik:
-   - Sesi e-Rapor dan kredensial perangkat langsung dibersihkan secara aman (`api.keluar()`, `sesi.keluar()`). Akun **ter-logout penuh**.
-   - Cache paket ujian dihapus dari IndexedDB perangkat.
-   - Pada **Exam Browser (Windows)** dan **Aplikasi Android**, aplikasi akan langsung tertutup otomatis.
-   - Pada **Web PWA**, sesi dikeluarkan dan halaman dialihkan kembali ke `/masuk`.
+Pada layar Beranda siswa:
+1. **Tombol Keluar Akun (Ikon Pintu di Kanan Atas)**:
+   - Didesain untuk siswa/pengawas yang ingin mengganti akun atau mengakhiri sesi murid.
+   - Mengklik tombol ini **hanya me-logout sesi akun murid** (`api.keluar()`, `sesi.keluar()`) dan mengarahkan kembali ke Layar Masuk (`/masuk`).
+   - **Aplikasi tetap berada dalam mode Kiosk Exam Browser** sehingga siswa tidak dapat mengakses desktop atau browser luar.
+2. **Menutup Aplikasi ke Sistem Operasi (Khusus Pengawas)**:
+   - Tekan kombinasi keyboard **`Ctrl + Shift + Q`** atau **`Ctrl + Shift + X`**.
+   - Masukkan **PIN Pengawas** (`alakhyar` atau `778899`).
+   - Klik **Tutup Aplikasi** untuk menghentikan aplikasi secara menyeluruh dan membuka kunci desktop/perangkat.
 
 ---
 
@@ -65,15 +68,14 @@ Ketika pengawas menekan tombol **Paksa Kumpul** pada dashboard e-Rapor untuk seo
 
 ---
 
-## 5. Ringkasan Pintasan Cepat
+## 5. Ringkasan Pengamanan & Hak Akses
 
-| Kondisi | Target Pengguna | Aksi / Pintasan | Hasil |
-|---|---|---|---|
-| **Layar Masuk (Belum Login)** | Admin / Pengawas | Klik tombol **Power** di pojok kanan atas | Membuka modal admin untuk **Tutup Aplikasi** |
-| **Layar Masuk (Belum Login)** | Admin / Pengawas | `Ctrl + Shift + Q` atau `Ctrl + Shift + X` | Membuka modal admin untuk **Tutup Aplikasi** |
-| **Layar Masuk (Belum Login)** | Admin / Pengawas | Ketuk **Logo** atau **Versi** 5× cepat | Membuka modal admin untuk **Tutup Aplikasi** |
-| **Layar Beranda (Sudah Login)** | Siswa / Pengawas | Tombol Logout / `Ctrl + Shift + Q` | **Logout akun otomatis** + tutup aplikasi |
-| **Layar Ujian (Sedang Mengerjakan)** | Pengawas e-Rapor | Tekan **Paksa Kumpul** di dashboard pengawas | Ujian selesai + **otomatis redirect ke dashboard murid** |
+| Kondisi | Target Pengguna | Aksi / Pintasan | Pengamanan | Hasil |
+|---|---|---|---|---|
+| **Layar Masuk** | Pengawas / Proktor | `Ctrl + Shift + Q` atau 5× ketuk Logo/Versi | **Wajib PIN Pengawas** (`alakhyar` / `778899`) | Menutup aplikasi ke OS |
+| **Layar Beranda** | Siswa / Pengawas | Klik tombol Logout (kanan atas) | Konfirmasi Keluar Akun | **Hanya logout akun**, aplikasi tetap terkunci di Layar Masuk |
+| **Layar Beranda** | Pengawas / Proktor | `Ctrl + Shift + Q` atau `Ctrl + Shift + X` | **Wajib PIN Pengawas** (`alakhyar` / `778899`) | Logout akun + menutup aplikasi ke OS |
+| **Layar Ujian** | Pengawas e-Rapor | Tekan **Paksa Kumpul** di dashboard pengawas | Otorisasi server e-Rapor | Ujian selesai + **otomatis redirect ke dashboard murid** |
 
 ---
 

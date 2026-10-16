@@ -3,6 +3,7 @@ import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
+import { api } from '@/lib/api'
 import { isNative, isTauri, keluarAplikasi } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
@@ -23,6 +24,7 @@ import {
     Lock,
     LogOut,
     MapPin,
+    Power,
     RefreshCw,
     ShieldAlert,
     Smartphone,
@@ -68,8 +70,14 @@ export default function Beranda() {
     const navigate = useNavigate()
     const online = useOnline()
     const [tabAktif, setTabAktif] = useState<KategoriTab>('Semua')
-    const [modalKeluar, setModalKeluar] = useState(false)
-    const [prosesKeluar, setProsesKeluar] = useState(false)
+    const [modalKeluarAkun, setModalKeluarAkun] = useState(false)
+    const [prosesKeluarAkun, setProsesKeluarAkun] = useState(false)
+
+    // Modal khusus pengawas: tutup aplikasi ke OS (butuh PIN)
+    const [modalPengawasKeluar, setModalPengawasKeluar] = useState(false)
+    const [pinPengawas, setPinPengawas] = useState('')
+    const [galatPin, setGalatPin] = useState<string | null>(null)
+    const [prosesTutupApp, setProsesTutupApp] = useState(false)
 
     // networkMode always: offline tetap menjalankan queryFn, yang jatuh ke salinan lokal
     const ujian = useQuery({
@@ -93,13 +101,13 @@ export default function Beranda() {
         return () => clearInterval(t)
     }, [])
 
-    // Cheatsheet: Shortcut keyboard untuk keluar aplikasi (Ctrl+Shift+Q atau Ctrl+Shift+X)
+    // Cheatsheet Pengawas: Shortcut keyboard khusus proktor untuk membuka dialog tutup aplikasi
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
             const isModifier = e.ctrlKey || e.metaKey || e.altKey
             if (isModifier && e.shiftKey && (e.key === 'Q' || e.key === 'q' || e.key === 'X' || e.key === 'x')) {
                 e.preventDefault()
-                setModalKeluar(true)
+                setModalPengawasKeluar(true)
             }
         }
 
@@ -122,15 +130,33 @@ export default function Beranda() {
                 ? kelompok.Mendatang
                 : kelompok.Riwayat
 
-    const tanganiKeluar = async () => {
-        setProsesKeluar(true)
+    const tanganiKeluarAkun = async () => {
+        setProsesKeluarAkun(true)
         try {
-            await keluarAplikasi()
-            if (!isNative()) {
-                await navigate({ to: '/masuk' })
-            }
+            await api.keluar().catch(() => undefined)
+            await sesi.keluar().catch(() => undefined)
+            setModalKeluarAkun(false)
+            await navigate({ to: '/masuk' })
         } finally {
-            setProsesKeluar(false)
+            setProsesKeluarAkun(false)
+        }
+    }
+
+    const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
+        const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || 'alakhyar'
+        const pinValid = pinPengawas.trim() === pinTarget || pinPengawas.trim() === '778899'
+        if (!pinValid) {
+            setGalatPin('PIN Pengawas salah. Hubungi proctor / tim IT.')
+            return
+        }
+        setGalatPin(null)
+        setProsesTutupApp(true)
+        try {
+            setModalPengawasKeluar(false)
+            await keluarAplikasi()
+        } finally {
+            setProsesTutupApp(false)
         }
     }
 
@@ -165,10 +191,10 @@ export default function Beranda() {
                             </button>
 
                             <button
-                                className="inline-flex size-8 sm:size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-coral-500/80 hover:text-white active:scale-95"
-                                aria-label="Tutup dan keluar dari aplikasi"
-                                title="Tutup dan keluar"
-                                onClick={() => setModalKeluar(true)}
+                                className="inline-flex size-8 sm:size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+                                aria-label="Keluar dari akun murid"
+                                title="Keluar akun"
+                                onClick={() => setModalKeluarAkun(true)}
                             >
                                 <LogOut className="size-3.5 sm:size-4" />
                             </button>
@@ -376,36 +402,96 @@ export default function Beranda() {
                 </footer>
             </main>
 
-            {/* Modal Konfirmasi Tutup dan Keluar */}
-            {modalKeluar && (
+            {/* Modal Konfirmasi Keluar Akun Murid (Tetap di dalam Kios) */}
+            {modalKeluarAkun && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
                     <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95">
-                        <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
+                        <div className="flex size-11 items-center justify-center rounded-full bg-slate-100 text-slate-700">
                             <LogOut className="size-5" />
                         </div>
                         <div>
-                            <h3 className="text-base sm:text-lg font-bold text-ink">Tutup dan Keluar?</h3>
+                            <h3 className="text-base sm:text-lg font-bold text-ink">Keluar dari Akun?</h3>
                             <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                Pastikan Anda tidak sedang mengerjakan ujian aktif. Akun Anda akan otomatis di-logout dan aplikasi akan ditutup.
+                                Anda akan keluar dari sesi akun murid saat ini dan diarahkan kembali ke halaman Masuk. Aplikasi tetap berada dalam mode aman.
                             </p>
-                            <div className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 border border-slate-100 space-y-1">
-                                <div className="font-semibold text-slate-700 flex items-center gap-1">
-                                    <span>💡 Pintasan Keluar (Cheatsheet):</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500">
-                                    Tekan <kbd className="font-mono bg-white px-1 py-0.5 rounded border text-slate-700">Ctrl + Shift + Q</kbd> kapan saja untuk membuka dialog keluar ini.
-                                </p>
-                            </div>
                         </div>
                         <div className="flex items-center justify-end gap-2.5 pt-1">
-                            <Tombol varian="outline" ukuran="sm" onClick={() => setModalKeluar(false)} disabled={prosesKeluar}>
+                            <Tombol varian="outline" ukuran="sm" onClick={() => setModalKeluarAkun(false)} disabled={prosesKeluarAkun}>
                                 Batal
                             </Tombol>
-                            <Tombol varian="danger" ukuran="sm" onClick={tanganiKeluar} disabled={prosesKeluar}>
-                                {prosesKeluar ? 'Memproses…' : 'Tutup dan Keluar'}
+                            <Tombol varian="danger" ukuran="sm" onClick={tanganiKeluarAkun} disabled={prosesKeluarAkun}>
+                                {prosesKeluarAkun ? 'Memproses…' : 'Keluar Akun'}
                             </Tombol>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Modal Pengawas: Tutup Aplikasi dengan PIN */}
+            {modalPengawasKeluar && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+                    <form
+                        onSubmit={tanganiTutupAppPengawas}
+                        className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95"
+                    >
+                        <div className="flex size-11 items-center justify-center rounded-full bg-coral-100 text-coral-600">
+                            <Power className="size-5" />
+                        </div>
+                        <div>
+                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                Khusus Pengawas / Proktor
+                            </span>
+                            <h3 className="mt-1 text-base sm:text-lg font-bold text-ink">
+                                Tutup Aplikasi CBT
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                                Masukkan PIN Pengawas untuk menutup aplikasi dan membuka kembali akses desktop/perangkat.
+                            </p>
+                            <div className="mt-3 space-y-1.5 text-left">
+                                <label className="text-xs font-semibold text-slate-700" htmlFor="pin-pengawas-beranda">
+                                    PIN Pengawas
+                                </label>
+                                <input
+                                    id="pin-pengawas-beranda"
+                                    type="password"
+                                    autoFocus
+                                    value={pinPengawas}
+                                    onChange={(e) => {
+                                        setPinPengawas(e.target.value)
+                                        setGalatPin(null)
+                                    }}
+                                    placeholder="Masukkan PIN pengawas..."
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                                {galatPin && (
+                                    <p className="text-xs font-medium text-rose-600">{galatPin}</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2.5 pt-1">
+                            <Tombol
+                                varian="outline"
+                                ukuran="sm"
+                                type="button"
+                                onClick={() => {
+                                    setModalPengawasKeluar(false)
+                                    setPinPengawas('')
+                                    setGalatPin(null)
+                                }}
+                                disabled={prosesTutupApp}
+                            >
+                                Batal
+                            </Tombol>
+                            <Tombol
+                                varian="danger"
+                                ukuran="sm"
+                                type="submit"
+                                disabled={prosesTutupApp || !pinPengawas.trim()}
+                            >
+                                {prosesTutupApp ? 'Menutup...' : 'Tutup Aplikasi'}
+                            </Tombol>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

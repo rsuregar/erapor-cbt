@@ -26,10 +26,31 @@ disebut.
 | 7.4 | Panduan jalur cadangan PWA | Kode jadi — `/panduan` tanpa login: pasang aplikasi + Akses Terpandu (iOS) / Sematkan Aplikasi (Android) / laptop, ilustrasi per langkah, tombol Pasang sekarang | S3 → S5 |
 | 7.5 | Watermark; blok salin/klik kanan/cetak | Kode jadi — watermark nama + NIS; salin/potong/tempel, klik kanan, seret, tekan-lama iOS, Ctrl/Cmd+P/S/U diblokir; cetak menghasilkan halaman kosong berpesan. Tidak dicatat sebagai pelanggaran `salin_tempel` | S3 → S5 |
 | 7.6 | Muat ulang di Lockdown → terkunci | Selesai (dibuka pengawas) | S3 |
-| 7.7 | App Capacitor Android/iOS, kunci layar, SQLite, geolokasi native (deteksi lokasi palsu) | Belum — baru `capacitor.config.ts` | S3 → S5 |
+| 7.7 | App Native (Android/iOS + Desktop Windows/macOS), kunci layar, SQLite, geolokasi native | Kode jadi — **Android**: `startLockTask` & `FLAG_SECURE`, SQLite `erapor_cbt.db`; **Desktop (Windows & macOS)**: Tauri v2 Exam Browser Kiosk, SQLite `erapor_cbt.db` via `rusqlite` bundled; **Web**: PWA IndexedDB fallback; CI/CD build APK/DMG/MSI/PWA | S3 → S5 |
 | 7.8 | Mode ujian iOS otomatis | Belum (P1); entitlement Apple belum diajukan | S5 |
-| 7.9 | Lokasi ujian: izin GPS, kirim posisi, pesan galat | Kode jadi (`cf7cd54`); `palsu` selalu false sampai geolokasi native (7.7) | S5 |
+| 7.9 | Lokasi ujian: izin GPS, kirim posisi, pesan galat | Kode jadi — koordinat, geofencing radius sekolah, dan deteksi palsu (isMock/isFromMockProvider) di UjianNativePlugin | S5 |
 | 2.4 | Login QR di kartu ujian | Belum (P1); format QR belum disepakati | S5 |
+
+---
+
+## Perkembangan Arsitektur: Dukungan Desktop Windows & macOS (Tauri v2)
+
+Sesuai penyesuaian kebutuhan operasional lab komputer dan laptop sekolah:
+1. **Tidak Lagi Bergantung pada Safe Exam Browser (SEB) Eksternal**:
+   - Dibuat aplikasi desktop mandiri berbasis **Tauri v2 (Rust + WebView2 di Windows / WKWebView di macOS)**.
+   - Ukuran paket sangat ringan (~5–10 MB), hemat RAM, dan langsung terpasang tanpa konfigurasi sertifikat SEB yang rumit.
+   - **Fitur Penguncian Layar Kiosk**:
+     - Layar penuh permanen (`fullscreen: true`, `decorations: false`, `alwaysOnTop: true`).
+     - Mencegah penutupan jendela sembarangan (Alt + F4 dicegah via event `CloseRequested` / `api.prevent_close()`).
+     - Keluar aplikasi aman menggunakan tombol Power / pintasan rahasia pengawas `Ctrl + Shift + Q` yang otomatis melakukan **logout sesi penuh**.
+
+2. **Sistem Penyimpanan Offline Terpadu (Story 6.5 & 7.7)**:
+   - **Android Native**: Menggunakan SQLite native (`/data/data/sch.alakhyar.ujian/databases/erapor_cbt.db`) via `UjianNativePlugin.java`.
+   - **Desktop Windows & macOS**: Menggunakan SQLite native (`erapor_cbt.db` via Rust `rusqlite` bundled) yang tersimpan di direktori App Data OS (`%APPDATA%` di Windows, `~/Library/Application Support` di macOS).
+   - **Web PWA**: Menggunakan `IndexedDB` (`erapor-cbt-ujian`).
+   - **Auto-fallback**: `PenyimpananApp` di `apps/ujian/src/lib/penyimpanan.ts` otomatis menjamin fallback ke IndexedDB bila terjadi kendala driver lokal, sehingga jawaban murid 100% aman tersimpan tanpa risiko terhapus oleh pembersihan cache peramban.
+
+---
 
 ## Sinkron dengan e-Rapor
 
@@ -41,3 +62,4 @@ disebut.
 - **Pelanggaran tak dihitung**: `offline` dan `keluar_lokasi` (server).
   `keluar_lokasi` hanya dicatat server dari `detak.lokasi`; app tidak
   mengirimnya.
+
