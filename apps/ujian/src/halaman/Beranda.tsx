@@ -1,3 +1,4 @@
+import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
 import { FotoMurid } from '@/komponen/FotoMurid'
@@ -72,6 +73,7 @@ export default function Beranda() {
                     <div className="mr-auto flex items-center gap-2 text-sm font-semibold">
                         <BookOpenCheck className="size-5" /> Ujian saya
                     </div>
+                    <IndikatorKoneksi online={online} tema="gelap" />
                     <button
                         className="inline-flex size-9 items-center justify-center rounded-sm bg-white/15 active:scale-95"
                         aria-label="Muat ulang"

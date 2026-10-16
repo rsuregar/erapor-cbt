@@ -1,6 +1,7 @@
 import { jenisPerangkat } from '@/lib/perangkat'
 import { sesi } from '@/lib/sesi'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
+import { NotifikasiKoneksiGlobal } from '@/komponen/IndikatorKoneksi'
 import Beranda from './halaman/Beranda'
 import Hasil from './halaman/Hasil'
 import Kerjakan from './halaman/Kerjakan'
@@ -8,7 +9,16 @@ import Masuk from './halaman/Masuk'
 import Panduan, { type UntukPanduan } from './halaman/Panduan'
 import Persiapan from './halaman/Persiapan'
 
-const akar = createRootRoute({ component: Outlet })
+function AkarLayout() {
+    return (
+        <>
+            <NotifikasiKoneksiGlobal />
+            <Outlet />
+        </>
+    )
+}
+
+const akar = createRootRoute({ component: AkarLayout })
 
 const masuk = createRoute({
     getParentRoute: () => akar,

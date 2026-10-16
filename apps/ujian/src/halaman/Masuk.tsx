@@ -1,16 +1,19 @@
+import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
 import { sesi } from "@/lib/sesi";
+import { useOnline } from "@/lib/useOnline";
 import { GalatApi } from "@erapor-cbt/exam-core";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, IdCard, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff, IdCard, LockKeyhole, WifiOff } from "lucide-react";
 import { useState } from "react";
 
 /** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
     const navigate = useNavigate();
+    const online = useOnline();
     const [nis, setNis] = useState("");
     const [sandi, setSandi] = useState("");
     const [lihat, setLihat] = useState(false);
@@ -45,11 +48,14 @@ export default function Masuk() {
         <main className="flex min-h-full flex-col">
             <section className="rounded-b-2xl bg-primary px-6 pb-24 pt-10 text-white">
                 <div className="mx-auto max-w-md">
-                    <img
-                        src="/brand/lockup-putih.png"
-                        alt="Sekolah Islam Al Akhyar"
-                        className="h-12 w-auto"
-                    />
+                    <div className="flex items-center justify-between">
+                        <img
+                            src="/brand/lockup-putih.png"
+                            alt="Sekolah Islam Al Akhyar"
+                            className="h-12 w-auto"
+                        />
+                        <IndikatorKoneksi online={online} tema="gelap" />
+                    </div>
                     <p className="mt-8 text-sm font-medium opacity-85">
                         Assalamu&apos;alaikum
                     </p>
@@ -107,6 +113,20 @@ export default function Masuk() {
                             </button>
                         }
                     />
+                    {!online && (
+                        <div
+                            role="status"
+                            className="flex items-start gap-2.5 rounded-sm border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800"
+                        >
+                            <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                            <div>
+                                <p className="font-semibold">Kamu sedang offline</p>
+                                <p className="mt-0.5 text-amber-700">
+                                    Sambungkan perangkat ke internet untuk masuk ke akun CBT.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     {galat && (
                         <p
                             role="alert"
@@ -119,9 +139,9 @@ export default function Masuk() {
                         type="submit"
                         ukuran="lg"
                         penuh
-                        disabled={masuk.isPending}
+                        disabled={masuk.isPending || !online}
                     >
-                        {masuk.isPending ? "Memeriksa…" : "Masuk"}
+                        {masuk.isPending ? "Memeriksa…" : !online ? "Offline — Butuh Internet" : "Masuk"}
                     </Tombol>
                     <p className="text-center text-xs text-slate-500">
                         Lupa kata sandi? Hubungi wali kelas atau admin sekolah.

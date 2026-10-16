@@ -1,3 +1,4 @@
+import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
 import { KartuKesiapan } from '@/komponen/KartuKesiapan'
@@ -171,7 +172,12 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
 
     return (
         <div className="min-h-full pb-10">
-            <KepalaFitur judul={u.nama} subjudul={u.mapel ?? undefined} onKembali={() => navigate({ to: '/' })} />
+            <KepalaFitur
+                judul={u.nama}
+                subjudul={u.mapel ?? undefined}
+                onKembali={() => navigate({ to: '/' })}
+                kanan={<IndikatorKoneksi online={online} tema="gelap" />}
+            />
 
             <main className="mx-auto max-w-xl space-y-4 px-4 pt-5">
                 <Kartu className="space-y-3">
