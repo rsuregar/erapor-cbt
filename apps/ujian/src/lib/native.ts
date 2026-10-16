@@ -57,6 +57,43 @@ export const jembatanSqliteNative: JembatanKvSqlite = {
 export const isTauri = () =>
     typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+/**
+ * Jembatan langsung ke SQLite database Desktop (Windows & macOS via Tauri)
+ * Memenuhi kontrak JembatanKvSqlite dari @erapor-cbt/exam-core.
+ */
+export const jembatanSqliteTauri: JembatanKvSqlite = {
+    async ambil(kunci: string): Promise<string | undefined> {
+        if (!isTauri()) return undefined
+        try {
+            const { invoke } = await import('@tauri-apps/api/core')
+            const res = await invoke<string | null>('sqlite_ambil', { kunci })
+            return res !== null && res !== undefined ? res : undefined
+        } catch {
+            return undefined
+        }
+    },
+    async simpan(kunci: string, nilaiString: string): Promise<void> {
+        if (!isTauri()) return
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('sqlite_simpan', { kunci, nilai: nilaiString })
+    },
+    async hapus(kunci: string): Promise<void> {
+        if (!isTauri()) return
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('sqlite_hapus', { kunci })
+    },
+    async daftarKunci(awalan: string): Promise<string[]> {
+        if (!isTauri()) return []
+        try {
+            const { invoke } = await import('@tauri-apps/api/core')
+            return await invoke<string[]>('sqlite_daftar_kunci', { awalan })
+        } catch {
+            return []
+        }
+    },
+}
+
+
 /** True jika aplikasi berjalan sebagai native app (Android APK, iOS, atau Tauri Desktop Exam Browser). */
 export const isNative = () => Capacitor.isNativePlatform() || isTauri()
 

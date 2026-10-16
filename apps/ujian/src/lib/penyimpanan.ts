@@ -3,24 +3,28 @@ import {
     PenyimpananSqliteNative,
     type Penyimpanan,
 } from '@erapor-cbt/exam-core'
-import { adaNative, jembatanSqliteNative } from '@/lib/native'
+import { adaNative, isTauri, jembatanSqliteNative, jembatanSqliteTauri } from '@/lib/native'
 
 /**
  * Adapter penyimpanan lokal untuk aplikasi CBT Al Akhyar (Story 7.7):
  * - Pada Android native (Capacitor): menggunakan PenyimpananSqliteNative
- *   yang tersimpan langsung di SQLite database internal Android (erapor_cbt.db),
- *   sehingga tidak pernah dihapus oleh OS saat memori menipis.
- * - Pada Web PWA & Desktop Exam Browser: menggunakan PenyimpananIndexedDb
- *   yang handal dan cepat di browser.
- * - Jika panggilan SQLite native gagal untuk alasan apapun, fallback
- *   otomatis ke PenyimpananIndexedDb.
+ *   yang tersimpan langsung di SQLite database internal Android (erapor_cbt.db).
+ * - Pada Desktop Exam Browser (Windows & macOS via Tauri): menggunakan
+ *   PenyimpananSqliteNative yang tersimpan di SQLite database internal desktop
+ *   (erapor_cbt.db via rusqlite).
+ * - Pada Web PWA & browser biasa: menggunakan PenyimpananIndexedDb.
+ * - Jika panggilan SQLite native mengalami kendala, otomatis fallback
+ *   ke PenyimpananIndexedDb tanpa menghentikan ujian murid.
  */
 export class PenyimpananApp implements Penyimpanan {
     public readonly indexedDb = new PenyimpananIndexedDb('erapor-cbt-ujian')
-    public readonly sqlite = new PenyimpananSqliteNative(jembatanSqliteNative)
+    public readonly sqliteAndroid = new PenyimpananSqliteNative(jembatanSqliteNative)
+    public readonly sqliteDesktop = new PenyimpananSqliteNative(jembatanSqliteTauri)
 
     public pilih(): Penyimpanan {
-        return adaNative() ? this.sqlite : this.indexedDb
+        if (adaNative()) return this.sqliteAndroid
+        if (isTauri()) return this.sqliteDesktop
+        return this.indexedDb
     }
 
     async ambil<T>(kunci: string): Promise<T | undefined> {

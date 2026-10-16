@@ -25,3 +25,8 @@ Direktori ini berisi dokumentasi teknis, operasional, dan panduan rilis untuk ap
      - Opsi 3: Middleware Cloudflare Worker dengan Environment Variable toggle.
    - Prosedur Operasional Standar (SOP) dan checklist admin sebelum & sesudah ujian.
 
+5. **[Arsitektur Multiplatform & Sistem Penyimpanan Offline](arsitektur-dan-offline-desktop.md)**
+   - Spesifikasi aplikasi Desktop (Windows & macOS) berbasis Tauri v2 Exam Browser Kiosk.
+   - Evaluasi alternatif penyimpanan offline dan arsitektur database SQLite Native (`erapor_cbt.db`) di Android & Desktop dengan IndexedDB fallback.
+
+
