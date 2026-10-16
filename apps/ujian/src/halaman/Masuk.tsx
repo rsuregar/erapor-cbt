@@ -103,10 +103,10 @@ export default function Masuk() {
             </section>
 
             {/* Login Card Form */}
-            <div className="-mt-14 flex-1 px-4 pb-10">
+            <div className="relative z-10 -mt-12 sm:-mt-14 flex-1 px-4 pb-10">
                 <div className="mx-auto max-w-md">
                     <form
-                        className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/5 transition-all"
+                        className="relative space-y-5 rounded-2xl border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
                         onSubmit={(e) => {
                             e.preventDefault();
                             if (online) masuk.mutate();
