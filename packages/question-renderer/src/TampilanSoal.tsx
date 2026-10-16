@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import RenderKonten from './RenderKonten'
 import type {
     ItemKonten,
@@ -34,6 +34,8 @@ type Props = {
     tata?: TataLetak
     ragu?: boolean
     onRagu?: (ragu: boolean) => void
+    skalaFont?: number
+    onUbahSkalaFont?: (skala: number) => void
 }
 
 /**
@@ -51,54 +53,130 @@ export default function TampilanSoal({
     tata = 'otomatis',
     ragu = false,
     onRagu,
+    skalaFont,
+    onUbahSkalaFont,
 }: Props) {
+    const [skalaInternal, setSkalaInternal] = useState(1)
+    const skala = skalaFont ?? skalaInternal
+    const setSkala = onUbahSkalaFont ?? setSkalaInternal
+
     const ubah = (j: Jawaban) => !nonaktif && onJawab?.(j)
     const duaKolom = !!soal.stimulus && tata !== 'satu-kolom'
+
+    const perbesar = () => setSkala(Math.min(1.4, Number((skala + 0.15).toFixed(2))))
+    const perkecil = () => setSkala(Math.max(0.85, Number((skala - 0.15).toFixed(2))))
+    const normal = () => setSkala(1)
+
     const kelasGrid = !duaKolom
-        ? 'mx-auto max-w-2xl'
+        ? 'mx-auto max-w-3xl w-full py-4 sm:py-6 px-4'
         : tata === 'dua-kolom'
-          ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700'
-          : 'grid lg:grid-cols-2 lg:divide-x lg:divide-slate-200 dark:lg:divide-slate-700'
-    const kelasKiri = tata === 'dua-kolom' ? 'pr-6 max-h-[70vh] overflow-y-auto' : 'pb-4 lg:pb-0 lg:pr-6 lg:max-h-[70vh] lg:overflow-y-auto'
-    const kelasKanan = duaKolom ? (tata === 'dua-kolom' ? 'pl-6' : 'lg:pl-6') : ''
+          ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
+          : 'grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
+
+    const kelasKiri = tata === 'dua-kolom'
+        ? 'pr-6 lg:pr-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
+        : 'pb-6 lg:pb-0 pr-0 lg:pr-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
+
+    const kelasKanan = duaKolom
+        ? tata === 'dua-kolom'
+            ? 'pl-6 lg:pl-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-4 bg-white'
+            : 'pt-6 lg:pt-0 pl-0 lg:pl-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-4 bg-white'
+        : 'space-y-4'
 
     return (
         <div className={kelasGrid}>
             {soal.stimulus && (
-                <section className={duaKolom ? kelasKiri : 'mb-4 rounded-lg border border-slate-200 p-3 dark:border-slate-700'}>
-                    <RenderKonten doc={soal.stimulus.konten} />
+                <section className={duaKolom ? kelasKiri : 'mb-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700'}>
+                    <div className="mb-3.5 flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-slate-700">
+                        <div className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-800 border border-sky-200/70 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800">
+                            <svg viewBox="0 0 24 24" className="size-3.5 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                            </svg>
+                            <span>{soal.stimulus.judul || 'Wacana / Bahan Bacaan'}</span>
+                        </div>
+                        <span className="text-[11px] font-medium text-slate-400">Gunakan untuk menjawab soal</span>
+                    </div>
+                    <div className="leading-relaxed" style={{ fontSize: `${skala * 100}%` }}>
+                        <RenderKonten doc={soal.stimulus.konten} />
+                    </div>
                 </section>
             )}
 
-            <div className={`space-y-4 ${kelasKanan}`}>
+            <div className={kelasKanan}>
                 {(nomor !== undefined || onRagu) && (
-                    <div className="flex items-center gap-3 rounded-md border-b-2 border-dashed border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">
-                        {nomor !== undefined && (
-                            <span className="grid size-8 place-items-center rounded bg-slate-900 text-sm font-bold text-white tabular-nums dark:bg-slate-100 dark:text-slate-900">
-                                {nomor}
-                            </span>
-                        )}
-                        {onRagu && (
-                            <button
-                                type="button"
-                                aria-pressed={ragu}
-                                onClick={() => onRagu(!ragu)}
-                                className={`flex items-center gap-1.5 rounded px-2 py-1 text-sm ${
-                                    ragu ? 'font-semibold text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-200'
-                                }`}
-                            >
-                                <svg viewBox="0 0 24 24" className="size-4" fill={ragu ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden>
-                                    <path d="M6 3h12v18l-6-4-6 4z" />
-                                </svg>
-                                Tandai ragu-ragu
-                            </button>
-                        )}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/90 bg-slate-100/75 p-2 sm:px-3 sm:py-2 dark:border-slate-700 dark:bg-slate-800">
+                        <div className="flex items-center gap-2">
+                            {nomor !== undefined && (
+                                <span className="inline-flex h-7 sm:h-8 items-center justify-center rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-xs dark:bg-slate-100 dark:text-slate-900 tabular-nums">
+                                    Soal {nomor}
+                                </span>
+                            )}
+                            {onRagu && (
+                                <button
+                                    type="button"
+                                    aria-pressed={ragu}
+                                    onClick={() => onRagu(!ragu)}
+                                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition active:scale-95 ${
+                                        ragu
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold shadow-xs dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700'
+                                            : 'bg-white/90 text-slate-700 border border-slate-300/80 hover:bg-white hover:border-slate-400 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'
+                                    }`}
+                                >
+                                    <svg viewBox="0 0 24 24" className={`size-3.5 ${ragu ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} fill={ragu ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden>
+                                        <path d="M6 3h12v18l-6-4-6 4z" />
+                                    </svg>
+                                    <span>{ragu ? 'Ragu-ragu' : 'Tandai ragu-ragu'}</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Kontrol Ukuran Font / Zoom Teks */}
+                        <div className="flex items-center gap-1">
+                            <span className="hidden sm:inline text-[11px] font-semibold text-slate-400 mr-0.5">Ukuran Teks:</span>
+                            <div className="inline-flex items-center rounded-lg bg-white/90 border border-slate-300/80 p-0.5 shadow-2xs dark:bg-slate-700 dark:border-slate-600">
+                                <button
+                                    type="button"
+                                    onClick={perkecil}
+                                    disabled={skala <= 0.85}
+                                    title="Kecilkan huruf (Zoom Out)"
+                                    aria-label="Kecilkan ukuran huruf"
+                                    className="inline-flex h-6 w-7 items-center justify-center rounded text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-35 transition dark:text-slate-200 dark:hover:bg-slate-600"
+                                >
+                                    A-
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={normal}
+                                    title="Kembalikan ukuran normal (100%)"
+                                    aria-label="Kembalikan ukuran normal"
+                                    className={`inline-flex h-6 px-2 items-center justify-center rounded text-[11px] transition font-bold ${
+                                        skala === 1
+                                            ? 'bg-sky-600 text-white shadow-2xs'
+                                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-600'
+                                    }`}
+                                >
+                                    {skala === 1 ? 'Normal' : `${Math.round(skala * 100)}%`}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={perbesar}
+                                    disabled={skala >= 1.4}
+                                    title="Besarkan huruf (Zoom In)"
+                                    aria-label="Besarkan ukuran huruf"
+                                    className="inline-flex h-6 w-7 items-center justify-center rounded text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-35 transition dark:text-slate-200 dark:hover:bg-slate-600"
+                                >
+                                    A+
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                <RenderKonten doc={soal.pertanyaan} />
-
-                <IsianJawaban soal={soal} jawaban={jawaban} ubah={ubah} kunci={kunci} nonaktif={nonaktif} />
+                <div className="space-y-4" style={{ fontSize: `${skala * 100}%` }}>
+                    <RenderKonten doc={soal.pertanyaan} />
+                    <IsianJawaban soal={soal} jawaban={jawaban} ubah={ubah} kunci={kunci} nonaktif={nonaktif} />
+                </div>
             </div>
         </div>
     )
@@ -141,10 +219,10 @@ function IsianJawaban({
                         return (
                             <label
                                 key={o.id}
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 px-3 py-2.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
+                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3.5 py-3 transition-all duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
                                     aktif
-                                        ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40'
-                                        : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+                                        ? 'border-sky-600 bg-sky-50/70 shadow-2xs dark:border-sky-500 dark:bg-sky-950/40'
+                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600'
                                 } ${benar.has(o.id) ? 'outline outline-2 outline-offset-2 outline-emerald-500' : ''}`}
                             >
                                 <input
@@ -165,9 +243,9 @@ function IsianJawaban({
                                 />
                                 <span
                                     aria-hidden
-                                    className={`grid size-7 shrink-0 place-items-center border-2 text-sm font-bold ${
+                                    className={`grid size-7 sm:size-8 shrink-0 place-items-center text-xs sm:text-sm font-bold transition-colors ${
                                         kompleks ? 'rounded-md' : 'rounded-full'
-                                    } ${aktif ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-400 text-slate-700 dark:text-slate-200'}`}
+                                    } ${aktif ? 'bg-sky-600 text-white shadow-2xs dark:bg-sky-500' : 'border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}
                                 >
                                     {HURUF[i]}
                                 </span>

@@ -5,7 +5,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { sesi } from '@/lib/sesi'
-import { durasiSingkat, hariTanggal, jamMenit, tanggalGanda } from '@/lib/tanggal'
+import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian, penyimpanan } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
@@ -42,12 +42,20 @@ type KategoriTab = 'Semua' | 'Hari Ini' | 'Mendatang' | 'Riwayat'
 
 function kelompokkan(daftar: UjianRingkas[], sekarang: number): Record<'Hari Ini' | 'Mendatang' | 'Riwayat', UjianRingkas[]> {
     const hasil: Record<'Hari Ini' | 'Mendatang' | 'Riwayat', UjianRingkas[]> = { 'Hari Ini': [], Mendatang: [], Riwayat: [] }
-    const hariIni = new Date(sekarang).toDateString()
+    const hariIniWita = tanggalKunciWita(sekarang)
+
     for (const u of daftar) {
         const buka = Date.parse(u.dibuka_pada)
-        if (u.status === 'selesai' || Date.parse(u.ditutup_pada) < sekarang) hasil.Riwayat.push(u)
-        else if (buka <= sekarang || new Date(buka).toDateString() === hariIni) hasil['Hari Ini'].push(u)
-        else hasil.Mendatang.push(u)
+        const tutup = Date.parse(u.ditutup_pada)
+        const hariBukaWita = tanggalKunciWita(u.dibuka_pada)
+
+        if (u.status === 'selesai' || tutup < sekarang) {
+            hasil.Riwayat.push(u)
+        } else if (buka <= sekarang || hariBukaWita === hariIniWita) {
+            hasil['Hari Ini'].push(u)
+        } else {
+            hasil.Mendatang.push(u)
+        }
     }
     hasil.Riwayat.reverse()
 
@@ -76,9 +84,10 @@ export default function Beranda() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [online])
 
+    // Hitung mundur realtime setiap 1 detik
     const [sekarang, setSekarang] = useState(Date.now())
     useEffect(() => {
-        const t = setInterval(() => setSekarang(Date.now()), 15_000)
+        const t = setInterval(() => setSekarang(Date.now()), 1000)
 
         return () => clearInterval(t)
     }, [])
@@ -172,12 +181,12 @@ export default function Beranda() {
                         </div>
                     </div>
 
-                    {/* Quick Summary Stat Cards */}
+                    {/* Quick Summary Stat Cards with Large Watermark Background */}
                     <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         {[
-                            { id: 'Hari Ini', label: 'Hari Ini', count: kelompok['Hari Ini'].length, icon: BookOpenCheck, color: 'text-sky-200' },
-                            { id: 'Mendatang', label: 'Mendatang', count: kelompok.Mendatang.length, icon: CalendarClock, color: 'text-sky-200' },
-                            { id: 'Riwayat', label: 'Selesai', count: kelompok.Riwayat.length, icon: Trophy, color: 'text-amber-300' },
+                            { id: 'Hari Ini', label: 'Hari Ini', count: kelompok['Hari Ini'].length, icon: BookOpenCheck },
+                            { id: 'Mendatang', label: 'Mendatang', count: kelompok.Mendatang.length, icon: CalendarClock },
+                            { id: 'Riwayat', label: 'Selesai', count: kelompok.Riwayat.length, icon: Trophy },
                         ].map((item) => {
                             const aktif = tabAktif === item.id
                             return (
@@ -186,19 +195,27 @@ export default function Beranda() {
                                     type="button"
                                     onClick={() => setTabAktif(item.id as KategoriTab)}
                                     className={cn(
-                                        'rounded-xl sm:rounded-2xl p-2 sm:p-3 text-left transition-all backdrop-blur-md border',
+                                        'group relative overflow-hidden rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 text-left transition-all backdrop-blur-md border select-none',
                                         aktif
                                             ? 'bg-white text-ink border-white shadow-md ring-2 ring-white/50'
-                                            : 'bg-white/10 text-white border-white/15 hover:bg-white/15',
+                                            : 'bg-white/10 text-white border-white/15 hover:bg-white/15 active:scale-[0.98]',
                                     )}
                                 >
-                                    <div className="flex items-center justify-between">
-                                        <span className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-wider', aktif ? 'text-primary' : 'text-sky-100/80')}>
+                                    {/* Large Decorative Background Watermark Icon */}
+                                    <item.icon
+                                        className={cn(
+                                            'pointer-events-none absolute -right-2 -bottom-2 sm:-right-1 sm:-bottom-1 size-12 sm:size-14 transition-transform duration-300 group-hover:scale-110',
+                                            aktif ? 'text-primary/10' : 'text-white/[0.14]',
+                                        )}
+                                        aria-hidden="true"
+                                    />
+
+                                    <div className="relative z-10">
+                                        <span className={cn('block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider', aktif ? 'text-primary' : 'text-sky-100/80')}>
                                             {item.label}
                                         </span>
-                                        <item.icon className={cn('size-3.5 sm:size-4', aktif ? 'text-primary' : item.color)} />
+                                        <p className="mt-1 text-xl sm:text-2xl font-black leading-none">{item.count}</p>
                                     </div>
-                                    <p className="mt-0.5 text-base sm:text-2xl font-extrabold">{item.count}</p>
                                 </button>
                             )
                         })}
@@ -403,7 +420,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1">
                     <CalendarClock className="size-3 text-slate-400 shrink-0" />
-                    <span>{hariTanggal(u.dibuka_pada)}, {jamMenit(u.dibuka_pada)}–{jamMenit(u.ditutup_pada)}</span>
+                    <span>{hariTanggal(u.dibuka_pada)}, {jamMenit(u.dibuka_pada)}–{jamMenit(u.ditutup_pada)} WITA</span>
                 </span>
                 <span className="inline-flex items-center gap-1">
                     <Clock className="size-3 text-slate-400 shrink-0" />
@@ -425,25 +442,27 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
             </div>
 
             {/* Bottom Actions Area */}
-            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
-                <div className="text-[11px] font-medium min-w-0 truncate">
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
+                <div className="min-w-0 text-xs">
                     {!riwayat && u.status !== 'selesai' && (
                         sekarang < buka ? (
-                            <span className="inline-flex items-center gap-1 text-slate-500 truncate">
+                            <span className="inline-flex items-center gap-1.5 text-slate-600 truncate">
                                 <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
-                                Dibuka <span className="font-bold text-primary">{durasiSingkat(buka - sekarang)}</span>
+                                <span>Dibuka <strong className="font-semibold text-primary">{durasiLengkap(buka - sekarang)}</strong></span>
+                                <span className="text-slate-400 text-[11px] hidden xs:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
                             </span>
                         ) : sedangDibuka ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold truncate">
-                                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                Sisa s/d {jamMenit(u.ditutup_pada)}
+                            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold truncate">
+                                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                                <span>Sisa <strong className="font-bold text-emerald-800">{durasiLengkap(tutup - sekarang)}</strong></span>
+                                <span className="text-slate-400 font-normal text-[11px]">(s/d {jamMenit(u.ditutup_pada)} WITA)</span>
                             </span>
                         ) : (
                             <span className="text-slate-400">Jadwal telah berakhir</span>
                         )
                     )}
                     {(riwayat || u.status === 'selesai') && (
-                        <span className="text-slate-400">Ujian telah selesai</span>
+                        <span className="text-slate-400">Ujian telah diselesaikan</span>
                     )}
                 </div>
 
@@ -452,9 +471,9 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                         <Link
                             to="/hasil/$attemptId"
                             params={{ attemptId: u.attempt_id }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+                            className="inline-flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 active:scale-95"
                         >
-                            <Trophy className="size-3 text-amber-600" />
+                            <Trophy className="size-3.5 text-amber-600" />
                             <span>Hasil</span>
                         </Link>
                     )}
@@ -464,7 +483,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                             to="/ujian/$ujianId"
                             params={{ ujianId: u.id }}
                             className={cn(
-                                'inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm active:scale-95',
+                                'inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold transition shadow-sm active:scale-95',
                                 sedangDibuka
                                     ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
                                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -472,12 +491,12 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                         >
                             <span>
                                 {u.status === 'mengerjakan'
-                                    ? 'Lanjutkan'
+                                    ? 'Lanjutkan Ujian'
                                     : sedangDibuka
                                       ? 'Mulai Ujian'
-                                      : 'Persiapan'}
+                                      : 'Persiapan Ujian'}
                             </span>
-                            <ArrowRight className="size-3 opacity-80" />
+                            <ArrowRight className="size-3.5 opacity-80" />
                         </Link>
                     )}
                 </div>

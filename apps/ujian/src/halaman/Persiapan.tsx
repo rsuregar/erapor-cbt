@@ -1,6 +1,5 @@
 import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { KepalaFitur } from '@/komponen/KepalaFitur'
-import { Kartu } from '@/komponen/Kartu'
 import { KartuKesiapan } from '@/komponen/KartuKesiapan'
 import { FotoMurid } from '@/komponen/FotoMurid'
 import { KotakToken } from '@/komponen/KotakToken'
@@ -14,7 +13,7 @@ import { kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
-import { durasiSingkat, hariTanggal, jamMenit } from '@/lib/tanggal'
+import { durasiLengkap, hariTanggal, jamMenit } from '@/lib/tanggal'
 import { ambilPaket, daftarUjian, sesiLokalUjian, simpanSesi } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { terapkanPembaruan, useKesiapan } from '@/lib/useKesiapan'
@@ -24,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { dekripsiPaket, GalatApi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, BellOff, CheckCircle2, Clock, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
+import { AlertTriangle, BellOff, CheckCircle2, ChevronLeft, Clock, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 const KEAMANAN = { dasar: 'Dasar', ketat: 'Ketat', lockdown: 'Lockdown' } as const
@@ -171,56 +170,128 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const galatMulai = mulai.error ? pesanGalatMulai(mulai.error) : null
 
     return (
-        <div className="min-h-full pb-10">
-            <KepalaFitur
-                judul={u.nama}
-                subjudul={u.mapel ?? undefined}
-                onKembali={() => navigate({ to: '/' })}
-                kanan={<IndikatorKoneksi online={online} tema="gelap" />}
-            />
+        <div className="min-h-full bg-slate-50/70 pb-16">
+            {/* Header Hero Section */}
+            <header className="relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-4 pt-4 pb-12 sm:pb-14 text-white shadow-lg sm:px-6">
+                {/* Decorative Ambient Backgrounds */}
+                <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-white/5 blur-3xl" aria-hidden="true" />
+                <div className="pointer-events-none absolute -left-16 bottom-0 size-72 rounded-full bg-sky-400/10 blur-2xl" aria-hidden="true" />
 
-            <main className="mx-auto max-w-xl space-y-4 px-4 pt-5">
-                <Kartu className="space-y-3">
-                    <div className="flex items-center gap-3">
-                        <FotoMurid nama={u.murid.nama} foto={u.murid.foto} ukuran="lg" className="ring-primary-100" />
-                        <div>
-                            <p className="text-xs text-slate-500">Peserta</p>
-                            <p className="font-bold text-ink">{u.murid.nama}</p>
+                <div className="relative mx-auto max-w-xl space-y-3.5">
+                    {/* Top Bar: Back & Status */}
+                    <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                        <button
+                            onClick={() => navigate({ to: '/' })}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+                            aria-label="Kembali ke beranda"
+                        >
+                            <ChevronLeft className="size-4" />
+                            <span>Kembali</span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <IndikatorKoneksi online={online} tema="gelap" />
                         </div>
                     </div>
-                    <dl className="grid grid-cols-2 gap-3 border-t border-dashed border-slate-200 pt-3 text-sm">
-                        <Butir ikon={<Clock className="size-4" />} label="Waktu" isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)}`} />
-                        <Butir ikon={<ListChecks className="size-4" />} label="Soal · durasi" isi={`${u.jumlah_soal} soal · ${u.durasi_menit + u.tambahan_waktu_menit} menit`} />
-                        <Butir ikon={<MapPin className="size-4" />} label="Sesi" isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'} />
-                        <Butir ikon={<ShieldCheck className="size-4" />} label="Keamanan" isi={<Lencana nada={u.level_keamanan === 'dasar' ? 'neutral' : 'magenta'}>{KEAMANAN[u.level_keamanan]}</Lencana>} />
+
+                    {/* Subject Tags & Exam Title */}
+                    <div className="space-y-1.5 pt-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {u.mapel && (
+                                <span className="inline-flex items-center rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-sky-100 backdrop-blur-md border border-white/15">
+                                    {u.mapel}
+                                </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-bold text-sky-100 backdrop-blur-md border border-white/15">
+                                <ShieldCheck className="size-3" />
+                                <span>Mode {KEAMANAN[u.level_keamanan]}</span>
+                            </span>
+                        </div>
+
+                        <h1 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-sm">
+                            {u.nama}
+                        </h1>
+
+                        {/* Status Chip */}
+                        <div className="pt-0.5">
+                            {dibuka && !selesai ? (
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-md border border-emerald-400/30">
+                                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span>Sedang Berlangsung · Sisa {durasiLengkap(tutup - sekarang)} (s/d {jamMenit(u.ditutup_pada)} WITA)</span>
+                                </div>
+                            ) : sekarang < buka ? (
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-amber-200 backdrop-blur-md border border-amber-300/30">
+                                    <Clock className="size-3 text-amber-300" />
+                                    <span>Dibuka dalam {durasiLengkap(buka - sekarang)} (mulai {jamMenit(u.dibuka_pada)} WITA)</span>
+                                </div>
+                            ) : (
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 backdrop-blur-md border border-white/15">
+                                    <span>Ujian Telah Selesai</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main className="relative z-10 -mt-5 sm:-mt-6 mx-auto max-w-xl space-y-4 px-3 sm:px-4">
+                {/* Student & Exam Details Card */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm space-y-3.5">
+                    <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                        <FotoMurid nama={u.murid.nama} foto={u.murid.foto} ukuran="md" className="ring-2 ring-primary/20 bg-white" />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Peserta Ujian</p>
+                            <p className="font-bold text-ink text-sm sm:text-base leading-snug truncate">{u.murid.nama}</p>
+                        </div>
+                    </div>
+
+                    <dl className="grid grid-cols-2 gap-2 sm:gap-3">
                         <Butir
-                            ikon={<LocateFixed className="size-4" />}
-                            label="Lokasi"
-                            isi={wajibLokasi ? `Di sekolah${u.lokasi.radius_meter ? ` · radius ${u.lokasi.radius_meter} m` : ''}` : 'Dari mana saja'}
+                            ikon={<Clock className="size-3.5 text-primary" />}
+                            label="Jadwal (WITA)"
+                            isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)} WITA`}
+                        />
+                        <Butir
+                            ikon={<ListChecks className="size-3.5 text-primary" />}
+                            label="Soal &amp; Durasi"
+                            isi={`${u.jumlah_soal} Soal · ${u.durasi_menit + u.tambahan_waktu_menit} Menit`}
+                        />
+                        <Butir
+                            ikon={<MapPin className="size-3.5 text-primary" />}
+                            label="Sesi &amp; Ruang"
+                            isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'}
+                        />
+                        <Butir
+                            ikon={<LocateFixed className="size-3.5 text-primary" />}
+                            label="Ketentuan Lokasi"
+                            isi={wajibLokasi ? `Sekolah (${u.lokasi.radius_meter ? `${u.lokasi.radius_meter}m` : 'area'})` : 'Dari mana saja'}
                         />
                     </dl>
-                </Kartu>
+                </div>
 
-                <Kartu className="space-y-2.5">
-                    <h2 className="text-body-lg">Tata tertib</h2>
-                    <Aturan ikon={<BellOff className="size-4" />}>Nyalakan mode Jangan Ganggu dan tutup aplikasi lain.</Aturan>
-                    <Aturan ikon={<ShieldCheck className="size-4" />}>Jangan keluar dari aplikasi atau berpindah layar — tercatat sebagai pelanggaran.</Aturan>
-                    {u.level_keamanan === 'lockdown' && (
-                        <Aturan ikon={<ShieldCheck className="size-4" />}>Ujian Lockdown: memuat ulang atau menutup aplikasi langsung mengunci ujian sampai dibuka pengawas.</Aturan>
-                    )}
-                    {wajibLokasi && (
-                        <Aturan ikon={<LocateFixed className="size-4" />}>Ujian ini hanya bisa dikerjakan di area sekolah. Posisimu dicek saat menekan Mulai dan selama ujian.</Aturan>
-                    )}
-                    <Aturan ikon={<Wifi className="size-4" />}>Jawaban tersimpan di perangkat walau internet putus, lalu terkirim otomatis.</Aturan>
-                    <Aturan ikon={<Clock className="size-4" />}>Waktu mengikuti jam server; ujian terkumpul otomatis saat waktu habis.</Aturan>
-                </Kartu>
+                {/* Tata Tertib Card */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm space-y-3">
+                    <h2 className="text-sm sm:text-base font-bold text-ink">Tata Tertib &amp; Peraturan Ujian</h2>
+                    <div className="space-y-2">
+                        <Aturan ikon={<BellOff className="size-3.5" />}>Nyalakan mode Jangan Ganggu dan tutup semua aplikasi lain.</Aturan>
+                        <Aturan ikon={<ShieldCheck className="size-3.5" />}>Jangan keluar dari aplikasi atau berpindah layar — tercatat sebagai pelanggaran.</Aturan>
+                        {u.level_keamanan === 'lockdown' && (
+                            <Aturan ikon={<ShieldCheck className="size-3.5" />}>Ujian Lockdown: memuat ulang atau menutup aplikasi langsung mengunci ujian.</Aturan>
+                        )}
+                        {wajibLokasi && (
+                            <Aturan ikon={<LocateFixed className="size-3.5" />}>Ujian wajib di area sekolah. Posisimu dicek berkala via GPS.</Aturan>
+                        )}
+                        <Aturan ikon={<Wifi className="size-3.5" />}>Jawaban tersimpan otomatis di perangkat walau internet putus.</Aturan>
+                        <Aturan ikon={<Clock className="size-3.5" />}>Waktu mengikuti jam server WITA; ujian terkumpul otomatis saat waktu habis.</Aturan>
+                    </div>
+                </div>
 
+                {/* Kesiapan Perangkat */}
                 <KartuKesiapan
                     daftar={kesiapan.daftar}
                     penghalang={kesiapan.penghalang}
                     onAksi={(a) => {
                         const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
-                        // App native: buka toko/APK sekolah di browser; PWA: pasang service worker baru.
                         if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
                         else if (a === 'layar_penuh') void masukLayarPenuh()
                         else if (a === 'panduan') void navigate({ to: '/panduan' })
@@ -236,61 +307,71 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                 )}
 
                 {offlineLokal ? (
-                    <Kartu>
+                    <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
                         <Tombol
                             ukuran="lg"
                             penuh
+                            className="rounded-xl font-bold py-3.5 shadow-md shadow-primary/25"
                             onClick={() => {
                                 void masukLayarPenuh()
                                 if (u.level_keamanan !== 'dasar') void kunciLayar()
                                 lanjutLokal()
                             }}
                         >
-                            Lanjutkan ujian
+                            Lanjutkan Ujian
                         </Tombol>
-                    </Kartu>
-                ) : (
-                <Kartu className="space-y-4">
-                    <KartuUnduh ujian={u} status={status} onUnduh={unduh} />
-
-                    {wajibLokasi && <KartuLokasi status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
-
-                    <div className={cn('space-y-2 text-center', !siap && 'opacity-50')}>
-                        <p className="text-sm font-semibold text-ink">Masukkan token dari pengawas</p>
-                        <div key={goyang} className={goyang ? 'animate-goyang' : undefined}>
-                            <KotakToken nilai={token} onUbah={setToken} galat={!!galatMulai && token.length === 0} nonaktif={!siap || selesai || mulai.isPending} />
-                        </div>
                     </div>
+                ) : (
+                    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm space-y-4">
+                        <KartuUnduh ujian={u} status={status} onUnduh={unduh} />
 
-                    {galatMulai && (
-                        <p role="alert" className="flex gap-2 rounded-sm bg-coral-100 px-3 py-2.5 text-sm font-medium text-coral-600">
-                            <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {galatMulai}
+                        {wajibLokasi && <KartuLokasi status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
+
+                        <div className={cn('space-y-2 text-center pt-3 border-t border-slate-100', !siap && 'opacity-50')}>
+                            <p className="text-sm font-bold text-ink">Masukkan Token Ujian</p>
+                            <p className="text-xs text-slate-500">Tanyakan 6 karakter token kepada guru/pengawas di ruangan</p>
+                            <div key={goyang} className={cn('pt-1', goyang ? 'animate-goyang' : undefined)}>
+                                <KotakToken nilai={token} onUbah={setToken} galat={!!galatMulai && token.length === 0} nonaktif={!siap || selesai || mulai.isPending} />
+                            </div>
+                        </div>
+
+                        {galatMulai && (
+                            <p role="alert" className="flex items-center gap-2 rounded-xl bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
+                                <AlertTriangle className="size-4 shrink-0" />
+                                <span>{galatMulai}</span>
+                            </p>
+                        )}
+
+                        <Tombol
+                            ukuran="lg"
+                            penuh
+                            disabled={!bisaMulai}
+                            className="rounded-xl font-bold py-3.5 shadow-md shadow-primary/25 transition active:scale-[0.98]"
+                            onClick={() => mulai.mutate(masukLayarPenuh())}
+                        >
+                            {mulai.isPending ? 'Memulai Ujian…' : u.status === 'mengerjakan' ? 'Lanjutkan Ujian Sekarang' : 'Mulai Ujian Sekarang'}
+                        </Tombol>
+
+                        <p className="text-center text-xs text-slate-500">
+                            {selesai
+                                ? 'Ujian ini sudah dikumpulkan.'
+                                : sekarang < buka
+                                  ? `Ujian dibuka dalam ${durasiLengkap(buka - sekarang)}.`
+                                  : sekarang > tutup
+                                    ? 'Ujian sudah ditutup.'
+                                    : !siap
+                                      ? 'Tombol aktif setelah paket soal selesai diunduh.'
+                                      : !perangkatSiap
+                                        ? `Perbaiki dulu: ${kesiapan.penghalang.map((i) => i.judul.toLowerCase()).join(', ')}.`
+                                        : !lokasiSiap
+                                        ? 'Tombol aktif setelah posisimu didapat.'
+                                        : token.length < 6
+                                        ? 'Masukkan 6 karakter token ujian.'
+                                        : !online
+                                          ? 'Tombol aktif setelah tersambung ke internet.'
+                                          : 'Siap. Waktu ujian mulai berjalan setelah kamu menekan tombol Mulai.'}
                         </p>
-                    )}
-
-                    <Tombol ukuran="lg" penuh disabled={!bisaMulai} onClick={() => mulai.mutate(masukLayarPenuh())}>
-                        {mulai.isPending ? 'Memulai…' : u.status === 'mengerjakan' ? 'Lanjutkan ujian' : 'Mulai ujian'}
-                    </Tombol>
-                    <p className="text-center text-xs text-slate-500">
-                        {selesai
-                            ? 'Ujian ini sudah dikumpulkan.'
-                            : sekarang < buka
-                              ? `Ujian dibuka dalam ${durasiSingkat(buka - sekarang)}.`
-                              : sekarang > tutup
-                                ? 'Ujian sudah ditutup.'
-                                : !siap
-                                  ? 'Tombol aktif setelah paket soal selesai diunduh.'
-                                  : !perangkatSiap
-                                    ? `Perbaiki dulu: ${kesiapan.penghalang.map((i) => i.judul.toLowerCase()).join(', ')}.`
-                                    : !lokasiSiap
-                                    ? 'Tombol aktif setelah posisimu didapat.'
-                                    : token.length < 6
-                                    ? 'Masukkan 6 karakter token.'
-                                    : !online
-                                      ? 'Tombol aktif setelah tersambung ke internet.'
-                                      : 'Siap. Waktu mulai berjalan setelah kamu menekan Mulai.'}
-                    </p>
-                </Kartu>
+                    </div>
                 )}
             </main>
         </div>
@@ -318,7 +399,7 @@ function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: T
             </div>
 
             {status.tahap === 'belum' && !ujian.bisa_unduh && (
-                <p className="text-sm text-slate-500">Paket bisa diunduh 30 menit sebelum ujian dibuka ({jamMenit(ujian.dibuka_pada)}).</p>
+                <p className="text-sm text-slate-500">Paket bisa diunduh 30 menit sebelum ujian dibuka ({jamMenit(ujian.dibuka_pada, true)}).</p>
             )}
 
             {status.tahap === 'menunggu' && (
@@ -445,20 +526,21 @@ function KartuLokasi({ status, radius, onCari }: { status: TahapLokasi; radius: 
 
 function Butir({ ikon, label, isi }: { ikon: ReactNode; label: string; isi: ReactNode }) {
     return (
-        <div>
-            <dt className="flex items-center gap-1.5 text-xs text-slate-500">
-                {ikon} {label}
+        <div className="rounded-xl bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100 flex flex-col justify-between">
+            <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                {ikon}
+                <span>{label}</span>
             </dt>
-            <dd className="mt-0.5 font-semibold text-ink">{isi}</dd>
+            <dd className="mt-1 font-bold text-ink text-xs sm:text-sm leading-snug">{isi}</dd>
         </div>
     )
 }
 
 function Aturan({ ikon, children }: { ikon: ReactNode; children: ReactNode }) {
     return (
-        <p className="flex gap-2.5 text-sm">
-            <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary">{ikon}</span>
-            <span>{children}</span>
-        </p>
+        <div className="flex items-start gap-2.5 rounded-xl bg-slate-50/60 p-2.5 border border-slate-100/80">
+            <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{ikon}</span>
+            <span className="text-xs text-slate-600 leading-relaxed">{children}</span>
+        </div>
     )
 }

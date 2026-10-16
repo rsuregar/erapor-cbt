@@ -2,6 +2,7 @@ import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Kartu } from '@/komponen/Kartu'
 import { Lencana } from '@/komponen/Lencana'
 import { api } from '@/lib/api'
+import { jamMenit } from '@/lib/tanggal'
 import { RenderKonten, type TiptapNode } from '@erapor-cbt/question-renderer'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -52,7 +53,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             <p className="font-semibold">Ujian Masih Berlangsung</p>
                             <p className="mt-0.5 text-sky-800">
                                 Nilai akhir Anda sudah tercatat di atas. Kunci jawaban dan pembahasan per butir soal akan otomatis terbuka setelah seluruh jadwal ujian berakhir
-                                {h.pembahasan_terbuka_pada ? ` (${new Date(h.pembahasan_terbuka_pada).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})` : ''}.
+                                {h.pembahasan_terbuka_pada ? ` (${jamMenit(h.pembahasan_terbuka_pada, true)})` : ''}.
                             </p>
                         </div>
                     </div>

@@ -19,6 +19,7 @@ import {
     ChevronRight,
     ChevronUp,
     Check,
+    Clock,
     CloudOff,
     Eye,
     EyeOff,
@@ -85,6 +86,20 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const [pesanDitutup, setPesanDitutup] = useState<string | null>(null)
     const [sisaMs, setSisaMs] = useState<number | null>(null)
     const habisDikirim = useRef(false)
+    const [skalaFont, setSkalaFont] = useState<number>(() => {
+        try {
+            const s = localStorage.getItem('cbt_skala_font')
+            return s ? Number(s) : 1
+        } catch {
+            return 1
+        }
+    })
+    const ubahSkalaFont = (s: number) => {
+        setSkalaFont(s)
+        try {
+            localStorage.setItem('cbt_skala_font', String(s))
+        } catch {}
+    }
 
     const soal = u.data?.isi.soal ?? []
     const aktif = soal[indeks]
@@ -212,26 +227,28 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     return (
         <div className="flex h-full flex-col bg-white">
             {/* Kepala */}
-            <header className="sticky top-0 z-20 border-b border-dashed border-slate-300 bg-white">
-                <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-3 sm:px-4">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <img src="/brand/logogram.png" alt="" className="size-8 shrink-0" />
+            <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">
+                <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3 sm:px-6">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <img src="/brand/logogram.png" alt="" className="size-8 shrink-0 object-contain drop-shadow-xs" />
                         <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-ink">{u.data?.sesi.ujian.nama}</p>
-                            <p className="truncate text-micro text-slate-500">{u.data?.sesi.ujian.mapel}</p>
+                            <p className="truncate text-xs sm:text-sm font-extrabold text-ink leading-tight">{u.data?.sesi.ujian.nama}</p>
+                            <p className="truncate text-[11px] font-semibold text-slate-500">{u.data?.sesi.ujian.mapel}</p>
                         </div>
                     </div>
 
                     <button
                         onClick={() => setTimerTampil((v) => !v)}
                         className={cn(
-                            'flex items-center gap-1.5 rounded-full px-3 py-1.5 font-display text-body-lg font-semibold tabular-nums transition',
-                            peringatan ? 'bg-coral-100 text-coral-600' : 'bg-slate-100 text-ink',
+                            'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-display text-sm sm:text-base font-bold tabular-nums transition shadow-2xs border',
+                            peringatan ? 'bg-coral-50 border-coral-200 text-coral-600 animate-pulse' : 'bg-slate-100/90 border-slate-200/90 text-slate-800 hover:bg-slate-200/70',
                         )}
                         aria-label={timerTampil ? 'Sembunyikan waktu' : 'Tampilkan waktu'}
+                        title={timerTampil ? 'Sembunyikan waktu tersisa' : 'Tampilkan waktu tersisa'}
                     >
-                        {timerTampil ? waktuMundur((sisaMs ?? 0) / 1000) : <span className="font-sans text-sm">Waktu</span>}
-                        {timerTampil ? <EyeOff className="size-4 opacity-50" /> : <Eye className="size-4 opacity-60" />}
+                        <Clock className={cn('size-4', peringatan ? 'text-coral-500' : 'text-slate-500')} />
+                        {timerTampil ? waktuMundur((sisaMs ?? 0) / 1000) : <span className="font-sans text-xs">Waktu</span>}
+                        {timerTampil ? <EyeOff className="size-3.5 opacity-40 ml-0.5" /> : <Eye className="size-3.5 opacity-60 ml-0.5" />}
                     </button>
 
                     <div className="flex flex-1 items-center justify-end gap-2">
@@ -243,7 +260,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
             {offline ? (
                 <div role="status" className="border-b border-amber-100 bg-amber-100">
-                    <div className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
                         <CloudOff className="mt-0.5 size-4 shrink-0" />
                         <p>
                             <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
@@ -253,7 +270,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             ) : lambat && !sempatOffline ? (
                 <div role="status" className="border-b border-sky-100 bg-sky-100">
-                    <div className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2.5 text-sm text-sky-600">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-sky-600">
                         <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
                         <p>
                             <b>Koneksi lambat.</b> {u.koneksi.tertunda} jawaban tersimpan aman di perangkat dan sedang dikirim. Lanjutkan saja — tidak perlu memuat ulang.
@@ -263,7 +280,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             ) : (
                 sempatOffline && (
                     <div role="status" className="border-b border-sky-100 bg-sky-100">
-                        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5 text-sm text-sky-600">
+                        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 text-sm text-sky-600">
                             <Loader2 className="size-4 shrink-0 animate-spin" />
                             <p>
                                 <b>Tersambung lagi.</b> Mengirim {u.koneksi.tertunda} jawaban…
@@ -275,7 +292,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
             {tampilPesan && (
                 <div className="border-b border-amber-100 bg-amber-100">
-                    <div className="mx-auto flex max-w-6xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
                         <Megaphone className="mt-0.5 size-4 shrink-0" />
                         <p className="flex-1">
                             <span className="font-bold">Pesan pengawas: </span>
@@ -290,24 +307,26 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
             {/* Soal / tinjauan */}
             {/* Teks soal tidak bisa diseleksi/ditekan-lama; kolom jawaban tetap bisa. */}
-            <main className="relative flex-1 select-none overflow-y-auto [-webkit-touch-callout:none] [&_[contenteditable]]:select-text [&_input]:select-text [&_textarea]:select-text">
+            <main className="relative flex-1 min-h-0 flex flex-col select-none overflow-hidden [-webkit-touch-callout:none] [&_[contenteditable]]:select-text [&_input]:select-text [&_textarea]:select-text">
                 <Watermark teks={tandaAir} />
                 {tinjau ? (
-                    <Tinjauan
-                        soal={soal}
-                        jawaban={u.jawaban}
-                        ringkas={ringkas}
-                        galat={u.galatKumpul}
-                        onPilih={(i) => {
-                            setIndeks(i)
-                            setTinjau(false)
-                        }}
-                        onKumpul={() => setKonfirmasi(true)}
-                    />
+                    <div className="relative z-10 flex-1 overflow-y-auto">
+                        <Tinjauan
+                            soal={soal}
+                            jawaban={u.jawaban}
+                            ringkas={ringkas}
+                            galat={u.galatKumpul}
+                            onPilih={(i) => {
+                                setIndeks(i)
+                                setTinjau(false)
+                            }}
+                            onKumpul={() => setKonfirmasi(true)}
+                        />
+                    </div>
                 ) : (
                     aktif &&
                     u.data && (
-                        <div className="relative mx-auto max-w-6xl px-4 py-5 sm:px-6">
+                        <div className="relative z-10 flex-1 min-h-0 flex flex-col w-full h-full max-w-7xl mx-auto">
                             <TampilanSoal
                                 key={aktif.id}
                                 soal={keTampil(aktif, u.data.isi.stimulus)}
@@ -316,6 +335,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                 ragu={j?.ragu ?? false}
                                 onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
                                 onRagu={(r) => u.jawab(aktif.id, j?.jawaban ?? null, r)}
+                                skalaFont={skalaFont}
+                                onUbahSkalaFont={ubahSkalaFont}
                             />
                         </div>
                     )
@@ -323,35 +344,49 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             </main>
 
             {/* Kaki */}
-            <footer className="sticky bottom-0 z-20 border-t border-dashed border-slate-300 bg-white">
-                <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-3 sm:px-4">
-                    <p className="hidden flex-1 truncate text-sm font-semibold text-ink md:block">{nama}</p>
-                    <div className="flex flex-1 md:justify-center">
+            <footer className="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
+                <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:px-6">
+                    <div className="hidden flex-1 items-center gap-2.5 truncate md:flex">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-xs font-bold text-primary border border-sky-200/70">
+                            {nama ? nama.charAt(0).toUpperCase() : 'P'}
+                        </span>
+                        <p className="truncate text-xs font-semibold text-slate-700">{nama}</p>
+                    </div>
+
+                    <div className="flex flex-1 justify-center">
                         <button
                             onClick={() => setPanel(true)}
-                            className="inline-flex min-h-11 items-center gap-1.5 rounded-sm bg-ink px-3.5 text-sm font-bold text-white active:scale-[0.97]"
+                            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition"
+                            aria-label="Buka navigasi nomor soal"
                         >
-                            {tinjau ? 'Tinjauan' : `Soal ${indeks + 1} dari ${soal.length}`}
-                            <ChevronUp className="size-4" />
+                            <span>{tinjau ? 'Tinjauan Jawaban' : `Soal ${indeks + 1} dari ${soal.length}`}</span>
+                            <ChevronUp className="size-4 text-white/70" />
                         </button>
                     </div>
+
                     <div className="flex flex-1 justify-end gap-2">
                         {tinjau ? (
-                            <Tombol varian="outline" onClick={() => setTinjau(false)} ikonKiri={<ChevronLeft className="size-4" />}>
-                                Kembali
+                            <Tombol varian="outline" onClick={() => setTinjau(false)} ikonKiri={<ChevronLeft className="size-4" />} className="rounded-xl font-semibold">
+                                Kembali ke Soal
                             </Tombol>
                         ) : (
                             <>
-                                <Tombol varian="outline" disabled={indeks === 0} onClick={() => setIndeks((i) => i - 1)} aria-label="Soal sebelumnya" className="px-3 sm:px-5">
+                                <Tombol
+                                    varian="outline"
+                                    disabled={indeks === 0}
+                                    onClick={() => setIndeks((i) => i - 1)}
+                                    aria-label="Soal sebelumnya"
+                                    className="rounded-xl px-3 sm:px-5 font-semibold"
+                                >
                                     <ChevronLeft className="size-4" />
                                     <span className="hidden sm:inline">Kembali</span>
                                 </Tombol>
                                 {indeks < soal.length - 1 ? (
-                                    <Tombol onClick={() => setIndeks((i) => i + 1)} ikonKanan={<ChevronRight className="size-4" />}>
+                                    <Tombol onClick={() => setIndeks((i) => i + 1)} ikonKanan={<ChevronRight className="size-4" />} className="rounded-xl font-bold shadow-xs">
                                         Lanjut
                                     </Tombol>
                                 ) : (
-                                    <Tombol onClick={() => setTinjau(true)} ikonKanan={<ChevronRight className="size-4" />}>
+                                    <Tombol onClick={() => setTinjau(true)} ikonKanan={<ChevronRight className="size-4" />} className="rounded-xl font-bold bg-primary text-white shadow-xs">
                                         Tinjau
                                     </Tombol>
                                 )}
@@ -493,29 +528,29 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 function StatusSimpan({ online, tertunda }: { online: boolean; tertunda: number }) {
     if (!online) {
         return (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700" title="Jawaban aman di perangkat">
-                <CloudOff className="size-4" /> <span className="hidden sm:inline">Offline ·</span> {tertunda}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 border border-amber-200" title="Jawaban aman di perangkat">
+                <CloudOff className="size-3.5" /> <span className="hidden sm:inline">Offline ·</span> {tertunda}
             </span>
         )
     }
 
     return tertunda > 0 ? (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-            <Loader2 className="size-4 animate-spin" /> <span className="hidden sm:inline">Menyimpan</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            <Loader2 className="size-3.5 animate-spin text-amber-600" /> <span className="hidden sm:inline">Menyimpan</span>
         </span>
     ) : (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600">
-            <Check className="size-4" /> <span className="hidden sm:inline">Tersimpan</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <Check className="size-3.5 text-emerald-600" /> <span className="hidden sm:inline">Tersimpan</span>
         </span>
     )
 }
 
 function kelasNomor(terjawab: boolean, ragu: boolean, aktif: boolean) {
     return cn(
-        'relative inline-flex aspect-square items-center justify-center rounded-sm border-2 text-sm font-bold transition active:scale-95',
-        terjawab ? 'border-primary bg-primary text-white' : 'border-dashed border-slate-300 bg-white text-ink',
-        aktif && 'ring-2 ring-ink ring-offset-2',
-        ragu && 'border-amber-500',
+        'relative inline-flex aspect-square items-center justify-center rounded-xl border-2 text-sm font-bold transition active:scale-95 shadow-2xs',
+        terjawab ? 'border-primary bg-primary text-white shadow-xs' : 'border-dashed border-slate-300 bg-white text-ink hover:border-slate-400',
+        aktif && 'ring-2 ring-slate-900 ring-offset-2',
+        ragu && 'border-amber-500 bg-amber-50 text-amber-900',
     )
 }
 
@@ -535,11 +570,11 @@ function PanelNomor({
     onTutup: () => void
 }) {
     return (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 sm:items-center" onClick={onTutup}>
-            <div className="max-h-[80vh] w-full overflow-y-auto rounded-t-xl bg-white p-5 shadow-lg sm:max-w-lg sm:rounded-lg" onClick={(e) => e.stopPropagation()}>
-                <div className="mb-4 flex items-center">
-                    <h2 className="mr-auto text-title">Navigasi soal</h2>
-                    <button onClick={onTutup} aria-label="Tutup" className="rounded-sm p-1.5 text-slate-500 hover:bg-slate-100">
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 backdrop-blur-xs sm:items-center p-0 sm:p-4" onClick={onTutup}>
+            <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h2 className="text-base sm:text-lg font-bold text-ink">Daftar Nomor Soal</h2>
+                    <button onClick={onTutup} aria-label="Tutup" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
                         <X className="size-5" />
                     </button>
                 </div>
@@ -551,13 +586,13 @@ function PanelNomor({
                         return (
                             <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, i === aktif)}>
                                 {s.nomor}
-                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500" />}
+                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
                             </button>
                         )
                     })}
                 </div>
-                <Tombol varian="secondary" penuh className="mt-5" onClick={onTinjau}>
-                    Ke halaman tinjauan
+                <Tombol varian="secondary" penuh className="mt-6 rounded-xl font-bold py-3" onClick={onTinjau}>
+                    Ke Halaman Tinjauan
                 </Tombol>
             </div>
         </div>
@@ -566,14 +601,14 @@ function PanelNomor({
 
 function Legenda() {
     return (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-                <span className="size-3.5 rounded-xs bg-primary" /> Dijawab
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+            <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="size-3.5 rounded-sm bg-primary" /> Sudah Dijawab
             </span>
-            <span className="inline-flex items-center gap-1.5">
-                <span className="size-3.5 rounded-xs border-2 border-dashed border-slate-300" /> Belum
+            <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="size-3.5 rounded-sm border-2 border-dashed border-slate-300 bg-white" /> Belum Dijawab
             </span>
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 font-medium text-amber-700">
                 <Bookmark className="size-3.5 fill-amber-500 text-amber-500" /> Ragu-ragu
             </span>
         </div>
@@ -596,38 +631,39 @@ function Tinjauan({
     onKumpul: () => void
 }) {
     return (
-        <div className="relative mx-auto max-w-2xl space-y-5 px-4 py-6">
-            <div className="text-center">
-                <h1 className="text-h3">Tinjau jawabanmu</h1>
-                <p className="mt-1 text-sm text-slate-500">Ketuk nomor untuk kembali ke soal itu.</p>
+        <div className="relative mx-auto max-w-2xl space-y-5 px-4 py-6 sm:py-8">
+            <div className="text-center space-y-1">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-ink">Tinjau Jawaban Ujian</h1>
+                <p className="text-xs sm:text-sm text-slate-500">Periksa kembali sebelum mengumpulkan. Ketuk nomor soal untuk membuka dan mengubah jawaban.</p>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-                <Angka label="Dijawab" nilai={ringkas.dijawab} kelas="bg-primary-50 text-primary-700" />
-                <Angka label="Ragu-ragu" nilai={ringkas.ragu} kelas="bg-amber-100 text-amber-700" />
-                <Angka label="Kosong" nilai={ringkas.kosong} kelas={ringkas.kosong ? 'bg-coral-100 text-coral-600' : 'bg-slate-100 text-slate-700'} />
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
+                <Angka label="Dijawab" nilai={ringkas.dijawab} kelas="bg-sky-50 border border-sky-200/80 text-sky-800" />
+                <Angka label="Ragu-ragu" nilai={ringkas.ragu} kelas="bg-amber-50 border border-amber-200/80 text-amber-800" />
+                <Angka label="Kosong" nilai={ringkas.kosong} kelas={ringkas.kosong ? 'bg-coral-50 border border-coral-200/80 text-coral-700' : 'bg-slate-100 border border-slate-200 text-slate-700'} />
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
                 <Legenda />
-                <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-10">
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-10 pt-1">
                     {soal.map((s, i) => {
                         const x = jawaban[s.id]
 
                         return (
                             <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, false)}>
                                 {s.nomor}
-                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500" />}
+                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
                             </button>
                         )
                     })}
                 </div>
             </div>
             {galat && (
-                <p role="alert" className="flex gap-2 rounded-sm bg-coral-100 px-3 py-2.5 text-sm font-medium text-coral-600">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {galat}
+                <p role="alert" className="flex items-center gap-2 rounded-xl bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    <span>{galat}</span>
                 </p>
             )}
-            <Tombol ukuran="lg" penuh onClick={onKumpul}>
-                Kumpulkan jawaban
+            <Tombol ukuran="lg" penuh onClick={onKumpul} className="rounded-xl font-bold py-3.5 shadow-md shadow-primary/25">
+                Kumpulkan Jawaban Sekarang
             </Tombol>
         </div>
     )
@@ -635,9 +671,9 @@ function Tinjauan({
 
 function Angka({ label, nilai, kelas }: { label: string; nilai: number; kelas: string }) {
     return (
-        <div className={cn('rounded-md py-3', kelas)}>
-            <p className="font-display text-h2 font-semibold leading-none">{nilai}</p>
-            <p className="mt-1 text-xs font-semibold">{label}</p>
+        <div className={cn('rounded-xl py-3 px-2', kelas)}>
+            <p className="font-display text-2xl sm:text-3xl font-extrabold leading-none">{nilai}</p>
+            <p className="mt-1 text-xs font-semibold tracking-wide">{label}</p>
         </div>
     )
 }
@@ -646,16 +682,26 @@ function Angka({ label, nilai, kelas }: { label: string; nilai: number; kelas: s
 function Watermark({ teks }: { teks: string }) {
     if (!teks) return null
 
+    const sanitized = teks
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;')
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="200" viewBox="0 0 360 200"><text x="180" y="100" fill="#0f172a" fill-opacity="0.04" font-size="13" font-weight="700" font-family="'Plus Jakarta Sans', system-ui, sans-serif" text-anchor="middle" transform="rotate(-20 180 100)">${sanitized}</text></svg>`
+    const bgUrl = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+
     return (
-        <div aria-hidden className="pointer-events-none absolute inset-0 select-none overflow-hidden">
-            <div className="absolute -inset-1/2 flex rotate-[-24deg] flex-wrap content-start gap-x-16 gap-y-20 opacity-[0.03]">
-                {Array.from({ length: 80 }, (_, i) => (
-                    <span key={i} className="whitespace-nowrap text-body-lg font-bold text-ink">
-                        {teks}
-                    </span>
-                ))}
-            </div>
-        </div>
+        <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 z-0 select-none"
+            style={{
+                backgroundImage: bgUrl,
+                backgroundRepeat: 'repeat',
+                backgroundPosition: '0 0',
+            }}
+        />
     )
 }
 
