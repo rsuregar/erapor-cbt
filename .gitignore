@@ -17,3 +17,7 @@ apps/ujian/android/local.properties
 apps/ujian/ios/App/Pods/
 apps/ujian/ios/App/build/
 apps/ujian/ios/DerivedData/
+
+# Keystore & Android signing
+*.keystore
+*.jks
