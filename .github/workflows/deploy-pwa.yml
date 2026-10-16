@@ -1,4 +1,4 @@
-name: Deploy PWA
+name: "Deploy PWA"
 
 on:
   workflow_dispatch:
@@ -37,16 +37,17 @@ jobs:
       - name: Determine Target Environment & API URL
         id: env
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET="${{ inputs.environment }}"
-          elif [[ "${{ github.ref }}" == refs/tags/release-prod* ]]; then
-            TARGET="production"
-          else
-            TARGET="staging"
-          fi
+          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/release-prod') && 'production' || 'staging') }}"
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
-          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || (TARGET == 'production' && 'https://erapor.alakhyar.sch.id/api' || 'https://erapor.staging.alakhyar.sch.id/api') }}"
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL }}"
+          if [ -z "$API_URL" ]; then
+            if [ "$TARGET" = "production" ]; then
+              API_URL="https://erapor.alakhyar.sch.id/api"
+            else
+              API_URL="https://erapor.staging.alakhyar.sch.id/api"
+            fi
+          fi
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
 
           if [ "$TARGET" = "production" ]; then
