@@ -1,6 +1,5 @@
 @import '@fontsource-variable/plus-jakarta-sans/wght.css';
-@import '@fontsource/poppins/latin-600.css';
-@import '@fontsource/poppins/latin-700.css';
+
 
 @tailwind base;
 @tailwind components;

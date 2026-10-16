@@ -43,7 +43,7 @@ export default {
             },
             fontFamily: {
                 sans: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
-                display: ['Poppins', '"Plus Jakarta Sans Variable"', 'system-ui', 'sans-serif'],
+                display: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
             },
             fontSize: {
                 micro: ['11px', '1.4'],

@@ -33,9 +33,8 @@ https://claude.ai/artifact/1NGNPjebehvf5PQAcYC41Q
 
 - Token warna, tipografi, radius, bayangan, dan motion disalin ke
   `apps/ujian/tailwind.config.js`. Ubah di design system dulu, baru di sini.
-- Font Plus Jakarta Sans (UI) dan Poppins (angka/judul besar) **dibundel**
-  lewat `@fontsource`, bukan dari Google Fonts CDN, supaya tetap tampil saat
-  offline.
+- Font Plus Jakarta Sans **dibundel** lewat `@fontsource-variable`, bukan dari
+  Google Fonts CDN, supaya tetap tampil saat offline.
 - Komponen di `apps/ujian/src/komponen/` mengikuti komponen design system:
   `Tombol` (Button), `Masukan` (Input), `Lencana` (Badge), `Kartu` (Card),
   `KepalaFitur` (AppHeader), ditambah `KotakToken`.
