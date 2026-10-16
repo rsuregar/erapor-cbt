@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cbt-al-akhyar",
-  "compatibility_date": "2026-10-01",
+  "name": "erapor-cbt",
+  "compatibility_date": "2026-10-16",
   "assets": {
     "directory": "./apps/ujian/dist",
     "not_found_handling": "single-page-application"
