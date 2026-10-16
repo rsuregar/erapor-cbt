@@ -23,8 +23,8 @@ export const Masukan = forwardRef<HTMLInputElement, Props>(function Masukan({ la
             )}
             <div
                 className={cn(
-                    'flex items-center gap-2 rounded-md border bg-white px-3.5 transition duration-fast focus-within:border-primary focus-within:shadow-ring',
-                    galat ? 'border-coral-500' : 'border-slate-200',
+                    'flex items-center gap-2.5 rounded-xl border bg-white px-3.5 transition duration-fast focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15',
+                    galat ? 'border-coral-500 focus-within:border-coral-500 focus-within:ring-coral-500/15' : 'border-slate-200 hover:border-slate-300',
                 )}
             >
                 {ikonKiri && <span className="inline-flex text-slate-500">{ikonKiri}</span>}
