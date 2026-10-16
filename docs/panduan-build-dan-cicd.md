@@ -22,29 +22,34 @@ Proyek ini telah dilengkapi alur otomatis terpisah di folder `.github/workflows/
 
 ---
 
-## 2. GitHub Secrets & Variables yang Diperlukan
+## 2. GitHub Environments & Variables yang Digunakan
 
-Buka repositori GitHub di menu **Settings → Secrets and variables → Actions**, lalu tambahkan:
+Repositori ini menggunakan fitur resmi **GitHub Environments** (`Settings → Environments`), yaitu:
+1. **`staging`**
+2. **`production`**
 
-### A. Environment Variables (`Repository Variables`)
-* `VITE_API_URL_STAGING`: URL API staging (misal: `https://staging.erapor.alakhyar.sch.id/api`)
-* `VITE_API_URL_PROD`: URL API produksi (misal: `https://erapor.alakhyar.sch.id/api`)
-* `STAGING_PWA_PATH`: Direktori target web server staging (misal: `/home/erapor/htdocs/ujian.staging.alakhyar.sch.id`)
-* `PROD_PWA_PATH`: Direktori target web server produksi (misal: `/home/erapor/htdocs/ujian.alakhyar.sch.id`)
+### A. Environment Variables (Didaftarkan di dalam masing-masing Environment)
+Cukup daftarkan 1 nama variabel di tiap Environment:
+* **`VITE_API_URL`**:
+  - Pada Environment `staging`: `https://erapor.staging.alakhyar.sch.id/api`
+  - Pada Environment `production`: `https://erapor.alakhyar.sch.id/api`
 
-### B. Deployment Secrets (`Repository Secrets`)
-* `PROD_HOST`: Alamat IP/Host server produksi
-* `PROD_USERNAME`: Username SSH server produksi
-* `PROD_SSH_KEY` atau `PROD_PASSWORD`: Kunci privat SSH atau password server
+*(GitHub Actions akan secara otomatis menginjeksikan `vars.VITE_API_URL` sesuai target environment yang Anda pilih saat menjalankan workflow atau berdasarkan git tag).*
+
+### B. Deployment Secrets (Opsional, untuk SSH Deploy PWA)
+Jika menggunakan alur deploy PWA mandiri via SSH/SCP ke server VPS:
+* `HOST`: Alamat IP / domain server VPS
+* `USERNAME`: User SSH server VPS
+* `SSH_KEY` / `SSH_PRIVATE_KEY`: Kunci privat SSH server VPS
 
 ### C. Android Signing Secrets (Opsional, untuk Release Signed APK)
-Jika ingin CI/CD otomatis menandatangani APK Release:
+Jika ingin CI/CD otomatis menandatangani APK Release di Android:
 * `ANDROID_KEYSTORE_BASE64`: File `.keystore` yang di-encode base64 (`base64 -i release.keystore | pbcopy`)
 * `ANDROID_KEYSTORE_PASSWORD`: Password keystore
 * `ANDROID_KEY_ALIAS`: Alias key (misal: `alakhyar-cbt`)
 * `ANDROID_KEY_PASSWORD`: Password key
 
-*(Catatan: Jika secrets keystore di atas tidak diisi, CI akan otomatis menghasilkan APK Debug yang tetap bisa langsung di-install dan diuji oleh murid).*
+*(Catatan: Jika secrets keystore di atas belum diisi, CI akan otomatis menghasilkan APK Debug yang tetap bisa langsung di-install dan diuji oleh siswa/guru).*
 
 ---
 
