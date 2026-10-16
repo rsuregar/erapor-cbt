@@ -129,13 +129,22 @@ export default function Masuk() {
                 <div className="relative mx-auto max-w-md">
                     {/* Top Bar: Brand Logo & Connection Badge */}
                     <div className="flex items-center justify-between gap-3">
-                        <img
-                            src="/brand/lockup-putih.png"
-                            alt="Sekolah Islam Al Akhyar"
-                            className="h-10 sm:h-11 w-auto drop-shadow-sm cursor-pointer select-none"
-                            onClick={tanganiKlikRahasiaAdmin}
-                            title="Sekolah Islam Al Akhyar"
-                        />
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                            <img
+                                src="/brand/lockup-putih.png"
+                                alt="Sekolah Islam Al Akhyar"
+                                className="h-9 sm:h-10 w-auto drop-shadow-sm cursor-pointer select-none"
+                                onClick={tanganiKlikRahasiaAdmin}
+                                title="Sekolah Islam Al Akhyar"
+                            />
+                            <span
+                                className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10 select-none cursor-pointer"
+                                onClick={tanganiKlikRahasiaAdmin}
+                                title="Versi Aplikasi"
+                            >
+                                v{__VERSI_APP__}
+                            </span>
+                        </div>
                         <div className="flex items-center gap-2">
                             <IndikatorKoneksi online={online} tema="gelap" />
                         </div>
