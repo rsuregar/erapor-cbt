@@ -68,19 +68,19 @@ export default function TampilanSoal({
     const normal = () => setSkala(1)
 
     const kelasGrid = !duaKolom
-        ? 'mx-auto max-w-3xl w-full py-4 sm:py-6 px-4'
+        ? 'mx-auto max-w-3xl w-full pt-5 sm:pt-7 pb-6 px-4'
         : tata === 'dua-kolom'
           ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
           : 'grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
 
     const kelasKiri = tata === 'dua-kolom'
-        ? 'pr-6 lg:pr-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
-        : 'pb-6 lg:pb-0 pr-0 lg:pr-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
+        ? 'pr-6 lg:pr-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
+        : 'pb-6 lg:pb-0 pr-0 lg:pr-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
 
     const kelasKanan = duaKolom
         ? tata === 'dua-kolom'
-            ? 'pl-6 lg:pl-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-4 bg-white'
-            : 'pt-6 lg:pt-0 pl-0 lg:pl-8 h-full overflow-y-auto py-5 px-4 sm:px-6 space-y-4 bg-white'
+            ? 'pl-6 lg:pl-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-4 bg-white'
+            : 'pl-0 lg:pl-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-4 bg-white'
         : 'space-y-4'
 
     return (
