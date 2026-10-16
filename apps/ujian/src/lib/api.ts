@@ -14,7 +14,7 @@ export function aturDemo(aktif: boolean): void {
 }
 
 export const api = new KlienApi({
-    baseUrl: import.meta.env.VITE_API_URL || '/api',
+    baseUrl: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://erapor.alakhyar.sch.id/api' : '/api'),
     ambilToken: () => sesi.token(),
     ambilPerangkatId: () => sesi.perangkatId(),
     saatTidakSah: () => {
