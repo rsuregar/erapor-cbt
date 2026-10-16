@@ -1,13 +1,16 @@
 import { api } from '@/lib/api'
 import { sesi as akun } from '@/lib/sesi'
-import { dekripsiPaket, GalatApi, PenyimpananIndexedDb, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type InfoAplikasi, type UjianRingkas } from '@erapor-cbt/exam-core'
+import { dekripsiPaket, GalatApi, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type InfoAplikasi, type UjianRingkas } from '@erapor-cbt/exam-core'
+import { penyimpanan } from '@/lib/penyimpanan'
 
 /**
- * Penyimpanan lokal ujian (IndexedDB; adapter SQLite untuk app menyusul).
+ * Penyimpanan lokal ujian:
+ * - SQLite native (erapor_cbt.db) pada aplikasi Android Capacitor
+ * - IndexedDB pada Web PWA / Browser desktop
  * Paket terenkripsi disimpan saat pra-unduh; kunci dekripsi baru ada
  * setelah /mulai dan dihapus lagi setelah kumpul.
  */
-export const penyimpanan = new PenyimpananIndexedDb('erapor-cbt-ujian')
+export { penyimpanan }
 
 export const CACHE_MEDIA = 'cbt-media'
 

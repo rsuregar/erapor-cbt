@@ -8,18 +8,50 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 type StatusKunci = { aktif: boolean; mode: 'kios' | 'sematan' | 'tidak' }
 type PosisiNative = { lat: number; lng: number; akurasi_m: number; palsu: boolean }
 
+import type { JembatanKvSqlite } from '@erapor-cbt/exam-core'
+
 interface UjianNativePlugin {
     kunciLayar(): Promise<StatusKunci>
     lepasKunci(): Promise<StatusKunci>
     statusKunciLayar(): Promise<StatusKunci>
     izinLokasi(): Promise<{ izin: PermissionState }>
     ambilLokasi(opsi: { maksUmurMs?: number; batasMs?: number }): Promise<PosisiNative>
+    sqliteAmbil(opsi: { kunci: string }): Promise<{ ada: boolean; nilai?: string | null }>
+    sqliteSimpan(opsi: { kunci: string; nilai: string }): Promise<void>
+    sqliteHapus(opsi: { kunci: string }): Promise<void>
+    sqliteDaftarKunci(opsi: { awalan?: string }): Promise<{ kunci: string[] }>
 }
 
 const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
 
-/** Android: plugin lokal tersedia. iOS menyusul (belum ada proyek iOS). */
+/** Android: plugin lokal tersedia. iOS menyusul. */
 export const adaNative = () => Capacitor.getPlatform() === 'android'
+
+/**
+ * Jembatan langsung ke SQLite database Android (erapor_cbt.db)
+ * Memenuhi kontrak JembatanKvSqlite dari @erapor-cbt/exam-core.
+ */
+export const jembatanSqliteNative: JembatanKvSqlite = {
+    async ambil(kunci: string): Promise<string | undefined> {
+        if (!adaNative()) return undefined
+        const res = await UjianNative.sqliteAmbil({ kunci }).catch(() => ({ ada: false, nilai: null }))
+        return res.ada && res.nilai !== null ? res.nilai : undefined
+    },
+    async simpan(kunci: string, nilaiString: string): Promise<void> {
+        if (!adaNative()) return
+        await UjianNative.sqliteSimpan({ kunci, nilai: nilaiString })
+    },
+    async hapus(kunci: string): Promise<void> {
+        if (!adaNative()) return
+        await UjianNative.sqliteHapus({ kunci })
+    },
+    async daftarKunci(awalan: string): Promise<string[]> {
+        if (!adaNative()) return []
+        const res = await UjianNative.sqliteDaftarKunci({ awalan }).catch(() => ({ kunci: [] }))
+        return res.kunci ?? []
+    },
+}
+
 
 /** Deteksi apakah aplikasi berjalan di dalam Tauri Desktop (Windows / macOS / Linux Exam Browser) */
 export const isTauri = () =>

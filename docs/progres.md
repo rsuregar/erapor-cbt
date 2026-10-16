@@ -26,9 +26,9 @@ disebut.
 | 7.4 | Panduan jalur cadangan PWA | Kode jadi — `/panduan` tanpa login: pasang aplikasi + Akses Terpandu (iOS) / Sematkan Aplikasi (Android) / laptop, ilustrasi per langkah, tombol Pasang sekarang | S3 → S5 |
 | 7.5 | Watermark; blok salin/klik kanan/cetak | Kode jadi — watermark nama + NIS; salin/potong/tempel, klik kanan, seret, tekan-lama iOS, Ctrl/Cmd+P/S/U diblokir; cetak menghasilkan halaman kosong berpesan. Tidak dicatat sebagai pelanggaran `salin_tempel` | S3 → S5 |
 | 7.6 | Muat ulang di Lockdown → terkunci | Selesai (dibuka pengawas) | S3 |
-| 7.7 | App Capacitor Android/iOS, kunci layar, SQLite, geolokasi native (deteksi lokasi palsu) | Belum — baru `capacitor.config.ts` | S3 → S5 |
+| 7.7 | App Capacitor Android/iOS, kunci layar, SQLite, geolokasi native (deteksi lokasi palsu) | Kode jadi — proyek Android/iOS + Tauri desktop, startLockTask & FLAG_SECURE, SQLite native (erapor_cbt.db) + IndexedDB fallback, CI/CD build APK/DMG/MSI | S3 → S5 |
 | 7.8 | Mode ujian iOS otomatis | Belum (P1); entitlement Apple belum diajukan | S5 |
-| 7.9 | Lokasi ujian: izin GPS, kirim posisi, pesan galat | Kode jadi (`cf7cd54`); `palsu` selalu false sampai geolokasi native (7.7) | S5 |
+| 7.9 | Lokasi ujian: izin GPS, kirim posisi, pesan galat | Kode jadi — koordinat, geofencing radius sekolah, dan deteksi palsu (isMock/isFromMockProvider) di UjianNativePlugin | S5 |
 | 2.4 | Login QR di kartu ujian | Belum (P1); format QR belum disepakati | S5 |
 
 ## Sinkron dengan e-Rapor

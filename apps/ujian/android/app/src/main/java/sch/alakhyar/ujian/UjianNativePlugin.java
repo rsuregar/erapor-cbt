@@ -11,6 +11,12 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -166,4 +172,134 @@ public class UjianNativePlugin extends Plugin {
         o.put("palsu", Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? loc.isMock() : loc.isFromMockProvider());
         return o;
     }
+
+    // ——— Penyimpanan SQLite Native (Story 7.7) ———————————————————————
+
+    private DatabaseHelper dbHelper;
+
+    private synchronized SQLiteDatabase dapatkanDb() {
+        if (dbHelper == null) {
+            dbHelper = new DatabaseHelper(getContext());
+        }
+        return dbHelper.getWritableDatabase();
+    }
+
+    private static class DatabaseHelper extends SQLiteOpenHelper {
+        private static final String DATABASE_NAME = "erapor_cbt.db";
+        private static final int DATABASE_VERSION = 1;
+
+        DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS erapor_cbt_kv (" +
+                    "kunci TEXT PRIMARY KEY NOT NULL, " +
+                    "nilai TEXT NOT NULL, " +
+                    "diperbarui_pada INTEGER NOT NULL);");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_erapor_cbt_kv_kunci ON erapor_cbt_kv(kunci);");
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        }
+    }
+
+    @PluginMethod
+    public void sqliteAmbil(PluginCall call) {
+        String kunci = call.getString("kunci");
+        if (kunci == null) {
+            call.reject("Parameter 'kunci' wajib diisi.", "ARGUMEN_INVALID");
+            return;
+        }
+
+        try {
+            SQLiteDatabase db = dapatkanDb();
+            try (Cursor cursor = db.rawQuery("SELECT nilai FROM erapor_cbt_kv WHERE kunci = ? LIMIT 1", new String[]{ kunci })) {
+                JSObject ret = new JSObject();
+                if (cursor.moveToFirst()) {
+                    ret.put("ada", true);
+                    ret.put("nilai", cursor.getString(0));
+                } else {
+                    ret.put("ada", false);
+                    ret.put("nilai", null);
+                }
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            call.reject("Gagal mengambil dari SQLite: " + e.getMessage(), "SQLITE_GAGAL");
+        }
+    }
+
+    @PluginMethod
+    public void sqliteSimpan(PluginCall call) {
+        String kunci = call.getString("kunci");
+        String nilai = call.getString("nilai");
+        if (kunci == null || nilai == null) {
+            call.reject("Parameter 'kunci' dan 'nilai' wajib diisi.", "ARGUMEN_INVALID");
+            return;
+        }
+
+        try {
+            SQLiteDatabase db = dapatkanDb();
+            ContentValues cv = new ContentValues();
+            cv.put("kunci", kunci);
+            cv.put("nilai", nilai);
+            cv.put("diperbarui_pada", System.currentTimeMillis());
+            db.insertWithOnConflict("erapor_cbt_kv", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Gagal menyimpan ke SQLite: " + e.getMessage(), "SQLITE_GAGAL");
+        }
+    }
+
+    @PluginMethod
+    public void sqliteHapus(PluginCall call) {
+        String kunci = call.getString("kunci");
+        if (kunci == null) {
+            call.reject("Parameter 'kunci' wajib diisi.", "ARGUMEN_INVALID");
+            return;
+        }
+
+        try {
+            SQLiteDatabase db = dapatkanDb();
+            db.delete("erapor_cbt_kv", "kunci = ?", new String[]{ kunci });
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Gagal menghapus dari SQLite: " + e.getMessage(), "SQLITE_GAGAL");
+        }
+    }
+
+    @PluginMethod
+    public void sqliteDaftarKunci(PluginCall call) {
+        String awalan = call.getString("awalan", "");
+
+        try {
+            SQLiteDatabase db = dapatkanDb();
+            String query;
+            String[] params;
+            if (awalan == null || awalan.isEmpty()) {
+                query = "SELECT kunci FROM erapor_cbt_kv ORDER BY kunci ASC";
+                params = null;
+            } else {
+                query = "SELECT kunci FROM erapor_cbt_kv WHERE kunci LIKE ? ESCAPE '\\' ORDER BY kunci ASC";
+                String escaped = awalan.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                params = new String[]{ escaped + "%" };
+            }
+
+            try (Cursor cursor = db.rawQuery(query, params)) {
+                JSArray arr = new JSArray();
+                while (cursor.moveToNext()) {
+                    arr.put(cursor.getString(0));
+                }
+                JSObject ret = new JSObject();
+                ret.put("kunci", arr);
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            call.reject("Gagal membaca daftar kunci dari SQLite: " + e.getMessage(), "SQLITE_GAGAL");
+        }
+    }
 }
+
