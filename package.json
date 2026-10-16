@@ -20,7 +20,8 @@
     "deploy:cf": "wrangler deploy",
     "deploy:cf:normal": "npm run build && wrangler deploy",
     "deploy:cf:maintenance": "node scripts/generate-maintenance-pwa.mjs --mode maintenance && wrangler deploy",
-    "deploy:cf:disabled": "node scripts/generate-maintenance-pwa.mjs --mode web_disabled && wrangler deploy"
+    "deploy:cf:disabled": "node scripts/generate-maintenance-pwa.mjs --mode web_disabled && wrangler deploy",
+    "sync:org": "gh repo sync Al-Akhyar-Islamic-School/erapor-cbt --source rsuregar/erapor-cbt"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
