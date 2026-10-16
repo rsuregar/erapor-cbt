@@ -1,49 +1,64 @@
-import { Masukan } from '@/komponen/Masukan'
-import { Tombol } from '@/komponen/Tombol'
-import { api, aturDemo } from '@/lib/api'
-import { sesi } from '@/lib/sesi'
-import { GalatApi } from '@erapor-cbt/exam-core'
-import { useMutation } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { Eye, EyeOff, IdCard, LockKeyhole } from 'lucide-react'
-import { useState } from 'react'
+import { Masukan } from "@/komponen/Masukan";
+import { Tombol } from "@/komponen/Tombol";
+import { api, aturDemo } from "@/lib/api";
+import { sesi } from "@/lib/sesi";
+import { GalatApi } from "@erapor-cbt/exam-core";
+import { useMutation } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff, IdCard, LockKeyhole } from "lucide-react";
+import { useState } from "react";
 
 /** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
-    const navigate = useNavigate()
-    const [nis, setNis] = useState('')
-    const [sandi, setSandi] = useState('')
-    const [lihat, setLihat] = useState(false)
+    const navigate = useNavigate();
+    const [nis, setNis] = useState("");
+    const [sandi, setSandi] = useState("");
+    const [lihat, setLihat] = useState(false);
     const masuk = useMutation({
         mutationFn: () => {
-            aturDemo(nis.trim() === 'demo')
+            aturDemo(nis.trim() === "demo");
 
-            return api.masuk(nis.trim(), sandi)
+            return api.masuk(nis.trim(), sandi);
         },
         onSuccess: async ({ data }) => {
-            await sesi.masuk(data.access_token, (data.user?.name as string) ?? null, data.uuid, nis.trim())
-            await navigate({ to: '/' })
+            await sesi.masuk(
+                data.access_token,
+                (data.user?.name as string) ?? null,
+                data.uuid,
+                nis.trim(),
+            );
+            await navigate({ to: "/" });
         },
-    })
+    });
     const galat =
         masuk.error instanceof GalatApi
             ? masuk.error.status === 401
-                ? 'NIS atau kata sandi salah.'
+                ? "NIS atau kata sandi salah."
                 : masuk.error.status === 429
-                  ? 'Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi.'
-                  : masuk.error.kode === 'JARINGAN'
-                  ? 'Tidak tersambung ke server. Periksa koneksi internet.'
-                  : masuk.error.message
-            : null
+                  ? "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi."
+                  : masuk.error.kode === "JARINGAN"
+                    ? "Tidak tersambung ke server. Periksa koneksi internet."
+                    : masuk.error.message
+            : null;
 
     return (
         <main className="flex min-h-full flex-col">
             <section className="rounded-b-2xl bg-primary px-6 pb-24 pt-10 text-white">
                 <div className="mx-auto max-w-md">
-                    <img src="/brand/lockup-putih.png" alt="Sekolah Islam Al Akhyar" className="h-12 w-auto" />
-                    <p className="mt-8 text-sm font-medium opacity-85">Assalamu&apos;alaikum</p>
-                    <h1 className="mt-1 font-display text-h2 font-semibold leading-tight text-white">Ujian Al Akhyar</h1>
-                    <p className="mt-1 text-body opacity-85">Masuk dengan akun e-Rapor untuk mulai ujian.</p>
+                    <img
+                        src="/brand/lockup-putih.png"
+                        alt="Sekolah Islam Al Akhyar"
+                        className="h-12 w-auto"
+                    />
+                    <p className="mt-8 text-sm font-medium opacity-85">
+                        Assalamu&apos;alaikum
+                    </p>
+                    <h1 className="mt-1 font-display text-h2 font-semibold leading-tight text-white">
+                        CBT Al Akhyar
+                    </h1>
+                    <p className="mt-1 text-body opacity-85">
+                        Masuk dengan akun e-Rapor untuk mulai ujian.
+                    </p>
                 </div>
             </section>
 
@@ -51,8 +66,8 @@ export default function Masuk() {
                 <form
                     className="mx-auto max-w-md space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-md"
                     onSubmit={(e) => {
-                        e.preventDefault()
-                        masuk.mutate()
+                        e.preventDefault();
+                        masuk.mutate();
                     }}
                 >
                     <Masukan
@@ -67,37 +82,72 @@ export default function Masuk() {
                     />
                     <Masukan
                         label="Kata sandi"
-                        type={lihat ? 'text' : 'password'}
+                        type={lihat ? "text" : "password"}
                         ikonKiri={<LockKeyhole className="size-5" />}
                         autoComplete="current-password"
                         value={sandi}
                         onChange={(e) => setSandi(e.target.value)}
                         required
                         akhiran={
-                            <button type="button" onClick={() => setLihat((v) => !v)} className="-mr-1 rounded-xs p-1.5 text-slate-500" aria-label={lihat ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}>
-                                {lihat ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                            <button
+                                type="button"
+                                onClick={() => setLihat((v) => !v)}
+                                className="-mr-1 rounded-xs p-1.5 text-slate-500"
+                                aria-label={
+                                    lihat
+                                        ? "Sembunyikan kata sandi"
+                                        : "Tampilkan kata sandi"
+                                }
+                            >
+                                {lihat ? (
+                                    <EyeOff className="size-5" />
+                                ) : (
+                                    <Eye className="size-5" />
+                                )}
                             </button>
                         }
                     />
                     {galat && (
-                        <p role="alert" className="rounded-sm bg-coral-100 px-3 py-2.5 text-sm font-medium text-coral-600">
+                        <p
+                            role="alert"
+                            className="rounded-sm bg-coral-100 px-3 py-2.5 text-sm font-medium text-coral-600"
+                        >
                             {galat}
                         </p>
                     )}
-                    <Tombol type="submit" ukuran="lg" penuh disabled={masuk.isPending}>
-                        {masuk.isPending ? 'Memeriksa…' : 'Masuk'}
+                    <Tombol
+                        type="submit"
+                        ukuran="lg"
+                        penuh
+                        disabled={masuk.isPending}
+                    >
+                        {masuk.isPending ? "Memeriksa…" : "Masuk"}
                     </Tombol>
-                    <p className="text-center text-xs text-slate-500">Lupa kata sandi? Hubungi wali kelas atau admin sekolah.</p>
-                    <Link to="/panduan" className="block text-center text-sm font-semibold text-primary">
+                    <p className="text-center text-xs text-slate-500">
+                        Lupa kata sandi? Hubungi wali kelas atau admin sekolah.
+                    </p>
+                    <Link
+                        to="/panduan"
+                        className="block text-center text-sm font-semibold text-primary"
+                    >
                         Cara memasang aplikasi ujian →
                     </Link>
-                    {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && <p className="text-center text-micro text-slate-400">Dev: username &quot;demo&quot; (sandi bebas) memakai data contoh.</p>}
+                    {(import.meta.env.DEV ||
+                        import.meta.env.VITE_DEMO === "1") && (
+                        <p className="text-center text-micro text-slate-400">
+                            Dev: username &quot;demo&quot; (sandi bebas) memakai
+                            data contoh.
+                        </p>
+                    )}
                 </form>
 
                 <footer className="mx-auto mt-8 max-w-md text-center text-xs text-slate-500">
-                    Yayasan Pendidikan Islam Al Akhyar · <span className="font-semibold text-primary">Unggul &amp; Berakhlak</span>
+                    Yayasan Pendidikan Islam Al Akhyar ·{" "}
+                    <span className="font-semibold text-primary">
+                        Unggul &amp; Berakhlak
+                    </span>
                 </footer>
             </div>
         </main>
-    )
+    );
 }

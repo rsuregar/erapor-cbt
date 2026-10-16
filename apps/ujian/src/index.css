@@ -29,6 +29,13 @@
     :focus-visible {
         @apply outline-none shadow-ring;
     }
+
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible {
+        box-shadow: none !important;
+        outline: none !important;
+    }
 }
 
 /* Layar ujian: matikan tarik-untuk-muat-ulang (Chrome Android) — penyebab muat ulang tak sengaja. */

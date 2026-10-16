@@ -1,14 +1,14 @@
-import type { CapacitorConfig } from '@capacitor/cli'
+import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-    appId: 'sch.alakhyar.ujian',
-    appName: 'Ujian Al Akhyar',
-    webDir: 'dist',
+    appId: "sch.alakhyar.ujian",
+    appName: "CBT Al Akhyar",
+    webDir: "dist",
     android: {
         // Layar ujian tidak boleh direkam/ditangkap (FLAG_SECURE dipasang di
         // MainActivity saat proyek android ditambahkan).
         allowMixedContent: false,
     },
-}
+};
 
-export default config
+export default config;

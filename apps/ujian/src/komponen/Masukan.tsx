@@ -28,7 +28,16 @@ export const Masukan = forwardRef<HTMLInputElement, Props>(function Masukan({ la
                 )}
             >
                 {ikonKiri && <span className="inline-flex text-slate-500">{ikonKiri}</span>}
-                <input ref={ref} id={idKolom} className={cn('min-h-12 min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-slate-400', className)} aria-invalid={!!galat} {...rest} />
+                <input
+                    ref={ref}
+                    id={idKolom}
+                    className={cn(
+                        'min-h-12 min-w-0 flex-1 border-0 bg-transparent text-body text-ink outline-none focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none placeholder:text-slate-400',
+                        className,
+                    )}
+                    aria-invalid={!!galat}
+                    {...rest}
+                />
                 {akhiran}
             </div>
             {(galat || petunjuk) && <p className={cn('mt-1.5 text-xs', galat ? 'text-coral-600' : 'text-slate-500')}>{galat || petunjuk}</p>}
