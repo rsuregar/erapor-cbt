@@ -21,6 +21,7 @@ jobs:
   build-windows:
     name: Build Windows Exam Browser (.exe & .msi)
     runs-on: windows-latest
+    environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,12 +42,8 @@ jobs:
         id: env
         shell: bash
         run: |
-          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/windows-prod') && 'production' || 'staging') }}"
-          if [ "$TARGET" = "production" ]; then
-            API_URL="${{ vars.VITE_API_URL_PROD || secrets.VITE_API_URL_PROD || 'https://erapor.alakhyar.sch.id/api' }}"
-          else
-            API_URL="${{ vars.VITE_API_URL_STAGING || secrets.VITE_API_URL_STAGING || 'https://staging.erapor.alakhyar.sch.id/api' }}"
-          fi
+          TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 

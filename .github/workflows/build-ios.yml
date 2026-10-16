@@ -20,6 +20,7 @@ jobs:
   build-ios:
     name: Build iOS App
     runs-on: macos-latest
+    environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,12 +40,8 @@ jobs:
       - name: Determine API URL
         id: env
         run: |
-          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/ios-prod') && 'production' || 'staging') }}"
-          if [ "$TARGET" = "production" ]; then
-            API_URL="${{ vars.VITE_API_URL_PROD || secrets.VITE_API_URL_PROD || 'https://erapor.alakhyar.sch.id/api' }}"
-          else
-            API_URL="${{ vars.VITE_API_URL_STAGING || secrets.VITE_API_URL_STAGING || 'https://staging.erapor.alakhyar.sch.id/api' }}"
-          fi
+          TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 

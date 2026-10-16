@@ -20,6 +20,7 @@ jobs:
   deploy:
     name: Build & Deploy PWA
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (startsWith(github.ref, 'refs/tags/release-prod') && 'production' || 'staging') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,21 +46,21 @@ jobs:
           fi
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || (TARGET == 'production' && 'https://erapor.alakhyar.sch.id/api' || 'https://erapor.staging.alakhyar.sch.id/api') }}"
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+
           if [ "$TARGET" = "production" ]; then
-            API_URL="${{ vars.VITE_API_URL_PROD || secrets.VITE_API_URL_PROD || 'https://erapor.alakhyar.sch.id/api' }}"
-            HOST="${{ secrets.PROD_HOST }}"
-            USER="${{ secrets.PROD_USERNAME }}"
-            KEY="${{ secrets.PROD_SSH_KEY || secrets.PROD_PASSWORD }}"
-            DEPLOY_PATH="${{ vars.PROD_PWA_PATH || '/home/erapor/htdocs/ujian.alakhyar.sch.id' }}"
+            HOST="${{ secrets.HOST || secrets.PROD_HOST }}"
+            USER="${{ secrets.USERNAME || secrets.PROD_USERNAME }}"
+            KEY="${{ secrets.SSH_KEY || secrets.PROD_SSH_KEY || secrets.PROD_PASSWORD }}"
+            DEPLOY_PATH="${{ vars.PWA_PATH || vars.PROD_PWA_PATH || '/home/erapor/htdocs/ujian.alakhyar.sch.id' }}"
           else
-            API_URL="${{ vars.VITE_API_URL_STAGING || secrets.VITE_API_URL_STAGING || 'https://staging.erapor.alakhyar.sch.id/api' }}"
-            HOST="${{ secrets.STAGING_HOST || secrets.PROD_HOST }}"
-            USER="${{ secrets.STAGING_USERNAME || secrets.PROD_USERNAME }}"
-            KEY="${{ secrets.STAGING_SSH_KEY || secrets.PROD_SSH_KEY || secrets.PROD_PASSWORD }}"
-            DEPLOY_PATH="${{ vars.STAGING_PWA_PATH || '/home/erapor/htdocs/ujian.staging.alakhyar.sch.id' }}"
+            HOST="${{ secrets.HOST || secrets.STAGING_HOST || secrets.PROD_HOST }}"
+            USER="${{ secrets.USERNAME || secrets.STAGING_USERNAME || secrets.PROD_USERNAME }}"
+            KEY="${{ secrets.SSH_KEY || secrets.STAGING_SSH_KEY || secrets.PROD_SSH_KEY || secrets.PROD_PASSWORD }}"
+            DEPLOY_PATH="${{ vars.PWA_PATH || vars.STAGING_PWA_PATH || '/home/erapor/htdocs/ujian.staging.alakhyar.sch.id' }}"
           fi
 
-          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "deploy_path=$DEPLOY_PATH" >> $GITHUB_OUTPUT
           echo "host=$HOST" >> $GITHUB_OUTPUT
           echo "user=$USER" >> $GITHUB_OUTPUT
