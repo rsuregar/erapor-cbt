@@ -21,6 +21,9 @@ const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
 /** Android: plugin lokal tersedia. iOS menyusul (belum ada proyek iOS). */
 export const adaNative = () => Capacitor.getPlatform() === 'android'
 
+/** True jika aplikasi berjalan sebagai native app (Android APK atau iOS), bukan di browser/PWA. */
+export const isNative = () => Capacitor.isNativePlatform()
+
 /** Sematkan aplikasi selama ujian. null = bukan app native. */
 export async function kunciLayar(): Promise<boolean | null> {
     if (!adaNative()) return null

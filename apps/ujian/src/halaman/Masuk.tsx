@@ -2,8 +2,10 @@ import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
+import { isNative } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
+import { Capacitor } from "@capacitor/core";
 import { GalatApi } from "@erapor-cbt/exam-core";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -223,19 +225,21 @@ export default function Masuk() {
                             </p>
                         </div>
 
-                        {/* Panduan Link Card */}
-                        <div className="border-t border-slate-100 pt-4">
-                            <Link
-                                to="/panduan"
-                                className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
-                            >
-                                <span className="flex items-center gap-2">
-                                    <BookOpen className="size-4 text-primary" />
-                                    <span>Petunjuk &amp; Cara Memasang Aplikasi</span>
-                                </span>
-                                <ArrowRight className="size-3.5 opacity-60" />
-                            </Link>
-                        </div>
+                        {/* Panduan Link Card - Hanya tampil di PWA Web (disembunyikan di aplikasi mobile native) */}
+                        {!isNative() && (
+                            <div className="border-t border-slate-100 pt-4">
+                                <Link
+                                    to="/panduan"
+                                    className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <BookOpen className="size-4 text-primary" />
+                                        <span>Petunjuk &amp; Cara Memasang Aplikasi</span>
+                                    </span>
+                                    <ArrowRight className="size-3.5 opacity-60" />
+                                </Link>
+                            </div>
+                        )}
 
                         {/* Dev Demo Mode Helper */}
                         {(import.meta.env.DEV || import.meta.env.VITE_DEMO === "1") && (
@@ -262,7 +266,20 @@ export default function Masuk() {
                             <ShieldCheck className="size-3.5 text-emerald-600" />
                             <span>Koneksi aman e-Rapor &bull; Platform Ujian Resmi</span>
                         </div>
-                        <p>
+                        <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">
+                                v{__VERSI_APP__}
+                            </span>
+                            <span>&bull;</span>
+                            <span>
+                                {isNative()
+                                    ? Capacitor.getPlatform() === 'ios'
+                                        ? 'Aplikasi iOS'
+                                        : 'Aplikasi Android'
+                                    : 'Web PWA'}
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
                             Yayasan Pendidikan Islam Al Akhyar &bull;{" "}
                             <span className="font-semibold text-primary">
                                 Unggul &amp; Berakhlak

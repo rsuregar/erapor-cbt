@@ -2,6 +2,7 @@ import { IlustrasiPanduan, type Adegan } from '@/komponen/IlustrasiPanduan'
 import { Kartu } from '@/komponen/Kartu'
 import { KepalaFitur } from '@/komponen/KepalaFitur'
 import { Tombol } from '@/komponen/Tombol'
+import { isNative } from '@/lib/native'
 import { usePasang } from '@/lib/pasang'
 import { cn } from '@/lib/utils'
 import { useNavigate } from '@tanstack/react-router'
@@ -107,35 +108,47 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
             </KepalaFitur>
 
             <main className="mx-auto max-w-2xl space-y-5 px-4 pt-5">
-                <Bagian nomor={1} judul={untuk === 'laptop' ? 'Siapkan browser' : 'Pasang aplikasi ujian'}>
-                    {pasang.terpasang ? (
-                        <p className="flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2.5 text-sm font-semibold text-green-600">
-                            <CheckCircle2 className="size-4" /> Aplikasi sudah terpasang dan dibuka dari layar utama.
-                        </p>
-                    ) : (
-                        pasang.bisaPasang &&
-                        untuk !== 'ios' && (
-                            <Tombol penuh ikonKiri={<Download className="size-4" />} onClick={() => void pasang.pasang()}>
-                                Pasang sekarang
-                            </Tombol>
-                        )
-                    )}
-                    <DaftarLangkah langkah={PASANG[untuk]} />
-                </Bagian>
+                {!isNative() ? (
+                    <Bagian nomor={1} judul={untuk === 'laptop' ? 'Siapkan browser' : 'Pasang aplikasi ujian'}>
+                        {pasang.terpasang ? (
+                            <p className="flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2.5 text-sm font-semibold text-green-600">
+                                <CheckCircle2 className="size-4" /> Aplikasi sudah terpasang dan dibuka dari layar utama.
+                            </p>
+                        ) : (
+                            pasang.bisaPasang &&
+                            untuk !== 'ios' && (
+                                <Tombol penuh ikonKiri={<Download className="size-4" />} onClick={() => void pasang.pasang()}>
+                                    Pasang sekarang
+                                </Tombol>
+                            )
+                        )}
+                        <DaftarLangkah langkah={PASANG[untuk]} />
+                    </Bagian>
+                ) : (
+                    <div className="flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800">
+                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                        <span>Aplikasi resmi CBT Al Akhyar (v{__VERSI_APP__}) sudah terpasang secara native pada perangkat ini.</span>
+                    </div>
+                )}
 
-                <Bagian nomor={2} judul={untuk === 'laptop' ? 'Saat ujian' : `Kunci layar: ${kunci.judul}`} ikon={<Lock className="size-4" />}>
+                <Bagian nomor={isNative() ? 1 : 2} judul={untuk === 'laptop' ? 'Saat ujian' : `Kunci layar: ${kunci.judul}`} ikon={<Lock className="size-4" />}>
                     <p className="text-sm text-slate-700">{kunci.pengantar}</p>
                     {untuk !== 'laptop' && <p className="rounded-lg bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-600">Dinyalakan bersama pengawas di ruang ujian, sebelum token diberikan.</p>}
                     <DaftarLangkah langkah={kunci.langkah} />
                 </Bagian>
 
-                <Bagian nomor={3} judul="Sebelum hari ujian">
+                <Bagian nomor={isNative() ? 2 : 3} judul="Sebelum hari ujian">
                     <ul className="space-y-2.5 text-sm">
                         <Tip ikon={<BatteryCharging className="size-4" />}>Isi daya baterai penuh dan bawa charger.</Tip>
                         <Tip ikon={<BellOff className="size-4" />}>Nyalakan mode Jangan Ganggu agar notifikasi tidak muncul.</Tip>
                         <Tip ikon={<Wifi className="size-4" />}>Masuk ke aplikasi sekali dengan internet. Soal diunduh otomatis menjelang ujian dan tetap bisa dikerjakan bila internet putus.</Tip>
                     </ul>
                 </Bagian>
+
+                {/* Footer Informasi Versi Aplikasi */}
+                <footer className="pt-6 pb-2 text-center text-xs text-slate-400">
+                    CBT Al Akhyar &bull; v{__VERSI_APP__}
+                </footer>
             </main>
         </div>
     )

@@ -1,11 +1,6 @@
 name: Deploy PWA
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'release-prod*'
   workflow_dispatch:
     inputs:
       environment:

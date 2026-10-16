@@ -4,11 +4,13 @@ import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
+import { isNative } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian, penyimpanan } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
+import { Capacitor } from '@capacitor/core'
 import type { UjianRingkas } from '@erapor-cbt/exam-core'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -130,8 +132,11 @@ export default function Beranda() {
                 <div className="relative mx-auto max-w-3xl space-y-4 sm:space-y-5">
                     {/* Top Bar: Brand, Status, Actions */}
                     <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 sm:pb-4">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 sm:gap-2.5">
                             <img src="/brand/lockup-putih.png" alt="Al Akhyar" className="h-7 sm:h-9 w-auto drop-shadow-sm" />
+                            <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10">
+                                v{__VERSI_APP__}
+                            </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -314,24 +319,46 @@ export default function Beranda() {
                     </div>
                 )}
 
-                {/* Device & Security Guide Banner */}
-                <Link
-                    to="/panduan"
-                    className="group flex items-center gap-3 rounded-lg border border-slate-200/90 bg-gradient-to-r from-sky-50/60 via-white to-white p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
-                >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform group-hover:scale-105">
-                        <Smartphone className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                        <span className="block font-bold text-ink text-xs sm:text-sm group-hover:text-primary transition-colors">
-                            Panduan Perangkat &amp; Kunci Layar
+                {/* Device & Security Guide Banner - Hanya di PWA Web (disembunyikan di native app) */}
+                {!isNative() && (
+                    <Link
+                        to="/panduan"
+                        className="group flex items-center gap-3 rounded-lg border border-slate-200/90 bg-gradient-to-r from-sky-50/60 via-white to-white p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
+                    >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform group-hover:scale-105">
+                            <Smartphone className="size-4" />
                         </span>
-                        <span className="block text-[11px] text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
-                            Petunjuk instalasi aplikasi ujian, izin lokasi, dan mode aman proktor
+                        <span className="min-w-0 flex-1">
+                            <span className="block font-bold text-ink text-xs sm:text-sm group-hover:text-primary transition-colors">
+                                Panduan Perangkat &amp; Kunci Layar
+                            </span>
+                            <span className="block text-[11px] text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
+                                Petunjuk instalasi aplikasi ujian, izin lokasi, dan mode aman proktor
+                            </span>
                         </span>
-                    </span>
-                    <ChevronRight className="size-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                </Link>
+                        <ChevronRight className="size-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </Link>
+                )}
+
+                {/* Footer Informasi Versi Aplikasi */}
+                <footer className="pt-4 pb-2 text-center space-y-1 text-slate-400 text-[11px]">
+                    <div className="flex items-center justify-center gap-1.5">
+                        <span className="font-semibold text-slate-500">CBT Al Akhyar</span>
+                        <span>&bull;</span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.2 font-medium text-slate-600">
+                            v{__VERSI_APP__}
+                        </span>
+                        <span>&bull;</span>
+                        <span>
+                            {isNative()
+                                ? Capacitor.getPlatform() === 'ios'
+                                    ? 'Aplikasi iOS'
+                                    : 'Aplikasi Android'
+                                : 'Web PWA'}
+                        </span>
+                    </div>
+                    <p className="text-slate-400">Yayasan Pendidikan Islam Al Akhyar</p>
+                </footer>
             </main>
 
             {/* Modal Konfirmasi Keluar */}
