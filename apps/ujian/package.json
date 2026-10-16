@@ -13,7 +13,9 @@
     "pratinjau": "vite build && vite preview --strictPort",
     "pratinjau:demo": "VITE_DEMO=1 vite build --outDir dist-demo && vite preview --outDir dist-demo --strictPort",
     "android:apk": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
-    "android:apk:demo": "VITE_DEMO=1 vite build && cap sync android && cd android && ./gradlew assembleDebug"
+    "android:apk:demo": "VITE_DEMO=1 vite build && cap sync android && cd android && ./gradlew assembleDebug",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",
@@ -26,6 +28,7 @@
     "@fontsource/poppins": "^5.3.0",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.95.0",
+    "@tauri-apps/api": "^2.12.4",
     "clsx": "^2.1.1",
     "katex": "^0.18.10",
     "lucide-react": "^0.462.0",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
+    "@tauri-apps/cli": "^2.12.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^5.0.0",

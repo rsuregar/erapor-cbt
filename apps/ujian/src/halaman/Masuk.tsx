@@ -2,7 +2,7 @@ import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
-import { isNative } from "@/lib/native";
+import { isNative, isTauri } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -272,11 +272,13 @@ export default function Masuk() {
                             </span>
                             <span>&bull;</span>
                             <span>
-                                {isNative()
-                                    ? Capacitor.getPlatform() === 'ios'
-                                        ? 'Aplikasi iOS'
-                                        : 'Aplikasi Android'
-                                    : 'Web PWA'}
+                                {isTauri()
+                                    ? 'Exam Browser (Windows)'
+                                    : isNative()
+                                      ? Capacitor.getPlatform() === 'ios'
+                                          ? 'Aplikasi iOS'
+                                          : 'Aplikasi Android'
+                                      : 'Web PWA'}
                             </span>
                         </div>
                         <p className="text-[11px] text-slate-400">

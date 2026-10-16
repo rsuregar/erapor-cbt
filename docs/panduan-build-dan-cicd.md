@@ -213,6 +213,35 @@ Jika Anda menggunakan Cloudflare Pages, Vercel, atau Netlify, buka backend e-Rap
     'capacitor://localhost',             // iOS App
     'https://localhost',                 // Android App
     'http://localhost:5180',             // Development lokal
+    'tauri://localhost',                 // Tauri Desktop Exam Browser
+    'http://tauri.localhost',            // Tauri Windows WebView2
 ],
 ```
+
+---
+
+## 8. Build Desktop Exam Browser (Windows / macOS via Tauri v2)
+
+Aplikasi CBT Al Akhyar kini mendukung versi **Desktop Exam Browser** menggunakan **Tauri v2** yang sangat ringan (~5-10 MB) dan dirancang untuk mengunci layar PC/laptop lab sekolah (Kiosk Mode).
+
+### Fitur Penguncian Exam Browser:
+* **Kiosk Layar Penuh (`fullscreen: true`, `decorations: false`):** Menghilangkan bilah menu OS, tombol Minimize, Maximize, dan Close.
+* **Always on Top:** Jendela ujian selalu berada di lapisan paling depan.
+* **Pencegahan Keluar Sembarangan:** Menutup jendela via pintasan sistem (seperti `Alt + F4`) otomatis dicegah pada mode release.
+* **Keluar Aman Proktor:** Tombol *"Tutup Aplikasi"* hanya tersedia di modal konfirmasi keluar dengan izin proktor.
+
+### Cara Menjalankan di Lokal (Development):
+```bash
+# Jalankan mode desktop development
+npm run desktop:dev
+```
+
+### Cara Membangun Installer Windows (.msi & .exe):
+Jalankan perintah berikut di mesin Windows (atau via GitHub Actions):
+```bash
+# Build paket instalasi desktop
+npm run desktop:build
+```
+Hasil installer akan berada di: `apps/ujian/src-tauri/target/release/bundle/nsis/` (installer .exe) dan `bundle/msi/` (installer .msi).
+
 

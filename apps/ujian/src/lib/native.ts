@@ -21,8 +21,24 @@ const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
 /** Android: plugin lokal tersedia. iOS menyusul (belum ada proyek iOS). */
 export const adaNative = () => Capacitor.getPlatform() === 'android'
 
-/** True jika aplikasi berjalan sebagai native app (Android APK atau iOS), bukan di browser/PWA. */
-export const isNative = () => Capacitor.isNativePlatform()
+/** Deteksi apakah aplikasi berjalan di dalam Tauri Desktop (Windows / macOS / Linux Exam Browser) */
+export const isTauri = () =>
+    typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+/** True jika aplikasi berjalan sebagai native app (Android APK, iOS, atau Tauri Desktop Exam Browser). */
+export const isNative = () => Capacitor.isNativePlatform() || isTauri()
+
+/** Keluar / tutup aplikasi desktop Tauri */
+export async function keluarAplikasiTauri(): Promise<void> {
+    if (isTauri()) {
+        try {
+            const { invoke } = await import('@tauri-apps/api/core')
+            await invoke('keluar_aplikasi')
+        } catch {
+            // Abaikan jika tidak di runtime Tauri
+        }
+    }
+}
 
 /** Sematkan aplikasi selama ujian. null = bukan app native. */
 export async function kunciLayar(): Promise<boolean | null> {

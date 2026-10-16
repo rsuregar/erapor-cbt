@@ -4,7 +4,7 @@ import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
-import { isNative } from '@/lib/native'
+import { isNative, isTauri, keluarAplikasiTauri } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian, penyimpanan } from '@/lib/ujian'
@@ -350,11 +350,13 @@ export default function Beranda() {
                         </span>
                         <span>&bull;</span>
                         <span>
-                            {isNative()
-                                ? Capacitor.getPlatform() === 'ios'
-                                    ? 'Aplikasi iOS'
-                                    : 'Aplikasi Android'
-                                : 'Web PWA'}
+                            {isTauri()
+                                ? 'Exam Browser (Windows)'
+                                : isNative()
+                                  ? Capacitor.getPlatform() === 'ios'
+                                      ? 'Aplikasi iOS'
+                                      : 'Aplikasi Android'
+                                  : 'Web PWA'}
                         </span>
                     </div>
                     <p className="text-slate-400">Yayasan Pendidikan Islam Al Akhyar</p>
@@ -378,8 +380,13 @@ export default function Beranda() {
                             <Tombol varian="outline" ukuran="sm" onClick={() => setModalKeluar(false)} disabled={prosesKeluar}>
                                 Batal
                             </Tombol>
+                            {isTauri() && (
+                                <Tombol varian="secondary" ukuran="sm" onClick={() => void keluarAplikasiTauri()} disabled={prosesKeluar}>
+                                    Tutup Aplikasi
+                                </Tombol>
+                            )}
                             <Tombol varian="danger" ukuran="sm" onClick={tanganiKeluar} disabled={prosesKeluar}>
-                                {prosesKeluar ? 'Memproses…' : 'Ya, Keluar'}
+                                {prosesKeluar ? 'Memproses…' : 'Ya, Keluar Akun'}
                             </Tombol>
                         </div>
                     </div>
