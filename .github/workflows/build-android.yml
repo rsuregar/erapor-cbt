@@ -1,21 +1,12 @@
-name: "Build Mobile Apps (APK & iOS)"
+name: "Build Android APK"
 
 on:
   push:
     tags:
-      - 'release-prod*'
+      - 'android-*'
       - 'v*'
   workflow_dispatch:
     inputs:
-      platform:
-        description: 'Target Platform'
-        type: choice
-        required: true
-        options:
-          - all
-          - android
-          - ios
-        default: all
       environment:
         description: 'Target Environment'
         type: choice
@@ -36,7 +27,6 @@ on:
 jobs:
   build-android:
     name: Build Android APK
-    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'android'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -63,7 +53,7 @@ jobs:
       - name: Determine API URL
         id: env
         run: |
-          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/release-prod') && 'production' || 'staging') }}"
+          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/android-prod') && 'production' || 'staging') }}"
           if [ "$TARGET" = "production" ]; then
             API_URL="${{ vars.VITE_API_URL_PROD || secrets.VITE_API_URL_PROD || 'https://erapor.alakhyar.sch.id/api' }}"
           else
@@ -115,70 +105,3 @@ jobs:
         with:
           name: ujian-al-akhyar-${{ steps.env.outputs.target }}.apk
           path: ${{ steps.apk.outputs.path }}
-
-  build-ios:
-    name: Build iOS App
-    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'ios'
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: |
-          npm ci
-          cd apps/ujian
-          npm install @capacitor/ios --save-exact
-
-      - name: Determine API URL
-        id: env
-        run: |
-          TARGET="${{ inputs.environment || (startsWith(github.ref, 'refs/tags/release-prod') && 'production' || 'staging') }}"
-          if [ "$TARGET" = "production" ]; then
-            API_URL="${{ vars.VITE_API_URL_PROD || secrets.VITE_API_URL_PROD || 'https://erapor.alakhyar.sch.id/api' }}"
-          else
-            API_URL="${{ vars.VITE_API_URL_STAGING || secrets.VITE_API_URL_STAGING || 'https://staging.erapor.alakhyar.sch.id/api' }}"
-          fi
-          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
-          echo "target=$TARGET" >> $GITHUB_OUTPUT
-
-      - name: Build Web App & Sync Capacitor iOS
-        env:
-          VITE_API_URL: ${{ steps.env.outputs.api_url }}
-        run: |
-          npm run build -w @erapor-cbt/ujian
-          cd apps/ujian
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
-          npx cap sync ios
-
-      - name: Build iOS Workspace (Simulator / Unsigned Archive)
-        run: |
-          cd apps/ujian/ios/App
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath build/App.xcarchive \
-            archive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
-
-      - name: Compress iOS Archive
-        run: |
-          cd apps/ujian/ios/App/build
-          zip -r App.xcarchive.zip App.xcarchive
-
-      - name: Upload iOS Archive Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ujian-al-akhyar-ios-${{ steps.env.outputs.target }}.xcarchive.zip
-          path: apps/ujian/ios/App/build/App.xcarchive.zip

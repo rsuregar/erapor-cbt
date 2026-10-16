@@ -9,13 +9,16 @@ Dokumen ini memuat panduan lengkap alur **CI/CD (GitHub Actions)** dan instruksi
 
 ## 1. Alur CI/CD (GitHub Actions)
 
-Proyek ini telah dilengkapi 3 alur otomatis di folder `.github/workflows/`:
+Proyek ini telah dilengkapi alur otomatis terpisah di folder `.github/workflows/`:
 
 | Workflow | File | Pemicu (Trigger) | Fungsi |
 | :--- | :--- | :--- | :--- |
-| **CI (Check & Test)** | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Push & Pull Request ke branch `main` | Memeriksa validasi tipe TypeScript (`npm run typecheck`), menjalankan unit test (`npm test`), dan memvalidasi build PWA (`npm run build`). |
-| **Deploy PWA** | [`.github/workflows/deploy-pwa.yml`](../.github/workflows/deploy-pwa.yml) | • Push ke `main` (Staging)<br>• Tag `release-prod*` (Production)<br>• Manual (`workflow_dispatch`) | Membangun aset PWA dengan `VITE_API_URL` target dan men-deploy langsung ke web server sekolah via SSH/SCP. |
-| **Build Mobile (APK & iOS)** | [`.github/workflows/build-mobile.yml`](../.github/workflows/build-mobile.yml) | • Tag `release-prod*` atau `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Android APK** dan **iOS Archive (.xcarchive)** yang siap diunduh langsung dari tab *Artifacts* GitHub Actions. |
+| **CI (Check & Test)** | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Push & PR ke `main`, atau manual | Memeriksa validasi tipe TypeScript (`npm run typecheck`), menjalankan unit test (`npm test`), dan memvalidasi build (`npm run build`). |
+| **Build Android APK** | [`.github/workflows/build-android.yml`](../.github/workflows/build-android.yml) | • Tag `android-*` atau `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Android APK** (Release/Debug) siap pasang. |
+| **Build iOS App** | [`.github/workflows/build-ios.yml`](../.github/workflows/build-ios.yml) | • Tag `ios-*` atau `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan arsip **iOS App (.xcarchive.zip)** untuk iPhone/iPad. |
+| **Build Windows Desktop** | [`.github/workflows/build-desktop-windows.yml`](../.github/workflows/build-desktop-windows.yml) | • Tag `windows-*`, `desktop-*`, `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Windows (.exe NSIS & .msi)** mode Exam Browser Kiosk. |
+| **Build macOS Desktop** | [`.github/workflows/build-desktop-macos.yml`](../.github/workflows/build-desktop-macos.yml) | • Tag `macos-*`, `desktop-*`, `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **macOS (.dmg)** mode Exam Browser Kiosk. |
+| **Deploy PWA** | [`.github/workflows/deploy-pwa.yml`](../.github/workflows/deploy-pwa.yml) | Manual (`workflow_dispatch`) | Deploy cadangan ke web server VPS via SSH/SCP jika tidak menggunakan Cloudflare. |
 
 ---
 
