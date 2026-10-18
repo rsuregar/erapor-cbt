@@ -141,7 +141,9 @@ export function buatCatatanRilis(tag, ref = tag) {
   const sebelum = tagSebelumnya(tag, ref);
   const bagian = { penting: [], baru: [], perbaikan: [], perubahan: [], lainnya: [] };
 
-  for (const c of sebelum ? daftarCommit(sebelum, ref) : []) {
+  // Commit penaik versi dari `npm run rilis` bukan perubahan yang perlu dibaca pengguna.
+  const commit = sebelum ? daftarCommit(sebelum, ref).filter((c) => !/^chore\(rilis\): versi /.test(c.subjek)) : [];
+  for (const c of commit) {
     const m = POLA_COMMIT.exec(c.subjek);
     const jenis = m?.[1].toLowerCase();
     const kelompok = BAGIAN[jenis] ?? 'lainnya';
