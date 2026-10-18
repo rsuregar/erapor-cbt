@@ -8,8 +8,13 @@
 //
 // Beberapa workflow (mis. macOS + Windows untuk release-desktop-*) memakai tag yang sama:
 // pembuatan rilis aman terhadap balapan, unggahan memakai --clobber sehingga re-run idempoten.
+// Catatan rilis wajib: dibuat dari templat .github/catatan-rilis.md (scripts/catatan-rilis.mjs);
+// gagal membuat catatan = rilis tidak diterbitkan. Butuh riwayat git + tag lengkap (fetch-depth: 0).
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { buatCatatanRilis, uraiTag } from './catatan-rilis.mjs';
 
 const [tag, ...berkas] = process.argv.slice(2);
 const repo = process.env.RELEASE_REPO;
@@ -27,12 +32,12 @@ if (!process.env.GH_TOKEN) {
   process.exit(1);
 }
 
-const m = /^release-(desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(-.+)?$/.exec(tag);
-if (!m) {
+const u = uraiTag(tag);
+if (!u) {
   console.error(`Tag "${tag}" bukan format release-<desktop|win|macos|mobile|android|ios>-X.Y.Z`);
   process.exit(1);
 }
-const [, jenis, versi, praRilis] = m;
+const { jenis, versi, praRilis } = u;
 
 for (const f of berkas) {
   if (!existsSync(f)) {
@@ -50,6 +55,9 @@ const NAMA = {
   ios: 'iOS',
 };
 
+const catatan = join(mkdtempSync(join(tmpdir(), 'catatan-rilis-')), 'catatan.md');
+writeFileSync(catatan, buatCatatanRilis(tag));
+
 const gh = (...args) => execFileSync('gh', [...args, '--repo', repo], { stdio: 'inherit' });
 const ghDiam = (...args) => execFileSync('gh', [...args, '--repo', repo], { stdio: 'ignore' });
 
@@ -64,8 +72,8 @@ if (!ada) {
   try {
     gh(
       'release', 'create', tag,
-      '--title', `CBT Al Akhyar ${NAMA[jenis]} v${versi}${praRilis ?? ''}`,
-      '--notes', `Rilis CBT Al Akhyar ${NAMA[jenis]} v${versi}${praRilis ?? ''}.`,
+      '--title', `CBT Al Akhyar ${NAMA[jenis]} v${versi}`,
+      '--notes-file', catatan,
       ...(praRilis ? ['--prerelease'] : []),
     );
   } catch (e) {

@@ -102,11 +102,30 @@ Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. No
 | `release-android-X.Y.Z` | Android saja | `.apk` |
 | `release-ios-X.Y.Z` | iOS saja | `.xcarchive.zip` |
 
+Buat tag dari `main` (bersih & sama dengan `origin/main`) dengan pembantu rilis. Pembantu ini menampilkan catatan rilis, membuat **tag beranotasi** berisi catatan itu, lalu push:
+
 ```bash
-git tag release-desktop-1.2.0 && git push origin release-desktop-1.2.0
-git tag release-mobile-1.2.0  && git push origin release-mobile-1.2.0
+npm run rilis -- android 1.2.0 --pratinjau   # lihat catatan rilis saja, tanpa membuat tag
+npm run rilis -- desktop 1.2.0               # buat & push release-desktop-1.2.0
+npm run rilis -- mobile 1.2.0
 ```
-Akhiran setelah versi (mis. `release-desktop-1.3.0-rc.1`, `-staging`) diterbitkan sebagai **pra-rilis** dan diabaikan app. Tag lama (`v*`, `android-*`, `windows-*`, `macos-*`, `ios-*`, `desktop-*`) tidak lagi memicu build; gunakan Manual Run bila hanya perlu artifact tanpa rilis.
+Akhiran setelah versi (mis. `1.3.0-rc.1`, `-staging`) diterbitkan sebagai **pra-rilis** dan diabaikan app. Tag lama (`v*`, `android-*`, `windows-*`, `macos-*`, `ios-*`, `desktop-*`) tidak lagi memicu build; gunakan Manual Run bila hanya perlu artifact tanpa rilis.
+
+#### Catatan rilis (wajib, otomatis)
+Setiap GitHub Release memuat catatan yang dibuat [`scripts/catatan-rilis.mjs`](../scripts/catatan-rilis.mjs) dari templat [`.github/catatan-rilis.md`](../.github/catatan-rilis.md). Catatan ini dibuat juga untuk tag yang dibuat manual dengan `git tag`; bila gagal dibuat, rilis tidak diterbitkan.
+* **Pembanding**: tag rilis sebelumnya dengan versi lebih rendah untuk platform yang beririsan (mis. `release-desktop-1.2.0` dibandingkan dengan `release-desktop-*`, `release-win-*`, atau `release-macos-*` terakhir). Pra-rilis tidak dipakai sebagai pembanding rilis stabil.
+* **Pengelompokan** dari pesan commit [Conventional Commits](https://www.conventionalcommits.org/) (`jenis(cakupan): judul`):
+
+  | Jenis commit | Bagian |
+  | :--- | :--- |
+  | `feat` | Apa yang baru |
+  | `fix` | Perbaikan |
+  | `perf`, `refactor`, `style`, `sec` | Perubahan |
+  | lainnya (`ci`, `docs`, `chore`, `build`, `test`, tanpa format) | Lainnya |
+  | `jenis!:` atau `BREAKING CHANGE:` di badan commit | juga di **Perubahan penting** |
+* Bagian kosong disembunyikan. Di akhir catatan ada tautan **perbandingan lengkap** ke repo kode, yang hanya bisa dibuka anggota tim karena repo kode private.
+* Mengubah format: edit `.github/catatan-rilis.md`. Placeholder yang tersedia tercantum di komentar templat.
+* Build workflow memakai `fetch-depth: 0` agar riwayat dan tag lengkap tersedia untuk perbandingan.
 
 #### Prasyarat sekali jalan: repo rilis publik
 Repo kode ini **private**, sedangkan app yang dipasang di perangkat murid tidak boleh membawa token. Karena itu rilis diterbitkan ke repo **publik terpisah** (hanya berisi installer, tanpa kode):
