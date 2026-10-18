@@ -33,10 +33,10 @@ jobs:
     environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -107,7 +107,7 @@ jobs:
           npx @tauri-apps/cli build
 
       - name: Upload macOS DMG Installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cbt-al-akhyar-macos-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
           path: apps/ujian/src-tauri/target/release/bundle/dmg/*.dmg
