@@ -54,6 +54,8 @@ jobs:
           API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
+          # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
+          echo "name_env=$([ "$TARGET" = production ] || echo "-$TARGET")" >> $GITHUB_OUTPUT
 
       - name: Determine App Version & Build Number
         id: version
@@ -139,9 +141,9 @@ jobs:
         id: archive
         run: |
           cd apps/ujian/ios/App/build
-          # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+          # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
           # Varian "unsigned": arsip belum ditandatangani, tidak bisa dipasang langsung.
-          NAME="cbt-al-akhyar-ios-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
+          NAME="cbt-al-akhyar-ios${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           zip -r "$NAME-unsigned.xcarchive.zip" App.xcarchive
           echo "name=$NAME" >> $GITHUB_OUTPUT
           echo "path=apps/ujian/ios/App/build/$NAME-unsigned.xcarchive.zip" >> $GITHUB_OUTPUT

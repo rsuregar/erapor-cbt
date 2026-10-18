@@ -55,6 +55,8 @@ jobs:
           API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
+          # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
+          echo "name_env=$([ "$TARGET" = production ] || echo "-$TARGET")" >> $GITHUB_OUTPUT
 
       - name: Determine App Version & Build Number
         id: version
@@ -110,7 +112,7 @@ jobs:
           cd apps/ujian
           npx @tauri-apps/cli build
 
-      # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+      # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installers
         id: installer
         shell: bash
@@ -120,7 +122,7 @@ jobs:
           MSI=$(ls "$BUNDLE"/msi/*.msi)
           # Tauri: "<Produk>_<versi>_<arch>-setup.exe"
           ARCH=$(basename "$EXE" | sed -E 's/.*_([^_]+)-setup\.exe$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
-          BASE="cbt-al-akhyar-windows-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
+          BASE="cbt-al-akhyar-windows${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           OUT="$RUNNER_TEMP/installer"
           mkdir -p "$OUT"
           cp "$EXE" "$OUT/$BASE-$ARCH-setup.exe"

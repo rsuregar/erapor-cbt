@@ -68,6 +68,8 @@ jobs:
           API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
+          # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
+          echo "name_env=$([ "$TARGET" = production ] || echo "-$TARGET")" >> $GITHUB_OUTPUT
 
       - name: Determine App Version & Build Number
         id: version
@@ -180,10 +182,10 @@ jobs:
             exit 1
           fi
 
-          # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+          # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
           # APK universal (tanpa arch); varian = release/debug.
           DIRNAME=$(dirname "$ORIGINAL_APK")
-          NAMED_APK="$DIRNAME/cbt-al-akhyar-android-${TARGET}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
+          NAMED_APK="$DIRNAME/cbt-al-akhyar-android${{ steps.env.outputs.name_env }}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
           cp "$ORIGINAL_APK" "$NAMED_APK"
 
           echo "path=$NAMED_APK" >> $GITHUB_OUTPUT
@@ -193,7 +195,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: cbt-al-akhyar-android-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
+          name: cbt-al-akhyar-android${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
           path: ${{ steps.apk.outputs.path }}
 
       - name: Publish to GitHub Release

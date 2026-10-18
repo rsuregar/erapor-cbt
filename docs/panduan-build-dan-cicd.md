@@ -72,21 +72,23 @@ Anda tidak harus selalu push commit untuk membangun aplikasi atau deploy PWA. Bi
 Semua berkas (artifact dan aset GitHub Release) memakai satu pola:
 
 ```
-cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
 ```
 
 * `platform`: `windows` · `macos` · `android` · `ios`
-* `env`: `production` · `staging` (selalu ditulis; build staging memakai API staging)
+* `env`: hanya ditulis bila **bukan** production (`-staging`); build production tanpa label. Build staging memakai API staging, jadi harus terlihat beda.
 * `build`: nomor build (Android `versionCode`, iOS `CFBundleVersion`)
 * `arch`: hanya untuk desktop yang berbeda per arsitektur (`x64`, `arm64`)
 * `varian`: jenis paket bila ada lebih dari satu (`setup` NSIS, `release`/`debug` APK, `unsigned` arsip iOS)
 
-| Platform | Contoh berkas | Nama artifact (zip) |
+| Platform | Contoh berkas (production) | Nama artifact (zip) |
 | :--- | :--- | :--- |
-| Windows | `cbt-al-akhyar-windows-production-v1.2.0-b7-x64-setup.exe`, `cbt-al-akhyar-windows-production-v1.2.0-b7-x64.msi` | `cbt-al-akhyar-windows-production-v1.2.0-b7` |
-| macOS | `cbt-al-akhyar-macos-production-v1.2.0-b7-arm64.dmg` | `cbt-al-akhyar-macos-production-v1.2.0-b7` |
-| Android | `cbt-al-akhyar-android-production-v1.2.0-b7-release.apk` | `cbt-al-akhyar-android-production-v1.2.0-b7` |
-| iOS | `cbt-al-akhyar-ios-production-v1.2.0-b7-unsigned.xcarchive.zip` | `cbt-al-akhyar-ios-production-v1.2.0-b7` |
+| Windows | `cbt-al-akhyar-windows-v1.2.0-b7-x64-setup.exe`, `cbt-al-akhyar-windows-v1.2.0-b7-x64.msi` | `cbt-al-akhyar-windows-v1.2.0-b7` |
+| macOS | `cbt-al-akhyar-macos-v1.2.0-b7-arm64.dmg` | `cbt-al-akhyar-macos-v1.2.0-b7` |
+| Android | `cbt-al-akhyar-android-v1.2.0-b7-release.apk` | `cbt-al-akhyar-android-v1.2.0-b7` |
+| iOS | `cbt-al-akhyar-ios-v1.2.0-b7-unsigned.xcarchive.zip` | `cbt-al-akhyar-ios-v1.2.0-b7` |
+
+Build staging, contoh: `cbt-al-akhyar-android-staging-v1.2.0-b7-debug.apk`.
 
 ### B. Rilis via Git Tag (dibaca fitur cek pembaruan app):
 Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. Nomor versi diambil dari tag:

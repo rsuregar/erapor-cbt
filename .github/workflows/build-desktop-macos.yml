@@ -54,6 +54,8 @@ jobs:
           API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
+          # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
+          echo "name_env=$([ "$TARGET" = production ] || echo "-$TARGET")" >> $GITHUB_OUTPUT
 
       - name: Determine App Version & Build Number
         id: version
@@ -106,14 +108,14 @@ jobs:
           cd apps/ujian
           npx @tauri-apps/cli build
 
-      # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+      # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installer
         id: installer
         run: |
           DMG=$(ls apps/ujian/src-tauri/target/release/bundle/dmg/*.dmg)
           # Tauri: "<Produk>_<versi>_<arch>.dmg"
           ARCH=$(basename "$DMG" | sed -E 's/.*_([^_]+)\.dmg$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
-          BASE="cbt-al-akhyar-macos-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
+          BASE="cbt-al-akhyar-macos${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           OUT="$RUNNER_TEMP/installer"
           mkdir -p "$OUT"
           cp "$DMG" "$OUT/$BASE-$ARCH.dmg"
