@@ -120,33 +120,50 @@ jobs:
           cd apps/ujian
           npx cap sync android
 
-      - name: Prepare Keystore (if secret provided)
+      - name: Prepare Keystore
         id: keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        if: env.KEYSTORE_BASE64 != ''
+          REQUESTED_TYPE: ${{ inputs.build_type || 'release' }}
+          IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/release-') }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > apps/ujian/android/app/release.keystore
-          echo "has_keystore=true" >> $GITHUB_OUTPUT
+          if [ "$REQUESTED_TYPE" = "release" ] && [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            echo "build_type=release" >> $GITHUB_OUTPUT
+          elif [ "$IS_RELEASE_TAG" = "true" ]; then
+            # APK rilis publik wajib bertanda tangan keystore permanen; APK debug tidak bisa
+            # dipasang menimpa versi sebelumnya sehingga pembaruan lewat app tidak berfungsi.
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 kosong: tag release-* butuh APK release bertanda tangan."
+            exit 1
+          else
+            if [ "$REQUESTED_TYPE" = "release" ]; then
+              echo "::warning::Secret keystore tidak ada; membuat APK debug."
+            fi
+            echo "build_type=debug" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build Android APK
+        env:
+          BUILD_TYPE: ${{ steps.keystore.outputs.build_type }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd apps/ujian/android
-          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
-          VERSION_NAME="${{ steps.version.outputs.version_name }}"
-          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
-          if [ "$BUILD_TYPE" = "debug" ] || [ "${{ steps.keystore.outputs.has_keystore }}" != "true" ]; then
-            ./gradlew assembleDebug \
-              -PversionCode="${BUILD_NUMBER}" \
-              -PversionName="${VERSION_NAME}"
-          else
+          if [ "$BUILD_TYPE" = "release" ]; then
             ./gradlew assembleRelease \
               -PversionCode="${BUILD_NUMBER}" \
               -PversionName="${VERSION_NAME}" \
-              -Pandroid.injected.signing.store.file="release.keystore" \
-              -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-              -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_KEY_ALIAS }}" \
-              -Pandroid.injected.signing.key.password="${{ secrets.ANDROID_KEY_PASSWORD }}"
+              -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
+              -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
+              -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
+              -Pandroid.injected.signing.key.password="${KEY_PASSWORD}"
+          else
+            ./gradlew assembleDebug \
+              -PversionCode="${BUILD_NUMBER}" \
+              -PversionName="${VERSION_NAME}"
           fi
 
       - name: Locate Generated APK
@@ -155,11 +172,11 @@ jobs:
           TARGET="${{ steps.env.outputs.target }}"
           VERSION_NAME="${{ steps.version.outputs.version_name }}"
           BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
-          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          BUILD_TYPE="${{ steps.keystore.outputs.build_type }}"
 
-          ORIGINAL_APK=$(find apps/ujian/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          ORIGINAL_APK=$(find "apps/ujian/android/app/build/outputs/apk/${BUILD_TYPE}" -name "*.apk" | head -n 1)
           if [ -z "$ORIGINAL_APK" ]; then
-            echo "Error: APK not found"
+            echo "Error: APK ${BUILD_TYPE} not found"
             exit 1
           fi
 
