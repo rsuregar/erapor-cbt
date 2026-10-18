@@ -164,5 +164,5 @@ Pelajari dokumentasi teknis lebih detail pada direktori [`docs/`](docs/):
 
 ## Lisensi & Kepemilikan
 
-Hak Cipta © 2026 **Yayasan Pendidikan Islam Al Akhyar**.  
+Hak Cipta © 2026 **Sekolah Islam Al Akhyar**. Dirilis di bawah [Lisensi MIT](LICENSE).  
 Dikembangkan untuk platform Ujian Digital Resmi e-Rapor Al Akhyar.

@@ -3,8 +3,8 @@ name = "app"
 version = "0.2.1"
 description = "A Tauri App"
 authors = ["you"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/rsuregar/erapor-cbt"
 edition = "2024"
 rust-version = "1.90"
 

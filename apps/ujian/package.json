@@ -1,6 +1,7 @@
 {
   "name": "@erapor-cbt/ujian",
   "version": "0.2.1",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {

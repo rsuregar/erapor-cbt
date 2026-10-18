@@ -1,6 +1,7 @@
 {
   "name": "erapor-cbt",
   "private": true,
+  "license": "MIT",
   "description": "Aplikasi ujian murid CBT e-Rapor Al Akhyar (Capacitor Android/iOS + PWA).",
   "workspaces": [
     "apps/*",

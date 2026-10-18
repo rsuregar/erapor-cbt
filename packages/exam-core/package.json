@@ -1,6 +1,7 @@
 {
   "name": "@erapor-cbt/exam-core",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Logika ujian tanpa DOM: klien API, dekripsi paket, outbox, jam server, sinkron. Dipakai PWA & app Capacitor.",

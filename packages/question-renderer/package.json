@@ -1,6 +1,7 @@
 {
   "name": "@erapor-cbt/question-renderer",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Tampilan soal CBT — salinan dari erapor/resources/js/Cbt/question-renderer (sumber kebenaran). Perbarui dengan `npm run sinkron:renderer`.",
