@@ -43,6 +43,14 @@ const BAGIAN = {
   sec: 'perubahan',
 };
 
+/** Langkah pasang khusus platform, ditempel di "Cara memperbarui". */
+const CATATAN_PLATFORM = {
+  macos:
+    '- **macOS:** app belum dinotarisasi Apple. Saat pertama dibuka muncul peringatan keamanan → buka **Pengaturan Sistem → Privasi & Keamanan**, lalu klik **Tetap Buka** (cukup sekali per versi).',
+  android:
+    '- **Android:** izinkan *Instal dari sumber tidak dikenal* untuk browser bila diminta, lalu pasang APK di atas versi lama (data tidak hilang).',
+};
+
 export function uraiTag(tag) {
   const m = POLA_TAG.exec(tag);
   if (!m) return null;
@@ -171,6 +179,10 @@ export function buatCatatanRilis(tag, ref = tag) {
     perbaikan: bagian.perbaikan.join('\n'),
     perubahan: bagian.perubahan.join('\n'),
     lainnya: bagian.lainnya.join('\n'),
+    catatan_platform: PLATFORM[u.jenis]
+      .map((p) => CATATAN_PLATFORM[p])
+      .filter(Boolean)
+      .join('\n'),
     banding: sebelum
       ? `**Perbandingan lengkap** (${jumlah} commit, khusus tim pengembang): [\`${sebelum}...${tag}\`](${repo}/compare/${sebelum}...${tag})`
       : 'Rilis pertama untuk platform ini.',
