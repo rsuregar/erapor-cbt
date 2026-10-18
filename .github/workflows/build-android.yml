@@ -180,6 +180,8 @@ jobs:
             exit 1
           fi
 
+          # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+          # APK universal (tanpa arch); varian = release/debug.
           DIRNAME=$(dirname "$ORIGINAL_APK")
           NAMED_APK="$DIRNAME/cbt-al-akhyar-android-${TARGET}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
           cp "$ORIGINAL_APK" "$NAMED_APK"

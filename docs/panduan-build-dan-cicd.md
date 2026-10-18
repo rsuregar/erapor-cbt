@@ -66,11 +66,27 @@ Anda tidak harus selalu push commit untuk membangun aplikasi atau deploy PWA. Bi
    * **Build Type** *(khusus Android)*: `release` atau `debug`.
    * **Version Name / SemVer**: (opsional, contoh: `1.0.0`) — jika dikosongkan, CI otomatis mengambil dari tag git atau `package.json`.
    * **Build Number / Version Code**: (opsional, contoh: `42`) — jika dikosongkan, CI otomatis memakai nomor urut build GitHub (`github.run_number`).
-5. Klik **Run workflow**. Hasil build dapat diunduh di bagian **Artifacts** dengan nama terstruktur:
-   * Android: `cbt-al-akhyar-android-[env]-v[version]-b[build]` (file APK di dalamnya bernama `cbt-al-akhyar-android-[env]-v[version]-b[build]-[type].apk`)
-   * Windows: `cbt-al-akhyar-windows-[env]-v[version]-b[build]` (`.exe` NSIS & `.msi`)
-   * macOS: `cbt-al-akhyar-macos-[env]-v[version]-b[build]` (`.dmg`)
-   * iOS: `cbt-al-akhyar-ios-[env]-v[version]-b[build]` (file `cbt-al-akhyar-ios-[env]-v[version]-b[build].xcarchive.zip`)
+5. Klik **Run workflow**. Hasil build dapat diunduh di bagian **Artifacts**.
+
+#### Konvensi nama hasil build
+Semua berkas (artifact dan aset GitHub Release) memakai satu pola:
+
+```
+cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+```
+
+* `platform`: `windows` · `macos` · `android` · `ios`
+* `env`: `production` · `staging` (selalu ditulis; build staging memakai API staging)
+* `build`: nomor build (Android `versionCode`, iOS `CFBundleVersion`)
+* `arch`: hanya untuk desktop yang berbeda per arsitektur (`x64`, `arm64`)
+* `varian`: jenis paket bila ada lebih dari satu (`setup` NSIS, `release`/`debug` APK, `unsigned` arsip iOS)
+
+| Platform | Contoh berkas | Nama artifact (zip) |
+| :--- | :--- | :--- |
+| Windows | `cbt-al-akhyar-windows-production-v1.2.0-b7-x64-setup.exe`, `cbt-al-akhyar-windows-production-v1.2.0-b7-x64.msi` | `cbt-al-akhyar-windows-production-v1.2.0-b7` |
+| macOS | `cbt-al-akhyar-macos-production-v1.2.0-b7-arm64.dmg` | `cbt-al-akhyar-macos-production-v1.2.0-b7` |
+| Android | `cbt-al-akhyar-android-production-v1.2.0-b7-release.apk` | `cbt-al-akhyar-android-production-v1.2.0-b7` |
+| iOS | `cbt-al-akhyar-ios-production-v1.2.0-b7-unsigned.xcarchive.zip` | `cbt-al-akhyar-ios-production-v1.2.0-b7` |
 
 ### B. Rilis via Git Tag (dibaca fitur cek pembaruan app):
 Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. Nomor versi diambil dari tag:

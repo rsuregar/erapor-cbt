@@ -139,10 +139,12 @@ jobs:
         id: archive
         run: |
           cd apps/ujian/ios/App/build
+          # Konvensi: cbt-al-akhyar-<platform>-<env>-v<versi>-b<build>[-<arch>][-<varian>].<ext>
+          # Varian "unsigned": arsip belum ditandatangani, tidak bisa dipasang langsung.
           NAME="cbt-al-akhyar-ios-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
-          zip -r "$NAME.xcarchive.zip" App.xcarchive
+          zip -r "$NAME-unsigned.xcarchive.zip" App.xcarchive
           echo "name=$NAME" >> $GITHUB_OUTPUT
-          echo "path=apps/ujian/ios/App/build/$NAME.xcarchive.zip" >> $GITHUB_OUTPUT
+          echo "path=apps/ujian/ios/App/build/$NAME-unsigned.xcarchive.zip" >> $GITHUB_OUTPUT
 
       - name: Upload iOS Archive Artifact
         uses: actions/upload-artifact@v7
