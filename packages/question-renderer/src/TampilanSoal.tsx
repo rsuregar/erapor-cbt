@@ -26,6 +26,8 @@ type Props = {
     soal: SoalTampil
     /** Nomor urut di ujian (opsional). */
     nomor?: number
+    /** Nama bagian soal (mis. "Bagian I: Pilihan Ganda"), tampil di samping nomor. */
+    section?: string | null
     jawaban?: Jawaban
     onJawab?: (jawaban: Jawaban) => void
     /** Pratinjau guru: tandai kunci. Jangan pernah diisi di app murid. */
@@ -46,6 +48,7 @@ type Props = {
 export default function TampilanSoal({
     soal,
     nomor,
+    section,
     jawaban = null,
     onJawab,
     kunci,
@@ -110,6 +113,11 @@ export default function TampilanSoal({
                             {nomor !== undefined && (
                                 <span className="inline-flex h-7 sm:h-8 items-center justify-center rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-xs dark:bg-slate-100 dark:text-slate-900 tabular-nums">
                                     Soal {nomor}
+                                </span>
+                            )}
+                            {section && (
+                                <span className="inline-block max-w-[14rem] sm:max-w-xs truncate rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300" title={section}>
+                                    {section}
                                 </span>
                             )}
                             {onRagu && (

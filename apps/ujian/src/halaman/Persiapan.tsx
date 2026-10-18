@@ -62,6 +62,8 @@ function pesanGalatMulai(e: Error): string {
     if (e.kode === 'LOKASI_TIDAK_AKURAT') {
         return `Sinyal GPS kurang akurat (±${m('akurasi_meter')} m). Pindah ke dekat jendela atau ruang terbuka, tunggu sebentar, lalu coba lagi.`
     }
+    // Server membedakan "ujian ditutup" dan "sesi dihentikan pengawas" lewat pesannya.
+    if (e.kode === 'SUDAH_DITUTUP') return e.message || PESAN_MULAI.SUDAH_DITUTUP
 
     return PESAN_MULAI[e.kode] ?? e.message
 }
@@ -168,6 +170,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const bisaMulai = online && perangkatSiap && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
     const offlineLokal = !online && !!lokal.data
     const galatMulai = mulai.error ? pesanGalatMulai(mulai.error) : null
+    /** Ujian ditutup / sesi dihentikan pengawas (410): tidak ada yang bisa dicoba lagi di layar ini. */
+    const sesiDitutup = mulai.error instanceof GalatApi && mulai.error.kode === 'SUDAH_DITUTUP'
 
     return (
         <div className="min-h-full bg-slate-50/70 pb-16">
@@ -336,10 +340,17 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                         </div>
 
                         {galatMulai && (
-                            <p role="alert" className="flex items-center gap-2 rounded-lg bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
-                                <AlertTriangle className="size-4 shrink-0" />
-                                <span>{galatMulai}</span>
-                            </p>
+                            <div role="alert" className="space-y-2.5 rounded-lg bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
+                                <p className="flex items-center gap-2">
+                                    <AlertTriangle className="size-4 shrink-0" />
+                                    <span>{galatMulai}</span>
+                                </p>
+                                {sesiDitutup && (
+                                    <Tombol varian="outline" ukuran="sm" penuh onClick={() => void navigate({ to: '/' })} ikonKiri={<ChevronLeft className="size-4" />}>
+                                        Kembali ke Beranda Ujian
+                                    </Tombol>
+                                )}
+                            </div>
                         )}
 
                         <Tombol

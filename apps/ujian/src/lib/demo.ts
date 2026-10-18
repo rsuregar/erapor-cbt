@@ -77,25 +77,29 @@ const simpan = () => {
 const pil = (id: string, teks: string) => ({ id, konten: doc(teks) })
 
 function isiPaket(): IsiPaket {
+    const PG = 'Bagian I: Pilihan Ganda'
+    const LAIN = 'Bagian II: Benar/Salah & Menjodohkan'
+    const ESAI = 'Bagian III: Isian & Uraian'
+
     return {
         stimulus: {
             '7': { judul: 'Bacaan: Pasar Kue Ramadan', konten: doc('Setiap sore selama Ramadan, Bu Aminah menjual 120 kue. Pada hari pertama terjual 3/4 bagian, hari kedua terjual 90 kue, dan hari ketiga habis terjual. Harga satu kue Rp2.500.') },
         },
         soal: [
-            { id: 11, nomor: 1, jenis: 'pilihan_ganda', stimulus_id: null, bobot: 1, pertanyaan: doc('Hasil dari 3/4 + 2/3 adalah …'), opsi: [pil('a', '5/7'), pil('b', '17/12'), pil('c', '6/12'), pil('d', '1 1/2')] },
-            { id: 12, nomor: 2, jenis: 'pg_stimulus', stimulus_id: 7, bobot: 1, pertanyaan: doc('Berapa kue yang terjual pada hari pertama?'), opsi: [pil('a', '30'), pil('b', '60'), pil('c', '90'), pil('d', '100')] },
-            { id: 13, nomor: 3, jenis: 'pg_stimulus', stimulus_id: 7, bobot: 1, pertanyaan: doc('Berapa pendapatan Bu Aminah pada hari kedua?'), opsi: [pil('a', 'Rp180.000'), pil('b', 'Rp225.000'), pil('c', 'Rp250.000'), pil('d', 'Rp300.000')] },
-            { id: 14, nomor: 4, jenis: 'pg_kompleks', stimulus_id: null, bobot: 2, pertanyaan: doc('Pilih semua bilangan prima.'), opsi: [pil('a', '2'), pil('b', '9'), pil('c', '11'), pil('d', '15'), pil('e', '17')] },
+            { id: 11, nomor: 1, jenis: 'pilihan_ganda', section: PG, stimulus_id: null, bobot: 1, pertanyaan: doc('Hasil dari 3/4 + 2/3 adalah …'), opsi: [pil('a', '5/7'), pil('b', '17/12'), pil('c', '6/12'), pil('d', '1 1/2')] },
+            { id: 12, nomor: 2, jenis: 'pg_stimulus', section: PG, stimulus_id: 7, bobot: 1, pertanyaan: doc('Berapa kue yang terjual pada hari pertama?'), opsi: [pil('a', '30'), pil('b', '60'), pil('c', '90'), pil('d', '100')] },
+            { id: 13, nomor: 3, jenis: 'pg_stimulus', section: PG, stimulus_id: 7, bobot: 1, pertanyaan: doc('Berapa pendapatan Bu Aminah pada hari kedua?'), opsi: [pil('a', 'Rp180.000'), pil('b', 'Rp225.000'), pil('c', 'Rp250.000'), pil('d', 'Rp300.000')] },
+            { id: 14, nomor: 4, jenis: 'pg_kompleks', section: PG, stimulus_id: null, bobot: 2, pertanyaan: doc('Pilih semua bilangan prima.'), opsi: [pil('a', '2'), pil('b', '9'), pil('c', '11'), pil('d', '15'), pil('e', '17')] },
             {
-                id: 15, nomor: 5, jenis: 'benar_salah', stimulus_id: null, bobot: 2, pertanyaan: doc('Tentukan benar atau salah setiap pernyataan berikut.'),
+                id: 15, nomor: 5, jenis: 'benar_salah', section: LAIN, stimulus_id: null, bobot: 2, pertanyaan: doc('Tentukan benar atau salah setiap pernyataan berikut.'),
                 opsi: { label_benar: 'Benar', label_salah: 'Salah', pernyataan: [pil('p1', 'Jumlah sudut segitiga 180°.'), pil('p2', 'Persegi panjang memiliki 4 sumbu simetri.'), pil('p3', '0,5 sama dengan 1/2.')] },
             },
             {
-                id: 16, nomor: 6, jenis: 'menjodohkan', stimulus_id: null, bobot: 2, pertanyaan: doc('Jodohkan bangun dengan rumus luasnya.'),
+                id: 16, nomor: 6, jenis: 'menjodohkan', section: LAIN, stimulus_id: null, bobot: 2, pertanyaan: doc('Jodohkan bangun dengan rumus luasnya.'),
                 opsi: { kiri: [pil('k1', 'Persegi'), pil('k2', 'Segitiga'), pil('k3', 'Lingkaran')], kanan: [pil('n1', '½ × a × t'), pil('n2', 's × s'), pil('n3', 'π × r²')] },
             },
-            { id: 17, nomor: 7, jenis: 'isian', stimulus_id: null, bobot: 1, pertanyaan: doc('KPK dari 12 dan 18 adalah …'), opsi: null },
-            { id: 18, nomor: 8, jenis: 'uraian', stimulus_id: null, bobot: 4, pertanyaan: doc('Jelaskan langkah menyederhanakan pecahan 18/24 dan tuliskan hasilnya.'), opsi: null },
+            { id: 17, nomor: 7, jenis: 'isian', section: ESAI, stimulus_id: null, bobot: 1, pertanyaan: doc('KPK dari 12 dan 18 adalah …'), opsi: null },
+            { id: 18, nomor: 8, jenis: 'uraian', section: ESAI, stimulus_id: null, bobot: 4, pertanyaan: doc('Jelaskan langkah menyederhanakan pecahan 18/24 dan tuliskan hasilnya.'), opsi: null },
         ],
     }
 }

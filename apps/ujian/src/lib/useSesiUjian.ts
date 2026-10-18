@@ -2,7 +2,7 @@ import { api } from '@/lib/api'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
-import { GalatApi, JamServer, Outbox, Penyinkron, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
+import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type StatusUjian = 'memuat' | 'mengerjakan' | 'terkunci' | 'mengumpulkan' | 'menunggu_sinkron' | 'selesai' | 'tidak_ada'
@@ -13,6 +13,13 @@ const JEDA_TEKS_MS = 700
 
 /** Kontrak: detak.lokasi = posisi terakhir yang diketahui; GPS tidak perlu dipaksa tiap 15 detik. */
 const SELANG_LOKASI_MS = 60_000
+
+/** Alasan dari server bila attempt diakhiri pengawas (kontrak: data.alasan_selesai pada 409 SUDAH_SELESAI). */
+function alasanDariGalat(g: GalatApi | null): AlasanSelesai | null {
+    const a = g?.data.alasan_selesai
+
+    return a === 'sesi_dihentikan' || a === 'dikumpulkan_pengawas' ? a : null
+}
 
 /**
  * Satu sesi mengerjakan: jawaban (outbox lokal dulu, PRD "offline-first"),
@@ -27,6 +34,8 @@ export function useSesiUjian(attemptId: number) {
     const [koneksi, setKoneksi] = useState({ online: true, tertunda: 0 })
     const [pesan, setPesan] = useState<{ teks: string; pada: string } | null>(null)
     const [galatKumpul, setGalatKumpul] = useState<string | null>(null)
+    /** null = dikumpulkan murid / waktu habis; selain itu diakhiri pengawas. */
+    const [alasanSelesai, setAlasanSelesai] = useState<AlasanSelesai | null>(null)
 
     const outbox = useRef<Outbox>()
     const jam = useRef<JamServer>()
@@ -102,6 +111,7 @@ export function useSesiUjian(attemptId: number) {
                         pesan.includes('selesai') ||
                         pesan.includes('dikumpulkan')
                     ) {
+                        setAlasanSelesai(alasanDariGalat(g))
                         void selesai()
                     }
                 },
@@ -231,6 +241,7 @@ export function useSesiUjian(attemptId: number) {
                             pesan.includes('selesai') ||
                             pesan.includes('dikumpulkan')
                         ) {
+                            setAlasanSelesai(alasanDariGalat(g))
                             await selesai()
 
                             return
@@ -269,6 +280,7 @@ export function useSesiUjian(attemptId: number) {
         koneksi,
         pesan,
         galatKumpul,
+        alasanSelesai,
         jam: jam.current,
         msSejakMulai,
         jawab,
