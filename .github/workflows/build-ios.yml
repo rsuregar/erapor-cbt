@@ -45,7 +45,7 @@ jobs:
         run: |
           npm ci
           cd apps/ujian
-          npm install @capacitor/ios --save-exact
+          npm install @capacitor/ios@7.6.9 --save-exact
 
       - name: Determine Target Environment & API URL
         id: env
