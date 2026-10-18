@@ -122,6 +122,9 @@ npm run sync:org
 # Deploy PWA ke Cloudflare (Normal)
 npm run deploy:cf:normal
 
+# Deploy staging (Worker Preview, API staging) ke https://staging.cbt.alakhyar.sch.id
+npm run deploy:cf:staging
+
 # Pasang Halaman Maintenance di Cloudflare
 npm run deploy:cf:maintenance
 

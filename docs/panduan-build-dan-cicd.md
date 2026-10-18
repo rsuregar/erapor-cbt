@@ -269,6 +269,15 @@ npm run deploy:cf:disabled
 npm run deploy:cf:maintenance
 ```
 
+#### Staging (Cloudflare Worker Preview), dari lokal
+```bash
+npm run deploy:cf:staging
+```
+Perintah ini membangun app dengan `VITE_API_URL=https://erapor.staging.alakhyar.sch.id/api` lalu menjalankan `wrangler preview --name staging`. Hasilnya bisa dibuka di **https://staging.cbt.alakhyar.sch.id**, yang dilindungi Cloudflare Access sehingga perlu login. Production (`wrangler deploy`) tidak tersentuh.
+* URL API ditanam ke bundle JS saat **build** (`apps/ujian/src/lib/api.ts` membaca `import.meta.env.VITE_API_URL`). `previews.vars` di `wrangler.json` adalah variabel runtime Worker dan tidak dipakai oleh aset statis; blok `previews` tetap ada karena wajib untuk `wrangler preview` dan untuk build preview Workers Builds.
+* Variabel di environment mengalahkan `apps/ujian/.env.production`, jadi build staging tidak tertimpa URL production. Setelah deploy staging, jalankan `npm run build` sebelum `wrangler deploy` manual agar `dist` kembali ke production. `deploy:cf:normal` sudah membangun ulang sendiri.
+* Login wrangler sekali di mesin lokal: `npx wrangler login`.
+
 *(Semua mode pemeliharaan dan penonaktifan web secara otomatis menyertakan pembersih Service Worker & Cache PWA agar browser siswa langsung ter-reset).*
 
 #### 2. Deploy Otomatis via GitHub Actions:

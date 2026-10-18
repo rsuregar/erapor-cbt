@@ -9,7 +9,7 @@
   },
   "previews": {
     "vars": {
-      "VITE_API_URL": "https://staging.erapor.alakhyar.sch.id/api"
+      "VITE_API_URL": "https://erapor.staging.alakhyar.sch.id/api"
     }
   }
 }
