@@ -181,7 +181,7 @@ jobs:
           fi
 
           DIRNAME=$(dirname "$ORIGINAL_APK")
-          NAMED_APK="$DIRNAME/ujian-al-akhyar-${TARGET}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
+          NAMED_APK="$DIRNAME/cbt-al-akhyar-android-${TARGET}-v${VERSION_NAME}-b${BUILD_NUMBER}-${BUILD_TYPE}.apk"
           cp "$ORIGINAL_APK" "$NAMED_APK"
 
           echo "path=$NAMED_APK" >> $GITHUB_OUTPUT
@@ -191,7 +191,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ujian-al-akhyar-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
+          name: cbt-al-akhyar-android-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}
           path: ${{ steps.apk.outputs.path }}
 
       - name: Publish to GitHub Release

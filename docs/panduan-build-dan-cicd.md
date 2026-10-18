@@ -67,10 +67,10 @@ Anda tidak harus selalu push commit untuk membangun aplikasi atau deploy PWA. Bi
    * **Version Name / SemVer**: (opsional, contoh: `1.0.0`) — jika dikosongkan, CI otomatis mengambil dari tag git atau `package.json`.
    * **Build Number / Version Code**: (opsional, contoh: `42`) — jika dikosongkan, CI otomatis memakai nomor urut build GitHub (`github.run_number`).
 5. Klik **Run workflow**. Hasil build dapat diunduh di bagian **Artifacts** dengan nama terstruktur:
-   * Android: `ujian-al-akhyar-[env]-v[version]-b[build]` (file APK di dalamnya bernama `ujian-al-akhyar-[env]-v[version]-b[build]-[type].apk`)
+   * Android: `cbt-al-akhyar-android-[env]-v[version]-b[build]` (file APK di dalamnya bernama `cbt-al-akhyar-android-[env]-v[version]-b[build]-[type].apk`)
    * Windows: `cbt-al-akhyar-windows-[env]-v[version]-b[build]` (`.exe` NSIS & `.msi`)
    * macOS: `cbt-al-akhyar-macos-[env]-v[version]-b[build]` (`.dmg`)
-   * iOS: `ujian-al-akhyar-ios-[env]-v[version]-b[build].xcarchive.zip`
+   * iOS: `cbt-al-akhyar-ios-[env]-v[version]-b[build]` (file `cbt-al-akhyar-ios-[env]-v[version]-b[build].xcarchive.zip`)
 
 ### B. Rilis via Git Tag (dibaca fitur cek pembaruan app):
 Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. Nomor versi diambil dari tag:
