@@ -33,8 +33,12 @@ export type RilisGithub = {
 
 const REPO_RILIS = (import.meta.env.VITE_UPDATE_REPO as string | undefined) || 'rsuregar/erapor-cbt-releases'
 
-/** Jeda antar cek: API GitHub tanpa token dibatasi 60 permintaan/jam per IP (lab sekolah berbagi IP). */
-const TTL_CACHE_MS = 6 * 60 * 60 * 1000
+/**
+ * Jeda antar cek. API GitHub tanpa token dibatasi 60 permintaan/jam per IP dan lab
+ * sekolah berbagi IP; 1 jam tetap di bawah batas untuk satu lab, dan rilis baru
+ * terlihat paling lambat 1 jam. Bila batas terlampaui, cek gagal diam-diam.
+ */
+export const TTL_CEK_PEMBARUAN_MS = 60 * 60 * 1000
 const KUNCI_CACHE = 'cbt:cek-pembaruan'
 
 const JENIS_TAG: Record<PlatformRilis, string[]> = {
@@ -109,7 +113,7 @@ type IsiCache = { pada: number; versiApp: string; info: InfoPembaruan | null }
 function bacaCache(): IsiCache | null {
     try {
         const c = JSON.parse(localStorage.getItem(KUNCI_CACHE) ?? 'null') as IsiCache | null
-        if (c && c.versiApp === __VERSI_APP__ && Date.now() - c.pada < TTL_CACHE_MS) return c
+        if (c && c.versiApp === __VERSI_APP__ && Date.now() - c.pada < TTL_CEK_PEMBARUAN_MS) return c
     } catch {
         // cache rusak / localStorage tidak tersedia: lanjut cek ke jaringan
     }

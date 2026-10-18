@@ -1,8 +1,6 @@
-import { cekPembaruan, platformRilis, type InfoPembaruan } from '@/lib/pembaruan'
+import { cekPembaruan, platformRilis, TTL_CEK_PEMBARUAN_MS, type InfoPembaruan } from '@/lib/pembaruan'
 import { useOnline } from '@/lib/useOnline'
 import { useQuery } from '@tanstack/react-query'
-
-const ENAM_JAM_MS = 6 * 60 * 60 * 1000
 
 /** Pembaruan app yang tersedia di GitHub Releases; null = terbaru / belum dicek / offline / gagal cek. */
 export function usePembaruan(): InfoPembaruan | null {
@@ -11,7 +9,9 @@ export function usePembaruan(): InfoPembaruan | null {
         queryKey: ['pembaruan-app'],
         queryFn: cekPembaruan,
         enabled: online && platformRilis() !== null,
-        staleTime: ENAM_JAM_MS,
+        // App dibiarkan terbuka berjam-jam di lab: cek ulang setelah jeda yang sama dengan cache.
+        staleTime: TTL_CEK_PEMBARUAN_MS,
+        refetchInterval: TTL_CEK_PEMBARUAN_MS,
         retry: false,
         refetchOnWindowFocus: false,
     })

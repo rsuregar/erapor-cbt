@@ -111,6 +111,8 @@ npm run rilis -- mobile 1.2.0
 ```
 Akhiran setelah versi (mis. `1.3.0-rc.1`, `-staging`) diterbitkan sebagai **pra-rilis** dan diabaikan app. Tag lama (`v*`, `android-*`, `windows-*`, `macos-*`, `ios-*`, `desktop-*`) tidak lagi memicu build; gunakan Manual Run bila hanya perlu artifact tanpa rilis.
 
+Bila versi tag (stabil) lebih tinggi dari versi di repo, `npm run rilis` lebih dulu menjalankan `scripts/set-version.mjs`, meng-commit `chore(rilis): versi X.Y.Z`, dan push ke `main`. Dengan begitu versi yang tampil di web PWA, `npm run dev`, dan build lokal sama dengan rilis terbaru (build CI selalu memakai versi dari tag).
+
 #### Catatan rilis (wajib, otomatis)
 Setiap GitHub Release memuat catatan yang dibuat [`scripts/catatan-rilis.mjs`](../scripts/catatan-rilis.mjs) dari templat [`.github/catatan-rilis.md`](../.github/catatan-rilis.md). Catatan ini dibuat juga untuk tag yang dibuat manual dengan `git tag`; bila gagal dibuat, rilis tidak diterbitkan.
 * **Pembanding**: tag rilis sebelumnya dengan versi lebih rendah untuk platform yang beririsan (mis. `release-desktop-1.2.0` dibandingkan dengan `release-desktop-*`, `release-win-*`, atau `release-macos-*` terakhir). Pra-rilis tidak dipakai sebagai pembanding rilis stabil.
@@ -136,7 +138,9 @@ Repo kode ini **private**, sedangkan app yang dipasang di perangkat murid tidak 
 #### Cek pembaruan di app
 Saat dibuka (Windows, macOS, Android, iOS; bukan PWA), halaman **Masuk** dan **Beranda** memeriksa `https://api.github.com/repos/<repo rilis>/releases` dan menampilkan spanduk bila ada versi lebih baru:
 * Versi dibandingkan dari nomor pada tag (bukan tanggal). Hanya rilis yang memuat berkas platform perangkat itu yang dihitung (mis. build macOS gagal → Mac tidak ditawari versi itu).
-* Hasil di-cache 6 jam per perangkat: API GitHub tanpa token dibatasi 60 permintaan/jam per IP, dan lab sekolah berbagi satu IP.
+* Hasil di-cache 1 jam per perangkat dan dicek ulang tiap 1 jam selama app terbuka: API GitHub tanpa token dibatasi 60 permintaan/jam per IP, dan lab sekolah berbagi satu IP. Rilis baru terlihat paling lambat 1 jam setelah terbit.
+* Web PWA tidak memakai cek ini; PWA diperbarui lewat service worker setiap deploy.
+* **macOS**: app ditandatangani ad-hoc (`bundle.macOS.signingIdentity: "-"` di `tauri.conf.json`) karena belum ada sertifikat Apple Developer ID. Saat pertama dibuka, macOS menolak dengan pesan "Apple tidak dapat memeriksa…"; buka **Pengaturan Sistem → Privasi & Keamanan → Tetap Buka** (atau `xattr -dr com.apple.quarantine "/Applications/CBT Al Akhyar.app"`). Tanpa tanda tangan ad-hoc seluruh bundle, macOS menyebut app "rusak" (*damaged*) dan tidak bisa dibuka sama sekali — ini terjadi pada rilis macOS sebelum 0.2.1. Untuk menghapus langkah manual ini perlu Developer ID + notarisasi (akun Apple Developer).
 * Tombol **Unduh pembaruan** membuka tautan installer di browser sistem; pemasangan dilakukan manual. Di Exam Browser desktop, mode kios dilepas sementara agar browser terlihat dan dipulihkan saat jendela app difokuskan lagi. Spanduk tidak muncul di layar ujian.
 * iOS: berkas rilis adalah arsip tanpa tanda tangan, bukan IPA yang bisa dipasang langsung; distribusi iOS ke murid tetap lewat jalur Apple (TestFlight/App Store).
 * Jaringan/GitHub gagal → spanduk tidak tampil (tanpa galat).

@@ -39,6 +39,17 @@ if (existsSync(pkgPath)) {
   console.log(`[set-version] ✓ Updated ${pkgPath} -> version: ${versionName}`);
 }
 
+// 1b. package-lock.json: entri workspace ikut versi baru agar `npm ci` tetap sinkron.
+const lockNpmPath = resolve(rootDir, 'package-lock.json');
+if (existsSync(lockNpmPath)) {
+  const lockNpm = JSON.parse(readFileSync(lockNpmPath, 'utf8'));
+  if (lockNpm.packages?.['apps/ujian']) {
+    lockNpm.packages['apps/ujian'].version = versionName;
+    writeFileSync(lockNpmPath, JSON.stringify(lockNpm, null, 2) + '\n');
+    console.log(`[set-version] ✓ Updated ${lockNpmPath} -> apps/ujian: ${versionName}`);
+  }
+}
+
 // 2. Update apps/ujian/src-tauri/tauri.conf.json
 const tauriPath = resolve(rootDir, 'apps/ujian/src-tauri/tauri.conf.json');
 if (existsSync(tauriPath)) {
@@ -55,6 +66,14 @@ if (existsSync(cargoPath)) {
   cargo = cargo.replace(/^version\s*=\s*"[^"]*"/m, `version = "${versionName}"`);
   writeFileSync(cargoPath, cargo);
   console.log(`[set-version] ✓ Updated ${cargoPath} -> version: ${versionName}`);
+}
+
+// 3b. Cargo.lock ikut versi crate "app", supaya build lokal berikutnya tidak membuat working tree kotor.
+const lockPath = resolve(rootDir, 'apps/ujian/src-tauri/Cargo.lock');
+if (existsSync(lockPath)) {
+  const lock = readFileSync(lockPath, 'utf8').replace(/(\[\[package\]\]\nname = "app"\nversion = )"[^"]*"/, `$1"${versionName}"`);
+  writeFileSync(lockPath, lock);
+  console.log(`[set-version] ✓ Updated ${lockPath} -> app: ${versionName}`);
 }
 
 // 4. Update apps/ujian/android/app/build.gradle

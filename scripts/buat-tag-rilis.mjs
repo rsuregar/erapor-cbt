@@ -5,7 +5,7 @@
 // Pemakaian: npm run rilis -- <desktop|win|macos|mobile|android|ios> <X.Y.Z[-pra]> [--pratinjau]
 //   --pratinjau: hanya tampilkan catatan, tanpa membuat/push tag.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buatCatatanRilis, uraiTag } from './catatan-rilis.mjs';
@@ -37,6 +37,18 @@ if (!pratinjau) {
 const catatan = buatCatatanRilis(tag, 'HEAD');
 console.log(`\n===== Catatan rilis ${tag} =====\n\n${catatan}`);
 if (pratinjau) process.exit(0);
+
+// Versi di repo (web PWA dari main, build lokal, dev) mengikuti rilis stabil terbaru.
+// Catatan rilis di atas dibuat sebelum commit ini, jadi commit versi tidak ikut tercantum.
+const u = uraiTag(tag);
+const kini = JSON.parse(readFileSync('apps/ujian/package.json', 'utf8')).version.split('.').map(Number);
+const selisih = u.angka.map((n, i) => n - kini[i]).find((d) => d !== 0) ?? 0;
+if (!u.praRilis && selisih > 0) {
+  execFileSync('node', ['scripts/set-version.mjs', u.versi], { stdio: 'inherit' });
+  git('add', 'apps/ujian/package.json', 'package-lock.json', 'apps/ujian/src-tauri/tauri.conf.json', 'apps/ujian/src-tauri/Cargo.toml', 'apps/ujian/src-tauri/Cargo.lock', 'apps/ujian/android/app/build.gradle');
+  git('commit', '-m', `chore(rilis): versi ${u.versi}`);
+  git('push', 'origin', 'main');
+}
 
 const berkas = join(mkdtempSync(join(tmpdir(), 'tag-rilis-')), 'catatan.md');
 writeFileSync(berkas, `${tag}\n\n${catatan}`);
