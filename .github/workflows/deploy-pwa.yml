@@ -18,10 +18,11 @@ on:
         options:
           - normal
           - web_disabled
+          - web_ios_only
           - maintenance
         default: normal
       custom_message:
-        description: 'Custom Notice Message (opsional jika mode web_disabled / maintenance)'
+        description: 'Custom Notice Message (opsional jika mode web_disabled / web_ios_only / maintenance)'
         type: string
         required: false
         default: ''
@@ -93,6 +94,13 @@ jobs:
           if [ "$DEPLOY_MODE" = "maintenance" ] || [ "$DEPLOY_MODE" = "web_disabled" ]; then
             node scripts/generate-maintenance-pwa.mjs \
               --mode "$DEPLOY_MODE" \
+              --message "${{ inputs.custom_message }}" \
+              --target "${{ steps.env.outputs.target }}"
+          elif [ "$DEPLOY_MODE" = "web_ios_only" ]; then
+            # App penuh hanya untuk PWA iPhone/iPad; browser lain dialihkan ke web-nonaktif.html.
+            VITE_AKSES_WEB=ios_pwa npm run build -w @erapor-cbt/ujian
+            node scripts/generate-maintenance-pwa.mjs \
+              --mode web_ios_only \
               --message "${{ inputs.custom_message }}" \
               --target "${{ steps.env.outputs.target }}"
           else

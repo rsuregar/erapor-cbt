@@ -125,9 +125,10 @@ Saat dibuka (Windows, macOS, Android, iOS; bukan PWA), halaman **Masuk** dan **B
 ### C. Mode Deploy PWA (Progressive Web App):
 Saat menjalankan workflow **Deploy PWA**, Anda dapat memilih mode operasi:
 1. **`normal`**: Membangun & mendeploy aplikasi web CBT lengkap seperti biasa.
-2. **`web_disabled`**: Menonaktifkan akses ujian via web browser (misal saat PTS/PAS agar siswa tidak bisa curang membuka tab lain di browser). Menampilkan laman resmi Al Akhyar yang mengarahkan peserta untuk memakai aplikasi resmi (Windows, Mac, Android, atau iOS) serta otomatis membersihkan cache PWA di browser peserta.
-3. **`maintenance`**: Mode pemeliharaan sistem dengan pesan informatif dan status perbaikan.
-4. **`custom_message`**: Pesan khusus tambahan (opsional) yang ingin ditampilkan kepada peserta saat mode `web_disabled` atau `maintenance` aktif.
+2. **`web_disabled`**: Menonaktifkan **semua** akses ujian via web browser. Menampilkan laman resmi Al Akhyar yang mengarahkan peserta ke aplikasi resmi (Windows, macOS, Android) serta otomatis membersihkan cache PWA di browser peserta. **iPhone/iPad ikut terblokir** (iOS hanya punya jalur PWA), jadi jangan dipakai bila ada peserta iPhone/iPad — gunakan `web_ios_only`.
+3. **`web_ios_only`**: Web hanya untuk **iPhone/iPad yang membuka PWA terpasang** (ikon Layar Utama). Laptop dan Android dialihkan ke `/web-nonaktif.html` (wajib aplikasi resmi) dan cache PWA-nya dibersihkan. Di iPhone/iPad yang membuka lewat tab Safari biasa, app tetap bisa login & membuka Panduan, tetapi tombol **Mulai ujian terkunci** di semua level keamanan sampai ujian dibuka dari ikon. Pengecekan memakai `navigator.standalone` (khusus WebKit iOS), sehingga laptop yang meniru user agent iPhone tetap tidak bisa memulai ujian. Kunci layar tetap lewat Akses Terpandu.
+4. **`maintenance`**: Mode pemeliharaan sistem dengan pesan informatif dan status perbaikan.
+5. **`custom_message`**: Pesan khusus tambahan (opsional) yang ingin ditampilkan kepada peserta saat mode `web_disabled`, `web_ios_only`, atau `maintenance` aktif.
 
 ### D. Sinkronisasi Versi Lokal (`scripts/set-version.mjs`):
 Sebelum build manual di komputer lokal, Anda dapat menyinkronkan versi seluruh platform (package.json, Tauri, Android build.gradle, Cargo.toml) dengan:
@@ -256,6 +257,7 @@ Workflow [`.github/workflows/deploy-pwa.yml`](../.github/workflows/deploy-pwa.ym
 3. Pilih opsi **PWA Deployment Mode**:
    - `normal`
    - `web_disabled`
+   - `web_ios_only`
    - `maintenance`
 4. GitHub Actions akan mengompilasi dan mengunggah langsung ke Cloudflare dalam hitungan detik.
 

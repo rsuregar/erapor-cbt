@@ -21,6 +21,7 @@
     "deploy:cf:normal": "npm run build && wrangler deploy",
     "deploy:cf:maintenance": "node scripts/generate-maintenance-pwa.mjs --mode maintenance && wrangler deploy",
     "deploy:cf:disabled": "node scripts/generate-maintenance-pwa.mjs --mode web_disabled && wrangler deploy",
+    "deploy:cf:ios-only": "VITE_AKSES_WEB=ios_pwa npm run build && node scripts/generate-maintenance-pwa.mjs --mode web_ios_only && wrangler deploy",
     "sync:org": "gh repo sync Al-Akhyar-Islamic-School/erapor-cbt --source rsuregar/erapor-cbt"
   },
   "devDependencies": {

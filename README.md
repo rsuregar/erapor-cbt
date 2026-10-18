@@ -125,8 +125,11 @@ npm run deploy:cf:normal
 # Pasang Halaman Maintenance di Cloudflare
 npm run deploy:cf:maintenance
 
-# Nonaktifkan akses web browser (Wajib pakai Exam Browser / Android)
+# Nonaktifkan akses web browser (Wajib pakai Exam Browser / Android; iPhone/iPad ikut terblokir)
 npm run deploy:cf:disabled
+
+# Nonaktifkan web untuk laptop & Android, iPhone/iPad tetap via PWA terpasang
+npm run deploy:cf:ios-only
 ```
 
 ---
@@ -136,7 +139,7 @@ npm run deploy:cf:disabled
 Repositori ini dilengkapi dengan 6 alur kerja otomatis di `.github/workflows/`:
 
 1. **CI ([`ci.yml`](.github/workflows/ci.yml))**: Menjalankan lint, typecheck, dan unit test otomatis di setiap PR dan push ke `main`.
-2. **Deploy PWA ([`deploy-pwa.yml`](.github/workflows/deploy-pwa.yml))**: Membangun dan men-deploy PWA ke server hosting Cloudflare / Web Server dengan pilihan mode (*normal*, *maintenance*, *web_disabled*).
+2. **Deploy PWA ([`deploy-pwa.yml`](.github/workflows/deploy-pwa.yml))**: Membangun dan men-deploy PWA ke server hosting Cloudflare / Web Server dengan pilihan mode (*normal*, *maintenance*, *web_disabled*, *web_ios_only*).
 3. **Build Android ([`build-android.yml`](.github/workflows/build-android.yml))**: Mengompilasi APK Android secara otomatis saat tag rilis dibuat.
 4. **Build iOS ([`build-ios.yml`](.github/workflows/build-ios.yml))**: Menyiapkan dan memvalidasi build arsip Xcode iOS (.xcarchive).
 5. **Build Desktop Windows ([`build-desktop-windows.yml`](.github/workflows/build-desktop-windows.yml))**: Mengompilasi installer `.msi` dan `.exe` untuk PC Lab Windows.

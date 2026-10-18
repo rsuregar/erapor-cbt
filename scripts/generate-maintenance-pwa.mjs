@@ -11,7 +11,9 @@ const brandDest = resolve(distDir, 'brand');
 
 // Parse CLI flags
 const args = process.argv.slice(2);
-let mode = 'web_disabled'; // 'maintenance' | 'web_disabled'
+// 'maintenance' | 'web_disabled' (blokir semua) | 'web_ios_only' (hanya PWA iPhone/iPad; butuh build
+// app dengan VITE_AKSES_WEB=ios_pwa di apps/ujian/dist lebih dulu)
+let mode = 'web_disabled';
 let customMessage = '';
 let target = 'production';
 
@@ -25,24 +27,40 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
+const MODE = ['maintenance', 'web_disabled', 'web_ios_only'];
+if (!MODE.includes(mode)) {
+  console.error(`[maintenance-pwa] Mode tidak dikenal: "${mode}" (pilihan: ${MODE.join(', ')})`);
+  process.exit(1);
+}
+
 console.log(`[maintenance-pwa] Generating PWA in mode: "${mode}" for target: "${target}"`);
 
-// Clean and prepare dist directory
-if (existsSync(distDir)) {
-  rmSync(distDir, { recursive: true, force: true });
-}
-mkdirSync(distDir, { recursive: true });
-mkdirSync(brandDest, { recursive: true });
+const isIosOnly = mode === 'web_ios_only';
 
-// Copy brand assets if available
-if (existsSync(brandSrc)) {
-  const files = readdirSync(brandSrc);
-  for (const file of files) {
-    if (!file.startsWith('.')) {
-      copyFileSync(join(brandSrc, file), join(brandDest, file));
-    }
+if (isIosOnly) {
+  // App penuh tetap dilayani untuk iPhone/iPad; skrip ini hanya menambah halaman blokir.
+  if (!existsSync(resolve(distDir, 'index.html'))) {
+    console.error('[maintenance-pwa] apps/ujian/dist kosong: jalankan dulu `VITE_AKSES_WEB=ios_pwa npm run build`.');
+    process.exit(1);
   }
-  console.log(`[maintenance-pwa] ✓ Copied brand assets to ${brandDest}`);
+} else {
+  // Clean and prepare dist directory
+  if (existsSync(distDir)) {
+    rmSync(distDir, { recursive: true, force: true });
+  }
+  mkdirSync(distDir, { recursive: true });
+  mkdirSync(brandDest, { recursive: true });
+
+  // Copy brand assets if available
+  if (existsSync(brandSrc)) {
+    const files = readdirSync(brandSrc);
+    for (const file of files) {
+      if (!file.startsWith('.')) {
+        copyFileSync(join(brandSrc, file), join(brandDest, file));
+      }
+    }
+    console.log(`[maintenance-pwa] ✓ Copied brand assets to ${brandDest}`);
+  }
 }
 
 const isMaintenance = mode === 'maintenance';
@@ -70,11 +88,15 @@ const iconSvg = isMaintenance
 
 const heading = isMaintenance
   ? 'Layanan CBT Web Sedang Dalam Pemeliharaan'
-  : 'Akses Ujian via Web Browser Dinonaktifkan';
+  : isIosOnly
+    ? 'Akses Web Hanya untuk iPhone/iPad'
+    : 'Akses Ujian via Web Browser Dinonaktifkan';
 
 const defaultDesc = isMaintenance
   ? 'Sistem ujian online sedang dalam proses pemeliharaan rutin atau peningkatan performa server. Silakan hubungi proktor / pengawas ujian untuk informasi jadwal lebih lanjut.'
-  : 'Demi menjaga keamanan, kestabilan, dan integritas pelaksanaan ujian, akses menggunakan peramban web (browser) saat ini dinonaktifkan. Silakan gunakan Aplikasi Resmi CBT Al Akhyar di laptop atau ponsel Anda.';
+  : isIosOnly
+    ? 'Demi menjaga integritas ujian, laptop dan ponsel Android wajib memakai Aplikasi Resmi CBT Al Akhyar. Peserta iPhone/iPad: buka alamat ini di Safari, ketuk Bagikan → Tambahkan ke Layar Utama, lalu buka ujian dari ikon CBT Al Akhyar.'
+    : 'Demi menjaga keamanan, kestabilan, dan integritas pelaksanaan ujian, akses menggunakan peramban web (browser) saat ini dinonaktifkan. Silakan gunakan Aplikasi Resmi CBT Al Akhyar di laptop atau ponsel Anda.';
 
 const description = customMessage && customMessage.trim().length > 0 ? customMessage.trim() : defaultDesc;
 
@@ -323,10 +345,10 @@ const htmlContent = `<!DOCTYPE html>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>
             <span>Android (APK Resmi)</span>
           </div>
-          <div class="app-item">
+          ${mode === 'web_disabled' ? '' : `<div class="app-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>
-            <span>iOS (Akses Terpandu)</span>
-          </div>
+            <span>iPhone/iPad (Pasang dari Safari)</span>
+          </div>`}
         </div>
       </div>
 
@@ -361,6 +383,14 @@ const htmlContent = `<!DOCTYPE html>
 </body>
 </html>
 `;
+
+if (isIosOnly) {
+  // Tujuan pengalihan app (apps/ujian/src/lib/aksesWeb.ts); index.html, sw.js & manifest tetap milik app.
+  writeFileSync(resolve(distDir, 'web-nonaktif.html'), htmlContent, 'utf8');
+  console.log(`[maintenance-pwa] ✓ Created ${resolve(distDir, 'web-nonaktif.html')}`);
+  console.log('[maintenance-pwa] Done!');
+  process.exit(0);
+}
 
 writeFileSync(resolve(distDir, 'index.html'), htmlContent, 'utf8');
 writeFileSync(resolve(distDir, '404.html'), htmlContent, 'utf8');

@@ -50,7 +50,10 @@ Jalankan perintah ini di komputer kerja atau server build:
 # -------------------------------------------------------------
 # 1. NONAKTIFKAN AKSES WEB (Saat Ujian Resmi Dimulai)
 # -------------------------------------------------------------
+# a. Blokir semua browser (iPhone/iPad ikut terblokir):
 npm run deploy:cf:disabled
+# b. Blokir laptop & Android, iPhone/iPad tetap lewat PWA terpasang:
+npm run deploy:cf:ios-only
 
 # -------------------------------------------------------------
 # 2. AKTIFKAN MODE MAINTENANCE (Saat Pemeliharaan Server)
@@ -83,7 +86,8 @@ Admin / Pengawas tidak perlu membuka terminal atau koding sama sekali:
    - **Target Environment**: `production` atau `staging`
    - **PWA Deployment Mode**:
      - `normal`: Membangun aplikasi PWA lengkap.
-     - `web_disabled`: Membangun halaman penonaktifan web browser.
+     - `web_disabled`: Membangun halaman penonaktifan web browser (semua perangkat, termasuk iPhone/iPad).
+     - `web_ios_only`: App penuh hanya untuk PWA terpasang di iPhone/iPad; laptop & Android diarahkan ke halaman penonaktifan.
      - `maintenance`: Membangun halaman pemeliharaan sistem.
    - **Custom Notice Message**: *(Opsional)* Tulis pesan khusus jika ada.
 5. Tekan tombol hijau **Run workflow**. Dalam waktu ~30 detik, status web di Cloudflare akan otomatis terperbarui.

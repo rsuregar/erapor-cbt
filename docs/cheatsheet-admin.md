@@ -85,8 +85,11 @@ Admin dapat menonaktifkan akses web browser (agar siswa wajib memakai Exam Brows
 
 ### A. Perintah Cepat via Terminal:
 ```bash
-# 1. Nonaktifkan akses web (hanya izinkan aplikasi resmi):
+# 1. Nonaktifkan akses web (hanya izinkan aplikasi resmi; iPhone/iPad ikut terblokir):
 npm run deploy:cf:disabled
+
+# 1b. Nonaktifkan web untuk laptop & Android, iPhone/iPad tetap via PWA terpasang:
+npm run deploy:cf:ios-only
 
 # 2. Nyalakan mode pemeliharaan server:
 npm run deploy:cf:maintenance
@@ -98,6 +101,6 @@ npm run deploy:cf:normal
 ### B. Via GitHub Actions (Tanpa Terminal):
 1. Buka repositori GitHub → Tab **Actions** → Pilih workflow **Deploy PWA**.
 2. Klik **Run workflow**.
-3. Pada dropdown **PWA Deployment Mode**, pilih `web_disabled`, `maintenance`, atau `normal`.
+3. Pada dropdown **PWA Deployment Mode**, pilih `web_disabled`, `web_ios_only` (bila ada peserta iPhone/iPad), `maintenance`, atau `normal`.
 4. Tekan tombol hijau **Run workflow**. Cloudflare akan ter-update otomatis.
 

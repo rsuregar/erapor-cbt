@@ -7,6 +7,7 @@ import './index.css'
 // Tangkap beforeinstallprompt sedini mungkin (hanya muncul sekali per muat).
 import './lib/pasang'
 import { router } from './router'
+import { alihkanKeHalamanNonaktif, webDitolak } from './lib/aksesWeb'
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -18,10 +19,15 @@ const queryClient = new QueryClient({
     },
 })
 
-createRoot(document.getElementById('app')!).render(
-    <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
-        </QueryClientProvider>
-    </StrictMode>,
-)
+if (webDitolak()) {
+    // Mode web_ios_only: laptop & Android wajib aplikasi resmi.
+    void alihkanKeHalamanNonaktif()
+} else {
+    createRoot(document.getElementById('app')!).render(
+        <StrictMode>
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>
+        </StrictMode>,
+    )
+}

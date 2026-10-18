@@ -1,4 +1,5 @@
 import { platform } from '@/lib/api'
+import { pwaIosTerpasang, WEB_KHUSUS_IOS } from '@/lib/aksesWeb'
 import { hpMiring, jenisPerangkat, layarDibagi, layarPenuhAktif, standalone } from '@/lib/perangkat'
 import { versiUsang } from '@/lib/versi'
 import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
@@ -80,10 +81,13 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
                   : { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'gagal', keterangan: 'Browser ini tidak bisa masuk layar penuh. Pakai Chrome, Edge, atau Firefox terbaru.' },
         )
     } else {
+        // Mode web_ios_only: web hanya sah sebagai PWA terpasang, jadi tab Safari biasa
+        // menghalangi Mulai di semua level keamanan.
+        const terpasang = WEB_KHUSUS_IOS ? pwaIosTerpasang() : standalone()
         daftar.push(
-            standalone()
+            terpasang
                 ? { kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Dibuka dari ikon di layar utama.' }
-                : { kunci: 'tampilan', judul: 'Tampilan', hasil: 'gagal', aksi: 'panduan', keterangan: 'Buka ujian dari ikon "Ujian" di layar utama, bukan dari tab browser.' },
+                : { kunci: 'tampilan', judul: 'Tampilan', hasil: 'gagal', wajib: WEB_KHUSUS_IOS, aksi: 'panduan', keterangan: 'Buka ujian dari ikon "CBT Al Akhyar" di layar utama, bukan dari tab browser.' },
         )
     }
 

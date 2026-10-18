@@ -59,7 +59,8 @@ export default defineConfig(({ mode }) => {
                     // di-cache Workbox: data ujian dikelola exam-core (IndexedDB).
                     globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
                     navigateFallback: "index.html",
-                    navigateFallbackDenylist: [/^\/api\//],
+                    // web-nonaktif.html: halaman blokir mode web_ios_only, dibuat setelah build.
+                    navigateFallbackDenylist: [/^\/api\//, /^\/web-nonaktif/],
                     // Media soal sudah diunduh ke cache ini saat pra-unduh (lib/ujian.ts unduhMedia).
                     runtimeCaching: [
                         {
