@@ -3,8 +3,8 @@ name: "Build iOS App"
 on:
   push:
     tags:
-      - 'ios-*'
-      - 'v*'
+      - 'release-mobile-*'
+      - 'release-ios-*'
   workflow_dispatch:
     inputs:
       environment:
@@ -62,7 +62,7 @@ jobs:
           if [ -z "$VERSION" ]; then
             if [[ "${{ github.ref }}" == refs/tags/* ]]; then
               RAW_TAG="${{ github.ref_name }}"
-              VERSION=$(echo "$RAW_TAG" | sed -E 's/^(android|ios|macos|windows|desktop)-//' | sed -E 's/^v//')
+              VERSION=$(echo "$RAW_TAG" | sed -E 's/^release-(desktop|win|macos|mobile|android|ios)-//' | sed -E 's/^v//')
             fi
           fi
           if [ -z "$VERSION" ]; then
@@ -100,6 +100,7 @@ jobs:
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
+          VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
@@ -144,3 +145,12 @@ jobs:
         with:
           name: ujian-al-akhyar-ios-${{ steps.env.outputs.target }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}.xcarchive.zip
           path: apps/ujian/ios/App/build/App.xcarchive.zip
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/release-')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
+        run: |
+          node scripts/publish-release.mjs "${{ github.ref_name }}" apps/ujian/ios/App/build/App.xcarchive.zip

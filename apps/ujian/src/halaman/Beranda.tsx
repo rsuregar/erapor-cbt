@@ -2,6 +2,7 @@ import { FotoMurid } from '@/komponen/FotoMurid'
 import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
+import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { isNative, isTauri, keluarAplikasi } from '@/lib/native'
@@ -269,6 +270,8 @@ export default function Beranda() {
 
             {/* Main Content Area */}
             <main className="relative z-10 -mt-5 sm:-mt-7 mx-auto max-w-3xl space-y-3.5 sm:space-y-4 px-3 sm:px-4">
+                <SpanduPembaruan />
+
                 {/* Offline Warning Banner */}
                 {(!online || ujian.data?.dariCache) && (
                     <SpanduOffline pada={ujian.data?.pada}>

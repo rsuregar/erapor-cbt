@@ -1,5 +1,6 @@
 import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
+import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
 import { isNative, isTauri, keluarAplikasi } from "@/lib/native";
@@ -173,6 +174,9 @@ export default function Masuk() {
             {/* Login Card Form */}
             <div className="relative z-10 -mt-12 sm:-mt-14 flex-1 px-4 pb-10">
                 <div className="mx-auto max-w-md">
+                    <div className="mb-3 empty:hidden">
+                        <SpanduPembaruan />
+                    </div>
                     <form
                         className="relative space-y-5 rounded-lg border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
                         onSubmit={(e) => {

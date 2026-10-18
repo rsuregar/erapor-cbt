@@ -14,10 +14,10 @@ Proyek ini telah dilengkapi alur otomatis terpisah di folder `.github/workflows/
 | Workflow | File | Pemicu (Trigger) | Fungsi |
 | :--- | :--- | :--- | :--- |
 | **CI (Check & Test)** | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Push & PR ke `main`, atau manual | Memeriksa validasi tipe TypeScript (`npm run typecheck`), menjalankan unit test (`npm test`), dan memvalidasi build (`npm run build`). |
-| **Build Android APK** | [`.github/workflows/build-android.yml`](../.github/workflows/build-android.yml) | • Tag `android-*` atau `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Android APK** (Release/Debug) siap pasang. |
-| **Build iOS App** | [`.github/workflows/build-ios.yml`](../.github/workflows/build-ios.yml) | • Tag `ios-*` atau `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan arsip **iOS App (.xcarchive.zip)** untuk iPhone/iPad. |
-| **Build Windows Desktop** | [`.github/workflows/build-desktop-windows.yml`](../.github/workflows/build-desktop-windows.yml) | • Tag `windows-*`, `desktop-*`, `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Windows (.exe NSIS & .msi)** mode Exam Browser Kiosk. |
-| **Build macOS Desktop** | [`.github/workflows/build-desktop-macos.yml`](../.github/workflows/build-desktop-macos.yml) | • Tag `macos-*`, `desktop-*`, `v*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **macOS (.dmg)** mode Exam Browser Kiosk. |
+| **Build Android APK** | [`.github/workflows/build-android.yml`](../.github/workflows/build-android.yml) | • Tag `release-mobile-*` atau `release-android-*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Android APK** (Release/Debug) siap pasang; pada tag, APK diterbitkan ke GitHub Release. |
+| **Build iOS App** | [`.github/workflows/build-ios.yml`](../.github/workflows/build-ios.yml) | • Tag `release-mobile-*` atau `release-ios-*`<br>• Manual (`workflow_dispatch`) | Menghasilkan arsip **iOS App (.xcarchive.zip)** untuk iPhone/iPad; pada tag, diterbitkan ke GitHub Release. |
+| **Build Windows Desktop** | [`.github/workflows/build-desktop-windows.yml`](../.github/workflows/build-desktop-windows.yml) | • Tag `release-desktop-*` atau `release-win-*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **Windows (.exe NSIS & .msi)** mode Exam Browser Kiosk; pada tag, diterbitkan ke GitHub Release. |
+| **Build macOS Desktop** | [`.github/workflows/build-desktop-macos.yml`](../.github/workflows/build-desktop-macos.yml) | • Tag `release-desktop-*` atau `release-macos-*`<br>• Manual (`workflow_dispatch`) | Menghasilkan installer **macOS (.dmg)** mode Exam Browser Kiosk; pada tag, diterbitkan ke GitHub Release. |
 | **Deploy PWA** | [`.github/workflows/deploy-pwa.yml`](../.github/workflows/deploy-pwa.yml) | Manual (`workflow_dispatch`) | Deploy cadangan ke web server VPS via SSH/SCP jika tidak menggunakan Cloudflare. |
 
 ---
@@ -72,10 +72,37 @@ Anda tidak harus selalu push commit untuk membangun aplikasi atau deploy PWA. Bi
    * macOS: `cbt-al-akhyar-macos-[env]-v[version]-b[build]` (`.dmg`)
    * iOS: `ujian-al-akhyar-ios-[env]-v[version]-b[build].xcarchive.zip`
 
-### B. Trigger Otomatis via Git Tag:
-Ketika push tag versi baru, workflow akan otomatis mengekstrak nomor versi dari tag:
-* `git tag v1.0.0` → Menjalankan build semua platform dengan versi `1.0.0`.
-* `git tag android-1.0.0` / `windows-1.0.0` / `macos-1.0.0` / `ios-1.0.0` → Menjalankan build spesifik platform dengan versi `1.0.0`.
+### B. Rilis via Git Tag (dibaca fitur cek pembaruan app):
+Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. Nomor versi diambil dari tag:
+
+| Tag | Membangun | Release |
+| :--- | :--- | :--- |
+| `release-desktop-X.Y.Z` | Windows + macOS | 1 release berisi `.exe`, `.msi`, `.dmg` |
+| `release-win-X.Y.Z` | Windows saja | `.exe`, `.msi` |
+| `release-macos-X.Y.Z` | macOS saja | `.dmg` |
+| `release-mobile-X.Y.Z` | Android + iOS | 1 release berisi `.apk`, `.xcarchive.zip` |
+| `release-android-X.Y.Z` | Android saja | `.apk` |
+| `release-ios-X.Y.Z` | iOS saja | `.xcarchive.zip` |
+
+```bash
+git tag release-desktop-1.2.0 && git push origin release-desktop-1.2.0
+git tag release-mobile-1.2.0  && git push origin release-mobile-1.2.0
+```
+Akhiran setelah versi (mis. `release-desktop-1.3.0-rc.1`, `-staging`) diterbitkan sebagai **pra-rilis** dan diabaikan app. Tag lama (`v*`, `android-*`, `windows-*`, `macos-*`, `ios-*`, `desktop-*`) tidak lagi memicu build; gunakan Manual Run bila hanya perlu artifact tanpa rilis.
+
+#### Prasyarat sekali jalan: repo rilis publik
+Repo kode ini **private**, sedangkan app yang dipasang di perangkat murid tidak boleh membawa token. Karena itu rilis diterbitkan ke repo **publik terpisah** (hanya berisi installer, tanpa kode):
+1. Buat repo publik, mis. `rsuregar/erapor-cbt-releases`, **dengan minimal satu commit** (centang *Add a README*); GitHub menolak membuat release di repo kosong.
+2. Buat *fine-grained personal access token* dengan akses **Contents: Read and write** ke repo rilis itu saja, simpan sebagai secret **`RELEASE_TOKEN`** di repo kode (`Settings → Secrets and variables → Actions`).
+3. Bila nama repo rilis bukan `rsuregar/erapor-cbt-releases`, isi repository variable **`RELEASE_REPO`** (`owner/repo`). Nilai yang sama otomatis ditanam ke app sebagai `VITE_UPDATE_REPO`.
+
+#### Cek pembaruan di app
+Saat dibuka (Windows, macOS, Android, iOS; bukan PWA), halaman **Masuk** dan **Beranda** memeriksa `https://api.github.com/repos/<repo rilis>/releases` dan menampilkan spanduk bila ada versi lebih baru:
+* Versi dibandingkan dari nomor pada tag (bukan tanggal). Hanya rilis yang memuat berkas platform perangkat itu yang dihitung (mis. build macOS gagal → Mac tidak ditawari versi itu).
+* Hasil di-cache 6 jam per perangkat: API GitHub tanpa token dibatasi 60 permintaan/jam per IP, dan lab sekolah berbagi satu IP.
+* Tombol **Unduh pembaruan** membuka tautan installer di browser sistem; pemasangan dilakukan manual. Di Exam Browser desktop, mode kios dilepas sementara agar browser terlihat dan dipulihkan saat jendela app difokuskan lagi. Spanduk tidak muncul di layar ujian.
+* iOS: berkas rilis adalah arsip tanpa tanda tangan, bukan IPA yang bisa dipasang langsung; distribusi iOS ke murid tetap lewat jalur Apple (TestFlight/App Store).
+* Jaringan/GitHub gagal → spanduk tidak tampil (tanpa galat).
 
 ### C. Mode Deploy PWA (Progressive Web App):
 Saat menjalankan workflow **Deploy PWA**, Anda dapat memilih mode operasi:

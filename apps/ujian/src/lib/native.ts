@@ -176,3 +176,53 @@ export function izinLokasiNative(): Promise<PermissionState> {
 export function ambilLokasiNative(opsi: { maksUmurMs?: number; batasMs?: number }): Promise<PosisiNative> {
     return UjianNative.ambilLokasi(opsi)
 }
+
+/** Jendela Exam Browser dikembalikan ke kios bila pengguna tidak kembali dalam waktu ini. */
+const BATAS_PULIH_KIOS_MS = 15_000
+
+/**
+ * Buka tautan di browser sistem (mis. unduh pembaruan). Di Exam Browser desktop,
+ * jendela kios (layar penuh + selalu di atas) menutupi browser, jadi kios dilepas
+ * sementara lalu dipulihkan saat jendela app kembali difokuskan. Hanya dipanggil
+ * dari layar di luar ujian (Masuk/Beranda).
+ */
+export async function bukaTautanLuar(url: string): Promise<void> {
+    if (!isTauri()) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+        return
+    }
+
+    // Dynamic import: modul Tauri hanya berfungsi di runtime desktop (sama seperti jembatanSqliteTauri).
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    const { openUrl } = await import('@tauri-apps/plugin-opener')
+    const jendela = getCurrentWindow()
+    const pulihkan = () => {
+        void jendela.setFullscreen(true)
+        void jendela.setAlwaysOnTop(true)
+    }
+
+    await jendela.setAlwaysOnTop(false)
+    await jendela.setFullscreen(false)
+    try {
+        await openUrl(url)
+    } catch (e) {
+        pulihkan()
+        throw e
+    }
+
+    let pernahKeluarFokus = false
+    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
+        if (!fokus) {
+            pernahKeluarFokus = true
+        } else if (pernahKeluarFokus) {
+            lepas()
+            pulihkan()
+        }
+    })
+    setTimeout(() => {
+        if (!pernahKeluarFokus) {
+            lepas()
+            pulihkan()
+        }
+    }, BATAS_PULIH_KIOS_MS)
+}

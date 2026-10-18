@@ -7,6 +7,9 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-fullscreen",
+    "opener:default",
     "http:default",
     {
       "identifier": "http:allow-fetch",
