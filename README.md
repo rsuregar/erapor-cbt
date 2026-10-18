@@ -113,7 +113,7 @@ npm run android:apk:demo           # APK demo offline (tanpa butuh koneksi serve
 ## Perintah Perawatan & Cloudflare
 
 ```bash
-# Sinkronkan renderer soal dari repositori e-Rapor
+# Salin renderer soal (sumber: repo ini) ke repositori e-Rapor
 ERAPOR_DIR=../erapor npm run sinkron:renderer
 
 # Sinkronkan branch main ke fork organisasi Al Akhyar

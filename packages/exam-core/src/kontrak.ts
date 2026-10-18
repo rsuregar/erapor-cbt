@@ -66,6 +66,8 @@ export type SoalPaket = {
     id: number
     nomor: number
     jenis: JenisSoal
+    /** Nama bagian soal dari penyusun paket (mis. "Bagian I: Pilihan Ganda"); null = tanpa bagian. */
+    section?: string | null
     stimulus_id: number | null
     pertanyaan: Doc
     opsi: unknown
@@ -187,6 +189,12 @@ export type HasilRespons = {
     })[]
     stimulus: IsiPaket['stimulus']
 }
+
+/**
+ * `data.alasan_selesai` pada galat 409 SUDAH_SELESAI dari /sinkron, /pelanggaran,
+ * /kumpul: attempt sudah diakhiri pengawas, bukan oleh murid atau waktu habis.
+ */
+export type AlasanSelesai = 'sesi_dihentikan' | 'dikumpulkan_pengawas'
 
 /** Kode galat stabil dari server. */
 export type KodeGalat =

@@ -1,8 +1,10 @@
 # question-renderer
 
 Tampilan soal CBT yang dipakai **bersama** oleh panel guru (e-Rapor, pratinjau
-bank soal) dan app ujian murid (repo terpisah). Folder ini disalin apa adanya
-ke app murid; jaga supaya tetap mandiri:
+bank soal) dan app ujian murid. **Sumber kebenarannya folder ini** (repo
+erapor-cbt); ubah di sini lalu salin ke e-Rapor dengan
+`ERAPOR_DIR=../erapor npm run sinkron:renderer` (berkas `.ts/.tsx` di
+`erapor/resources/js/Cbt/question-renderer` ditimpa). Jaga supaya tetap mandiri:
 
 - hanya bergantung pada `react`, `katex`, dan kelas Tailwind;
 - tidak mengimpor apa pun dari `@/…` e-Rapor (shadcn, layout, route, dll.);

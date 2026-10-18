@@ -58,13 +58,16 @@ Pada layar Beranda siswa:
 
 ---
 
-## 4. Penanganan Otomatis: "Paksa Kumpul" oleh Pengawas
+## 4. Penanganan Otomatis: "Paksa Kumpul" & "Hentikan Sesi" oleh Pengawas
 
-Ketika pengawas menekan tombol **Paksa Kumpul** pada dashboard e-Rapor untuk seorang siswa yang sedang mengerjakan soal:
-1. Detak sinkronisasi otomatis (`POST /sinkron`) pada aplikasi murid akan menerima status `selesai` (atau kode galat `SUDAH_SELESAI` / HTTP 409).
+Ketika pengawas menekan **Paksa Kumpul** (satu murid) atau **Hentikan Sesi** (semua murid di sesi) pada dashboard e-Rapor:
+1. Detak sinkronisasi otomatis (`POST /sinkron`, tiap 15 detik) pada aplikasi murid menerima HTTP 409 `SUDAH_SELESAI` dengan `alasan_selesai` (`dikumpulkan_pengawas` / `sesi_dihentikan`).
 2. Kunci layar kiosk otomatis dilepaskan (`lepasKunciLayar()`).
-3. Aplikasi murid **tidak akan macet (stuck)** di lembar soal; layar akan menampilkan konfirmasi *"Ujian Selesai & Jawaban Terkumpul"*.
-4. Dalam waktu **1,8 detik**, aplikasi secara otomatis mengalihkan (*redirect*) murid kembali ke **Dashboard / Beranda Ujian**.
+3. Aplikasi murid **tidak akan macet (stuck)** di lembar soal; layar menampilkan pesan sesuai alasannya:
+   - Hentikan Sesi: *"Sesi Ujian Dihentikan Pengawas — Sesi ujian telah dihentikan oleh pengawas/guru. Seluruh lembar pengerjaan Anda telah otomatis dikumpulkan dan tersimpan aman di server."*
+   - Paksa Kumpul: *"Ujian Dikumpulkan Pengawas"*.
+4. Setelah **10 detik** (atau saat murid mengetuk tombol), aplikasi kembali ke **Beranda Ujian**. Kumpul oleh murid / waktu habis tetap dialihkan setelah 1,8 detik.
+5. Murid yang baru akan menekan **Mulai** pada sesi yang sudah dihentikan melihat pesan *"Sesi ujian ini telah dihentikan oleh pengawas."* beserta tombol **Kembali ke Beranda Ujian**.
 
 ---
 

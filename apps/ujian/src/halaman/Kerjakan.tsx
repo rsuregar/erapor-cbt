@@ -1,6 +1,7 @@
 import { alasanKunci, DialogKesempatanTerakhir, IndikatorPelanggaran, PemberitahuanPelanggaran } from '@/komponen/Pelanggaran'
 import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { waktuMundur } from '@/lib/format'
+import { kelompokkanPerSection } from '@/lib/sectionSoal'
 import { sesi as sesiAkun } from '@/lib/sesi'
 import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
@@ -23,6 +24,7 @@ import {
     CloudOff,
     Eye,
     EyeOff,
+    Layers,
     Loader2,
     Lock,
     Maximize,
@@ -33,6 +35,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const TEKS = new Set(['isian', 'uraian', 'studi_kasus'])
+
+/** Pesan "diakhiri pengawas" ditahan sebelum kembali ke beranda supaya murid sempat membacanya. */
+const JEDA_PESAN_PENGAWAS_MS = 10_000
 
 function terisi(j: JawabanInti | undefined): boolean {
     if (j === null || j === undefined) return false
@@ -72,17 +77,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     }, [])
 
     // Jika status ujian menjadi selesai (dikumpulkan murid, waktu habis,
-    // atau dipaksa kumpul oleh pengawas dari dashboard e-Rapor),
-    // otomatis arahkan murid kembali ke dashboard / beranda setelah jeda singkat.
+    // atau diakhiri pengawas dari dashboard e-Rapor), arahkan murid kembali ke
+    // beranda. Pesan dari pengawas ditahan lebih lama supaya sempat terbaca.
     useEffect(() => {
         if (u.status === 'selesai') {
             const timer = setTimeout(() => {
                 void navigate({ to: '/', replace: true })
-            }, 1800)
+            }, u.alasanSelesai ? JEDA_PESAN_PENGAWAS_MS : 1800)
 
             return () => clearTimeout(timer)
         }
-    }, [u.status, navigate])
+    }, [u.status, u.alasanSelesai, navigate])
     const p = usePelanggaran({
         pantauLayarPenuh: wajibLp,
         attemptId,
@@ -133,10 +138,23 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         await u.kumpul()
     }
 
+    // Pindah ke bagian (section) lain: beri tahu sebentar, kecuali saat layar baru dibuka.
+    const sectionSebelum = useRef<string | null | undefined>(undefined)
+    const [masukSection, setMasukSection] = useState<string | null>(null)
     useEffect(() => {
-        if (aktif) u.setSoalAktif(aktif.id)
+        if (!aktif) return
+        u.setSoalAktif(aktif.id)
+        const s = aktif.section?.trim() || null
+        if (sectionSebelum.current !== undefined && s && s !== sectionSebelum.current) setMasukSection(s)
+        sectionSebelum.current = s
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aktif?.id])
+    useEffect(() => {
+        if (!masukSection) return
+        const t = setTimeout(() => setMasukSection(null), 4000)
+
+        return () => clearTimeout(t)
+    }, [masukSection])
 
     // Timer dari jam server; habis → kumpul otomatis.
     useEffect(() => {
@@ -203,17 +221,39 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         )
     }
     if (u.status === 'selesai') {
+        const olehPengawas = u.alasanSelesai !== null
+
         return (
             <Layar
-                ikon={<CheckCircle2 className="size-12 text-emerald-500 animate-bounce" />}
-                judul="Ujian Selesai & Jawaban Terkumpul"
-                isi="Ujian telah selesai dan jawaban Anda berhasil dikumpulkan ke server. Mengalihkan Anda kembali ke dashboard..."
+                ikon={
+                    olehPengawas ? (
+                        <Megaphone className="size-12 text-amber-500" />
+                    ) : (
+                        <CheckCircle2 className="size-12 text-emerald-500 animate-bounce" />
+                    )
+                }
+                judul={
+                    u.alasanSelesai === 'sesi_dihentikan'
+                        ? 'Sesi Ujian Dihentikan Pengawas'
+                        : u.alasanSelesai === 'dikumpulkan_pengawas'
+                          ? 'Ujian Dikumpulkan Pengawas'
+                          : 'Ujian Selesai & Jawaban Terkumpul'
+                }
+                isi={
+                    u.alasanSelesai === 'sesi_dihentikan'
+                        ? 'Sesi ujian telah dihentikan oleh pengawas/guru. Seluruh lembar pengerjaan Anda telah otomatis dikumpulkan dan tersimpan aman di server.'
+                        : u.alasanSelesai === 'dikumpulkan_pengawas'
+                          ? 'Pengawas/guru telah mengumpulkan ujian Anda. Jawaban yang sudah terkirim tersimpan aman di server — aplikasi tidak mengalami gangguan.'
+                          : 'Ujian telah selesai dan jawaban Anda berhasil dikumpulkan ke server. Mengalihkan Anda kembali ke dashboard...'
+                }
             >
                 <div className="mt-4 flex flex-col items-center gap-2">
                     <Link to="/" className={kelasTombol('primary')} replace>
                         Kembali ke beranda sekarang
                     </Link>
-                    <p className="text-[11px] text-slate-400">Otomatis dialihkan ke dashboard…</p>
+                    <p className="text-[11px] text-slate-400">
+                        {olehPengawas ? `Otomatis kembali ke beranda dalam ${JEDA_PESAN_PENGAWAS_MS / 1000} detik…` : 'Otomatis dialihkan ke dashboard…'}
+                    </p>
                 </div>
             </Layar>
         )
@@ -352,6 +392,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                 key={aktif.id}
                                 soal={keTampil(aktif, u.data.isi.stimulus)}
                                 nomor={aktif.nomor}
+                                section={aktif.section}
                                 jawaban={(j?.jawaban ?? null) as Jawaban}
                                 ragu={j?.ragu ?? false}
                                 onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
@@ -483,6 +524,21 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             )}
 
+            {masukSection && !p.kejadian && !dibukaPengawas && (
+                <div className="pointer-events-none fixed inset-x-0 top-16 z-30 flex justify-center px-4">
+                    <div role="status" aria-live="polite" className="pointer-events-auto flex w-full max-w-md animate-turun items-center gap-3 rounded-md bg-sky-700 px-4 py-3 text-white shadow-lg">
+                        <Layers className="size-5 shrink-0 text-sky-200" />
+                        <p className="min-w-0 flex-1 text-sm">
+                            <span className="text-sky-100">Memasuki </span>
+                            <b>{masukSection}</b>
+                        </p>
+                        <button onClick={() => setMasukSection(null)} aria-label="Tutup" className="-mr-1 rounded-xs p-1 text-white/70 hover:text-white">
+                            <X className="size-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {pesanProteksi && (
                 <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 flex justify-center px-4">
                     <p role="status" className="animate-turun rounded-full bg-ink/90 px-4 py-2 text-xs font-semibold text-white shadow-md">
@@ -600,17 +656,8 @@ function PanelNomor({
                     </button>
                 </div>
                 <Legenda />
-                <div className="mt-4 grid grid-cols-6 gap-2 sm:grid-cols-8">
-                    {soal.map((s, i) => {
-                        const x = jawaban[s.id]
-
-                        return (
-                            <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, i === aktif)}>
-                                {s.nomor}
-                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
-                            </button>
-                        )
-                    })}
+                <div className="mt-4">
+                    <GridNomor soal={soal} jawaban={jawaban} aktif={aktif} kolom="grid-cols-6 sm:grid-cols-8" onPilih={onPilih} />
                 </div>
                 <Tombol varian="secondary" penuh className="mt-6 rounded-lg font-bold py-3" onClick={onTinjau}>
                     Ke Halaman Tinjauan
@@ -632,6 +679,50 @@ function Legenda() {
             <span className="inline-flex items-center gap-1.5 font-medium text-amber-700">
                 <Bookmark className="size-3.5 fill-amber-500 text-amber-500" /> Ragu-ragu
             </span>
+        </div>
+    )
+}
+
+/** Tombol nomor soal, dikelompokkan per bagian bila paket memakai section. */
+function GridNomor({
+    soal,
+    jawaban,
+    aktif,
+    kolom,
+    onPilih,
+}: {
+    soal: SoalPaket[]
+    jawaban: IsiJawaban
+    aktif: number
+    kolom: string
+    onPilih: (i: number) => void
+}) {
+    return (
+        <div className="space-y-4">
+            {kelompokkanPerSection(soal).map((k) => (
+                <section key={`${k.nomorAwal}-${k.section ?? ''}`} aria-label={k.section ?? undefined}>
+                    {k.section && (
+                        <h3 className="mb-2 flex items-baseline justify-between gap-2 border-b border-slate-100 pb-1.5">
+                            <span className="truncate text-xs font-bold text-sky-700">{k.section}</span>
+                            <span className="shrink-0 text-[11px] font-semibold text-slate-400 tabular-nums">
+                                {k.nomorAwal === k.nomorAkhir ? `Soal ${k.nomorAwal}` : `Soal ${k.nomorAwal}–${k.nomorAkhir}`}
+                            </span>
+                        </h3>
+                    )}
+                    <div className={cn('grid gap-2', kolom)}>
+                        {k.butir.map(({ soal: s, indeks: i }) => {
+                            const x = jawaban[s.id]
+
+                            return (
+                                <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, i === aktif)}>
+                                    {s.nomor}
+                                    {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </section>
+            ))}
         </div>
     )
 }
@@ -664,18 +755,7 @@ function Tinjauan({
             </div>
             <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
                 <Legenda />
-                <div className="grid grid-cols-6 gap-2 sm:grid-cols-10 pt-1">
-                    {soal.map((s, i) => {
-                        const x = jawaban[s.id]
-
-                        return (
-                            <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, false)}>
-                                {s.nomor}
-                                {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
-                            </button>
-                        )
-                    })}
-                </div>
+                <GridNomor soal={soal} jawaban={jawaban} aktif={-1} kolom="grid-cols-6 sm:grid-cols-10" onPilih={onPilih} />
             </div>
             {galat && (
                 <p role="alert" className="flex items-center gap-2 rounded-lg bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">

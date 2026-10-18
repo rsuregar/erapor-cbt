@@ -58,7 +58,7 @@ Sesuai penyesuaian kebutuhan operasional lab komputer dan laptop sekolah:
   `packages/exam-core/src/kontrak.ts`. Sudah sinkron per 14 Okt, termasuk
   § Lokasi ujian (`UjianRingkas.lokasi`, `Lokasi`, `MulaiRespons.lokasi_wajib`
   / `level_keamanan`, `Detak.lokasi`, 5 kode galat lokasi).
-- **Tampilan soal**: `ERAPOR_DIR=../erapor npm run sinkron:renderer`.
+- **Tampilan soal**: sumbernya `packages/question-renderer` di repo ini; salin ke e-Rapor dengan `ERAPOR_DIR=../erapor npm run sinkron:renderer`.
 - **Pelanggaran tak dihitung**: `offline` dan `keluar_lokasi` (server).
   `keluar_lokasi` hanya dicatat server dari `detak.lokasi`; app tidak
   mengirimnya.
