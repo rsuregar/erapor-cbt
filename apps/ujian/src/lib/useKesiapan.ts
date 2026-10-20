@@ -1,4 +1,5 @@
 import { menghalangi, periksa, type KeadaanTambahan } from '@/lib/kesiapan'
+import { penyimpanan } from '@/lib/penyimpanan'
 import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -48,6 +49,9 @@ export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined, a
             const reg = await navigator.serviceWorker?.getRegistration().catch(() => undefined)
             await reg?.update().catch(() => undefined)
             setTambahan((t) => ({ ...t, ruangBebas, pembaruanTersedia: !!reg?.waiting }))
+            // Backend penyimpanan (uji SQLite + migrasi berjalan sekali per sesi app).
+            await penyimpanan.siapkan().catch(() => undefined)
+            setTambahan((t) => ({ ...t, penyimpanan: { ...penyimpanan.status } }))
             // Pembaruan yang selesai terunduh selagi halaman ini terbuka.
             reg?.addEventListener('updatefound', () => {
                 const sw = reg.installing

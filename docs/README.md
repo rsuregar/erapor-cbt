@@ -27,6 +27,6 @@ Direktori ini berisi dokumentasi teknis, operasional, dan panduan rilis untuk ap
 
 5. **[Arsitektur Multiplatform & Sistem Penyimpanan Offline](arsitektur-dan-offline-desktop.md)**
    - Spesifikasi aplikasi Desktop (Windows & macOS) berbasis Tauri v2 Exam Browser Kiosk.
-   - Evaluasi alternatif penyimpanan offline dan arsitektur database SQLite Native (`erapor_cbt.db`) di Android & Desktop dengan IndexedDB fallback.
+   - Evaluasi alternatif penyimpanan offline dan arsitektur database SQLite Native (`erapor_cbt.db`) di Android & Desktop (eksklusif per sesi; IndexedDB hanya untuk PWA atau cadangan bila SQLite tak bisa dipakai).
 
 

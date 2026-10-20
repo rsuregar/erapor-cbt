@@ -10,7 +10,7 @@ Satu kode sumber, **lima target keluaran** (PRD Multiplatform & Tech Stack):
 | **Aplikasi iOS** | iPhone & iPad (Capacitor 7) | iOS Assessment Mode (AAC) | SQLite Native |
 | **Exam Browser Windows** | PC Lab & Laptop Windows (Tauri v2) | Kiosk Mode + Cegah Alt+F4 / Task Switch | SQLite Native (`rusqlite` WAL) |
 | **Exam Browser macOS** | Laptop Mac (Tauri v2) | Kiosk Fullscreen Mode | SQLite Native (`rusqlite` WAL) |
-| **Web PWA** | Web Browser / Cadangan darurat | Browser Fullscreen API | IndexedDB (Fallback Otomatis) |
+| **Web PWA** | Web Browser / Cadangan darurat | Browser Fullscreen API | IndexedDB |
 
 ---
 
@@ -23,7 +23,7 @@ Satu kode sumber, **lima target keluaran** (PRD Multiplatform & Tech Stack):
   - Outbox antrean jawaban dengan urutan sekuensial (*monotonically increasing sequence*).
   - Jam server tersinkronisasi (*clock skew compensation*).
   - Sinkronisasi periodik (detak 15 detik) dengan idempotency key.
-- **Penyimpanan Terpadu (`PenyimpananApp`)**: Otomatis memilih adapter native SQLite di Android (`erapor_cbt.db`) dan Desktop Tauri (`erapor_cbt.db`), dengan fallback transparan ke IndexedDB di Web PWA.
+- **Penyimpanan Terpadu (`PenyimpananApp`)**: Otomatis memilih adapter native SQLite di Android (`erapor_cbt.db`) dan Desktop Tauri (`erapor_cbt.db`), dan IndexedDB di Web PWA. Satu backend per sesi: app native memakai SQLite secara eksklusif (uji saat dibuka, migrasi data IndexedDB lama), lihat [arsitektur penyimpanan](docs/arsitektur-dan-offline-desktop.md).
 - **Exam Browser Desktop (Tauri v2 + Rust)**: Aplikasi ringan native tanpa overhead Chromium ganda, menggunakan engine WebView bawaan OS dan persistensi native SQLite via `rusqlite`.
 - **Desain & Tipografi**: Mengikuti **Al Akhyar Design System** (`#006195`), tipografi *Plus Jakarta Sans* yang dibundel secara lokal (offline-first tanpa CDN Google Fonts).
 - **Integritas Ujian**: Pencegahan kecurangan, deteksi lokasi palsu (mock location), dan proteksi tangkapan layar.
