@@ -167,6 +167,17 @@ export async function pasangPembaruanDesktop(manifes: string, onProgres: (p: Pro
     await invoke('pasang_pembaruan', { manifes, progres })
 }
 
+/**
+ * Shortcut pengawas untuk membuka dialog tutup aplikasi: (Ctrl/Alt/Cmd) + Shift + Q/X.
+ * Memakai `e.code` (tombol fisik), bukan `e.key`: di macOS, Option+Shift+Q menghasilkan
+ * karakter "Œ" sehingga `e.key` bukan "Q". Di macOS, Cmd+Shift+Q dipakai sistem untuk
+ * Log Out, jadi gunakan Ctrl+Shift+Q / X.
+ */
+export function isShortcutPengawas(e: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'code'>): boolean {
+    const isModifier = e.ctrlKey || e.metaKey || e.altKey
+    return isModifier && e.shiftKey && (e.code === 'KeyQ' || e.code === 'KeyX')
+}
+
 /** Keluar / tutup aplikasi desktop Tauri (alias untuk kompatibilitas) */
 export const keluarAplikasiTauri = keluarAplikasi
 
