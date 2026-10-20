@@ -69,6 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_erapor_cbt_kv_kunci ON erapor_cbt_kv(kunci);
 - **Windows Desktop**: `%APPDATA%\id.sch.alakhyar.cbt\erapor_cbt.db`
 - **macOS Desktop**: `~/Library/Application Support/id.sch.alakhyar.cbt/erapor_cbt.db`
 - **Android**: `/data/data/sch.alakhyar.ujian/databases/erapor_cbt.db`
+- **Build staging**: identifier/app id berakhiran `.staging`, jadi basis datanya terpisah dari produksi.
 
 #### C. Arsitektur Adapter di Frontend (`apps/ujian/src/lib/penyimpanan.ts`):
 ```mermaid
@@ -77,9 +78,26 @@ flowchart TD
     B -->|"Capacitor Android Native"| C["sqliteAndroid (UjianNativePlugin SQLite)"]
     B -->|"Tauri Windows / macOS"| D["sqliteDesktop (Rust rusqlite Invoke)"]
     B -->|"Web PWA / Browser"| E["indexedDb (PenyimpananIndexedDb)"]
-    C -.->|"Fallback jika galat"| E
-    D -.->|"Fallback jika galat"| E
+    C --> F{"siapkan(): uji tulis-baca-hapus SQLite (sekali per sesi)"}
+    D --> F
+    F -->|"lulus"| G["SQLite eksklusif + migrasi IndexedDB lama → SQLite"]
+    F -->|"gagal"| H["Seluruh sesi memakai IndexedDB (status cadangan, tampil di cek kesiapan)"]
 ```
+
+**Aturan: satu backend per sesi app.** App native memakai SQLite secara eksklusif.
+Tidak ada lagi "jatuh ke IndexedDB per panggilan": dulu satu tulisan yang gagal masuk
+IndexedDB sementara bacaan berikutnya dari SQLite mengembalikan versi lama, sehingga data
+jawaban terbelah. Galat SQLite di tengah sesi diteruskan ke pemanggil (outbox mencoba lagi),
+dan jembatan JS tidak lagi mengubah galat baca menjadi "data tidak ada".
+
+- **Migrasi:** saat app native dibuka, isi IndexedDB (dari versi app lama sebelum SQLite,
+  atau dari sesi cadangan) dipindahkan ke SQLite lalu dihapus. Migrasi pertama tidak menimpa
+  kunci yang sudah ada di SQLite; sesudahnya isi IndexedDB pasti lebih baru (sesi cadangan)
+  sehingga menimpa.
+- **Baris besar (Android):** saat membaca, `CursorWindow` dinaikkan ke 32 MB (API 28+). Bawaan
+  Android ±2 MB per baris membuat paket soal besar gagal dibaca.
+- **Cek kesiapan** menampilkan baris *Basis data*: "SQLite di perangkat" atau peringatan bila
+  memakai cadangan.
 
 ---
 
@@ -89,5 +107,6 @@ flowchart TD
   - 17 pengujian otomatis membuktikan kesetaraan kontrak (*contract equivalence*) antara `PenyimpananMemori`, `PenyimpananSqlite`, dan `PenyimpananSqliteNative` berperilaku 100% identik.
 - **Unit Test Pemilihan Adapter (`apps/ujian/src/lib/penyimpanan.test.ts`)**:
   - Memverifikasi pemilihan `sqliteAndroid` saat berjalan di Android, `sqliteDesktop` saat berjalan di desktop Tauri, dan `indexedDb` di browser web.
+  - Galat SQLite di tengah sesi diteruskan (tidak ada tulisan ke IndexedDB), SQLite rusak sejak awal → seluruh sesi cadangan, migrasi IndexedDB → SQLite tanpa menimpa data yang lebih baru.
 - **Uji Ketahanan Offline (`packages/exam-core/test/offline.test.ts`)**:
   - Simulasi pemutusan koneksi 10 menit dengan 0 jawaban hilang atau dobel.

@@ -14,7 +14,7 @@ import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit } from '@/lib/tanggal'
-import { ambilPaket, daftarUjian, sesiLokalUjian, simpanSesi } from '@/lib/ujian'
+import { ambilPaket, daftarUjian, sesiLokalUjian, simpanPaket, simpanSesi } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { terapkanPembaruan, useKesiapan } from '@/lib/useKesiapan'
 import { useLokasi, type TahapLokasi } from '@/lib/useLokasi'
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { dekripsiPaket, GalatApi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, BellOff, CheckCircle2, ChevronLeft, Clock, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
+import { AlertTriangle, BellOff, CheckCircle2, ChevronDown, ChevronLeft, Clock, Lock, RefreshCw, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 const KEAMANAN = { dasar: 'Dasar', ketat: 'Ketat', lockdown: 'Lockdown' } as const
@@ -86,11 +86,29 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     }, [])
 
     const online = useOnline()
-    const ujian = useQuery({ queryKey: ['ujian'], queryFn: daftarUjian, select: (d) => ({ u: d.data.find((u) => u.id === ujianId), aplikasi: d.aplikasi }), networkMode: 'always' })
+    const ujian = useQuery({
+        queryKey: ['ujian'],
+        queryFn: daftarUjian,
+        select: (d) => ({
+            u: d.data.find((u) => u.id === ujianId),
+            aplikasi: d.aplikasi,
+            // Belum pernah ikut ujian lain: tata tertib dibuka lebar.
+            pertama: !d.data.some((x) => x.id !== ujianId && x.status !== 'belum_mulai'),
+        }),
+        networkMode: 'always',
+        // Dikunci pengawas: periksa lebih sering supaya halaman ikut terbuka begitu kuncinya dilepas.
+        refetchInterval: (q) => (q.state.data?.data.find((x) => x.id === ujianId)?.status === 'terkunci' ? 15_000 : false),
+    })
     // Sudah dimulai di perangkat ini? Offline tetap bisa dilanjutkan tanpa /mulai.
     const lokal = useQuery({ queryKey: ['sesi-lokal', ujianId], queryFn: () => sesiLokalUjian(ujianId), networkMode: 'always' })
     const lanjutLokal = () => lokal.data && navigate({ to: '/kerjakan/$attemptId', params: { attemptId: lokal.data.mulai.attempt_id }, replace: true })
     const u = ujian.data?.u
+    /** Masuk ke layar ujian dari sesi di perangkat ini (tanpa /mulai), dengan layar penuh & kunci seperti Mulai. */
+    const bukaLokal = () => {
+        void masukLayarPenuh()
+        if (u && u.level_keamanan !== 'dasar') void kunciLayar()
+        lanjutLokal()
+    }
     const aplikasi = ujian.data?.aplikasi
     const { status, unduh } = useUnduhPaket(u)
     const wajibLokasi = !!u?.lokasi?.wajib
@@ -126,8 +144,14 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                 if (e instanceof GalatApi && e.sementara && lokal.data) return lokal.data.mulai
                 throw e
             }
-            const paket = await ambilPaket(ujianId)
-            if (!paket) throw new Error('Paket belum ada di perangkat.')
+            // Paket bisa hilang setelah kartu "siap" tampil (mis. tab lain menyelesaikan /
+            // membersihkan ujian yang sama). Jangan buntu: unduh ulang — paketnya terenkripsi
+            // dan kecocokannya diperiksa saat dekripsi di bawah.
+            let paket = await ambilPaket(ujianId)
+            if (!paket) {
+                paket = await api.paket(ujianId)
+                await simpanPaket(ujianId, paket)
+            }
             await dekripsiPaket(paket, r.kunci) // pastikan paket cocok sebelum masuk layar ujian
             await simpanSesi({
                 mulai: r,
@@ -151,6 +175,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         },
     })
 
+
     if (!u) {
         return (
             <div className="min-h-full">
@@ -165,6 +190,12 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const siap = status.tahap === 'siap'
     const dibuka = sekarang >= buka && sekarang <= tutup
     const selesai = u.status === 'selesai'
+    const melanjutkan = u.status === 'mengerjakan'
+    const lockdown = u.level_keamanan === 'lockdown'
+    // Terkunci / jawaban belum terkirim: bukan saatnya token — layar ujian (Kerjakan) yang menangani.
+    const tertahan = u.status === 'terkunci' || u.status === 'menunggu_sinkron'
+    // Lebih dari 30 menit sebelum dibuka: paket pun belum bisa diunduh — tampilkan keadaan tenang.
+    const masihLama = !selesai && sekarang < buka - 30 * 60_000
     const lokasiSiap = !wajibLokasi || lokasi.status.tahap === 'siap'
     const perangkatSiap = kesiapan.penghalang.length === 0
     const bisaMulai = online && perangkatSiap && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
@@ -172,216 +203,206 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const galatMulai = mulai.error ? pesanGalatMulai(mulai.error) : null
     /** Ujian ditutup / sesi dihentikan pengawas (410): tidak ada yang bisa dicoba lagi di layar ini. */
     const sesiDitutup = mulai.error instanceof GalatApi && mulai.error.kode === 'SUDAH_DITUTUP'
+    const durasi = u.durasi_menit + u.tambahan_waktu_menit
+
+    /** Yang masih menahan tombol Mulai, masing-masing menunjuk ke barisnya di kartu "Sebelum mulai". */
+    const belumSiap: { label: string; ke: string }[] = [
+        ...(!siap ? [{ label: 'Paket soal', ke: 'cek-paket' }] : []),
+        ...(wajibLokasi && !lokasiSiap ? [{ label: 'Lokasi', ke: 'cek-lokasi' }] : []),
+        ...kesiapan.penghalang.map((i) => ({ label: i.judul, ke: 'cek-perangkat' })),
+    ]
+
+    const petunjuk: ReactNode = selesai ? (
+        'Ujian ini sudah dikumpulkan.'
+    ) : sekarang > tutup ? (
+        'Ujian sudah ditutup.'
+    ) : sekarang < buka ? (
+        `Ujian dibuka pukul ${jamMenit(u.dibuka_pada)} WITA (${durasiLengkap(buka - sekarang)}).`
+    ) : belumSiap.length ? (
+        <>
+            Belum bisa mulai — periksa:{' '}
+            {belumSiap.map((b, i) => (
+                <span key={b.label}>
+                    {i > 0 && ', '}
+                    <button type="button" className="font-semibold text-primary underline underline-offset-2" onClick={() => tuju(b.ke)}>
+                        {b.label}
+                    </button>
+                </span>
+            ))}
+        </>
+    ) : token.length < 6 ? (
+        token.length ? `Token: ${token.length} dari 6 karakter.` : 'Masukkan 6 karakter token dari pengawas.'
+    ) : !online ? (
+        'Tombol aktif setelah tersambung ke internet.'
+    ) : melanjutkan ? (
+        'Siap. Tekan tombol untuk kembali ke soalmu.'
+    ) : (
+        'Siap. Waktu ujian mulai berjalan setelah kamu menekan Mulai.'
+    )
 
     return (
-        <div className="min-h-full bg-slate-50/70 pb-16">
-            {/* Header Hero Section */}
-            <header className="relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-4 pt-4 pb-12 sm:pb-14 text-white shadow-lg sm:px-6">
-                {/* Decorative Ambient Backgrounds */}
+        <div className="min-h-full bg-slate-50/70">
+            <header className="permukaan-gelap relative overflow-hidden rounded-b-[1.75rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-4 pb-10 pt-2 text-white shadow-lg sm:rounded-b-[2.5rem] sm:px-6">
                 <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-white/5 blur-3xl" aria-hidden="true" />
-                <div className="pointer-events-none absolute -left-16 bottom-0 size-72 rounded-full bg-sky-400/10 blur-2xl" aria-hidden="true" />
 
-                <div className="relative mx-auto max-w-xl space-y-3.5">
-                    {/* Top Bar: Back & Status */}
-                    <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div className="relative mx-auto max-w-xl space-y-3">
+                    <div className="flex items-center justify-between gap-3">
                         <button
                             onClick={() => navigate({ to: '/' })}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
-                            aria-label="Kembali ke beranda"
+                            className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95"
                         >
-                            <ChevronLeft className="size-4" />
+                            <ChevronLeft className="size-5" />
                             <span>Kembali</span>
                         </button>
-
-                        <div className="flex items-center gap-2">
-                            <IndikatorKoneksi online={online} tema="gelap" />
-                        </div>
+                        <IndikatorKoneksi online={online} tema="gelap" />
                     </div>
 
-                    {/* Subject Tags & Exam Title */}
-                    <div className="space-y-1.5 pt-0.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {u.mapel && (
-                                <span className="inline-flex items-center rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-sky-100 backdrop-blur-md border border-white/15">
-                                    {u.mapel}
-                                </span>
-                            )}
-                            <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-bold text-sky-100 backdrop-blur-md border border-white/15">
-                                <ShieldCheck className="size-3" />
-                                <span>Mode {KEAMANAN[u.level_keamanan]}</span>
+                    <div className="space-y-2">
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-sky-100">
+                            {u.mapel && <span className="uppercase tracking-wide">{u.mapel}</span>}
+                            {u.mapel && <span aria-hidden>·</span>}
+                            <span className="inline-flex items-center gap-1">
+                                <ShieldCheck className="size-3.5" />
+                                Mode {KEAMANAN[u.level_keamanan]}
                             </span>
+                        </p>
+                        <h1 className="font-display text-xl font-extrabold tracking-tight text-white sm:text-2xl">{u.nama}</h1>
+                        <div className="flex items-center gap-2.5">
+                            <FotoMurid nama={u.murid.nama} foto={u.murid.foto} ukuran="sm" className="bg-white ring-white/60" />
+                            <p className="min-w-0 text-sm text-sky-50">
+                                <span className="block truncate font-semibold text-white">{u.murid.nama}</span>
+                                <span>
+                                    {u.jumlah_soal} soal · {durasi} menit
+                                </span>
+                            </p>
                         </div>
-
-                        <h1 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-sm">
-                            {u.nama}
-                        </h1>
-
-                        {/* Status Chip */}
-                        <div className="pt-0.5">
-                            {dibuka && !selesai ? (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-md border border-emerald-400/30">
-                                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span>Sedang Berlangsung · Sisa {durasiLengkap(tutup - sekarang)} (s/d {jamMenit(u.ditutup_pada)} WITA)</span>
-                                </div>
-                            ) : sekarang < buka ? (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-amber-200 backdrop-blur-md border border-amber-300/30">
-                                    <Clock className="size-3 text-amber-300" />
-                                    <span>Dibuka dalam {durasiLengkap(buka - sekarang)} (mulai {jamMenit(u.dibuka_pada)} WITA)</span>
-                                </div>
-                            ) : (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 backdrop-blur-md border border-white/15">
-                                    <span>Ujian Telah Selesai</span>
-                                </div>
-                            )}
-                        </div>
+                        <ChipWaktu u={u} sekarang={sekarang} />
                     </div>
                 </div>
             </header>
 
-            <main className="relative z-10 -mt-5 sm:-mt-6 mx-auto max-w-xl space-y-4 px-3 sm:px-4">
-                {/* Student & Exam Details Card */}
-                <div className="rounded-lg border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm space-y-3.5">
-                    <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-                        <FotoMurid nama={u.murid.nama} foto={u.murid.foto} ukuran="md" className="ring-2 ring-primary/20 bg-white" />
-                        <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Peserta Ujian</p>
-                            <p className="font-bold text-ink text-sm sm:text-base leading-snug truncate">{u.murid.nama}</p>
-                        </div>
-                    </div>
+            <main className="relative z-10 -mt-6 px-3 sm:px-6">
+                <div className="mx-auto max-w-xl space-y-3 pb-4">
+                    {!online && (
+                        <SpanduOffline>
+                            {lokal.data
+                                ? 'Ujian ini sudah kamu mulai di perangkat ini — lanjutkan tanpa token; jawaban terkirim otomatis saat tersambung.'
+                                : 'Memulai ujian butuh internet untuk memeriksa token. Paket soal yang sudah diunduh tetap tersimpan.'}
+                        </SpanduOffline>
+                    )}
 
-                    <dl className="grid grid-cols-2 gap-2 sm:gap-3">
-                        <Butir
-                            ikon={<Clock className="size-3.5 text-primary" />}
-                            label="Jadwal (WITA)"
-                            isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)} WITA`}
-                        />
-                        <Butir
-                            ikon={<ListChecks className="size-3.5 text-primary" />}
-                            label="Soal &amp; Durasi"
-                            isi={`${u.jumlah_soal} Soal · ${u.durasi_menit + u.tambahan_waktu_menit} Menit`}
-                        />
-                        <Butir
-                            ikon={<MapPin className="size-3.5 text-primary" />}
-                            label="Sesi &amp; Ruang"
-                            isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'}
-                        />
-                        <Butir
-                            ikon={<LocateFixed className="size-3.5 text-primary" />}
-                            label="Ketentuan Lokasi"
-                            isi={wajibLokasi ? `Sekolah (${u.lokasi.radius_meter ? `${u.lokasi.radius_meter}m` : 'area'})` : 'Dari mana saja'}
-                        />
-                    </dl>
+                    {tertahan && <KartuTertahan status={u.status as 'terkunci' | 'menunggu_sinkron'} adaDiPerangkat={!!lokal.data} onBuka={bukaLokal} />}
+
+                    {masihLama && <KartuBelumDibuka u={u} sekarang={sekarang} wajibLokasi={wajibLokasi} onPanduan={() => void navigate({ to: '/panduan' })} />}
+
+                    {/* Satu ringkasan kesiapan: paket, lokasi, perangkat. Tak perlu bila murid kembali lewat sesi di perangkat ini. */}
+                    {!(tertahan && (u.status === 'menunggu_sinkron' || lokal.data)) && (
+                        <section aria-labelledby="judul-sebelum" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
+                            <h2 id="judul-sebelum" className="text-base font-bold text-ink">
+                                Sebelum mulai
+                            </h2>
+                            <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
+                            {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
+                            <div className="border-t border-slate-100 pt-4">
+                                <KartuKesiapan
+                                    id="cek-perangkat"
+                                    daftar={kesiapan.daftar}
+                                    penghalang={kesiapan.penghalang}
+                                    onAksi={(a) => {
+                                        const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
+                                        if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
+                                        else if (a === 'layar_penuh') void masukLayarPenuh()
+                                        else if (a === 'panduan') void navigate({ to: '/panduan' })
+                                    }}
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    {!offlineLokal && !masihLama && !selesai && !tertahan && (
+                        <section aria-labelledby="judul-token" className="space-y-3 rounded-lg border border-slate-200/90 bg-white p-4 text-center shadow-sm sm:p-5">
+                            <h2 id="judul-token" className="text-base font-bold text-ink">
+                                {melanjutkan ? 'Token untuk melanjutkan' : 'Token ujian'}
+                            </h2>
+                            <p className="text-sm text-slate-600">
+                                {melanjutkan
+                                    ? 'Waktumu sudah berjalan sejak kamu mulai. Masukkan token untuk melanjutkan.'
+                                    : 'Tanyakan 6 karakter token kepada pengawas di ruangan.'}
+                            </p>
+                            <div key={goyang} className={cn('pt-1', goyang ? 'animate-goyang motion-reduce:animate-none' : undefined)}>
+                                <KotakToken
+                                    nilai={token}
+                                    onUbah={setToken}
+                                    galat={!!galatMulai && token.length === 0}
+                                    nonaktif={!siap || mulai.isPending}
+                                    fokusOtomatis={siap && dibuka && perangkatSiap && lokasiSiap}
+                                />
+                            </div>
+                            {!siap && <p className="text-xs text-slate-500">Kotak token aktif setelah paket soal selesai diunduh.</p>}
+
+                            {galatMulai && (
+                                <div role="alert" className="space-y-2.5 rounded-lg border border-coral-200 bg-coral-50 px-3.5 py-2.5 text-left text-sm font-semibold text-coral-700">
+                                    <p className="flex items-start gap-2">
+                                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                                        <span>{galatMulai}</span>
+                                    </p>
+                                    {sesiDitutup && (
+                                        <Tombol varian="outline" ukuran="sm" penuh onClick={() => void navigate({ to: '/' })} ikonKiri={<ChevronLeft className="size-4" />}>
+                                            Kembali ke Beranda
+                                        </Tombol>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    <TataTertib terbuka={u.status === 'belum_mulai' && (ujian.data?.pertama ?? false)} lockdown={lockdown} wajibLokasi={wajibLokasi} />
+
+                    <details className="group rounded-lg border border-slate-200/90 bg-white shadow-sm">
+                        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-bold text-ink sm:px-5 [&::-webkit-details-marker]:hidden">
+                            <span className="mr-auto">Detail ujian</span>
+                            <ChevronDown className="size-4 text-slate-500 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                        </summary>
+                        <dl className="grid grid-cols-1 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
+                            <Butir ikon={<Clock className="size-3.5 text-primary" />} label="Jadwal" isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)} WITA`} />
+                            <Butir ikon={<ListChecks className="size-3.5 text-primary" />} label="Soal & durasi" isi={`${u.jumlah_soal} soal · ${durasi} menit`} />
+                            <Butir ikon={<MapPin className="size-3.5 text-primary" />} label="Sesi & ruang" isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'} />
+                            <Butir
+                                ikon={<LocateFixed className="size-3.5 text-primary" />}
+                                label="Tempat mengerjakan"
+                                isi={wajibLokasi ? `Di sekolah${u.lokasi.radius_meter ? ` (radius ${u.lokasi.radius_meter} m)` : ''}` : 'Dari mana saja'}
+                            />
+                        </dl>
+                    </details>
                 </div>
 
-                {/* Tata Tertib Card */}
-                <div className="rounded-lg border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm space-y-3">
-                    <h2 className="text-sm sm:text-base font-bold text-ink">Tata Tertib &amp; Peraturan Ujian</h2>
-                    <div className="space-y-2">
-                        <Aturan ikon={<BellOff className="size-3.5" />}>Nyalakan mode Jangan Ganggu dan tutup semua aplikasi lain.</Aturan>
-                        <Aturan ikon={<ShieldCheck className="size-3.5" />}>Jangan keluar dari aplikasi atau berpindah layar — tercatat sebagai pelanggaran.</Aturan>
-                        {u.level_keamanan === 'lockdown' && (
-                            <Aturan ikon={<ShieldCheck className="size-3.5" />}>Ujian Lockdown: memuat ulang atau menutup aplikasi langsung mengunci ujian.</Aturan>
-                        )}
-                        {wajibLokasi && (
-                            <Aturan ikon={<LocateFixed className="size-3.5" />}>Ujian wajib di area sekolah. Posisimu dicek berkala via GPS.</Aturan>
-                        )}
-                        <Aturan ikon={<Wifi className="size-3.5" />}>Jawaban tersimpan otomatis di perangkat walau internet putus.</Aturan>
-                        <Aturan ikon={<Clock className="size-3.5" />}>Waktu mengikuti jam server WITA; ujian terkumpul otomatis saat waktu habis.</Aturan>
-                    </div>
-                </div>
-
-                {/* Kesiapan Perangkat */}
-                <KartuKesiapan
-                    daftar={kesiapan.daftar}
-                    penghalang={kesiapan.penghalang}
-                    onAksi={(a) => {
-                        const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
-                        if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
-                        else if (a === 'layar_penuh') void masukLayarPenuh()
-                        else if (a === 'panduan') void navigate({ to: '/panduan' })
-                    }}
-                />
-
-                {!online && (
-                    <SpanduOffline>
-                        {lokal.data
-                            ? 'Ujian ini sudah kamu mulai di perangkat ini — lanjutkan tanpa token; jawaban terkirim otomatis saat tersambung.'
-                            : 'Memulai ujian butuh internet untuk memeriksa token. Paket soal yang sudah diunduh tetap tersimpan.'}
-                    </SpanduOffline>
-                )}
-
-                {offlineLokal ? (
-                    <div className="rounded-lg border border-slate-200/90 bg-white p-5 shadow-sm">
-                        <Tombol
-                            ukuran="lg"
-                            penuh
-                            className="rounded-lg font-bold py-3.5 shadow-md shadow-primary/25"
-                            onClick={() => {
-                                void masukLayarPenuh()
-                                if (u.level_keamanan !== 'dasar') void kunciLayar()
-                                lanjutLokal()
-                            }}
-                        >
-                            Lanjutkan Ujian
-                        </Tombol>
-                    </div>
-                ) : (
-                    <div className="rounded-lg border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm space-y-4">
-                        <KartuUnduh ujian={u} status={status} onUnduh={unduh} />
-
-                        {wajibLokasi && <KartuLokasi status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
-
-                        <div className={cn('space-y-2 text-center pt-3 border-t border-slate-100', !siap && 'opacity-50')}>
-                            <p className="text-sm font-bold text-ink">Masukkan Token Ujian</p>
-                            <p className="text-xs text-slate-500">Tanyakan 6 karakter token kepada guru/pengawas di ruangan</p>
-                            <div key={goyang} className={cn('pt-1', goyang ? 'animate-goyang' : undefined)}>
-                                <KotakToken nilai={token} onUbah={setToken} galat={!!galatMulai && token.length === 0} nonaktif={!siap || selesai || mulai.isPending} />
-                            </div>
+                {/* Tombol Mulai menempel di bawah layar: di HP tetap terlihat walau kartu di atas panjang. */}
+                {!masihLama && !tertahan && (
+                    <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:-mx-6 sm:px-6">
+                        <div className="mx-auto max-w-xl space-y-2">
+                            {offlineLokal ? (
+                                <Tombol ukuran="lg" penuh onClick={bukaLokal}>
+                                    Lanjutkan Ujian
+                                </Tombol>
+                            ) : (
+                                !selesai && (
+                                    <>
+                                        {lockdown && bisaMulai && (
+                                            <p className="flex items-start gap-1.5 text-left text-xs font-semibold text-amber-700">
+                                                <ShieldCheck className="mt-px size-4 shrink-0" />
+                                                Mode Lockdown: menutup atau memuat ulang aplikasi langsung mengunci ujian.
+                                            </p>
+                                        )}
+                                        <Tombol ukuran="lg" penuh disabled={!bisaMulai} aria-describedby="petunjuk-mulai" onClick={() => mulai.mutate(masukLayarPenuh())}>
+                                            {mulai.isPending ? 'Memulai…' : melanjutkan ? 'Lanjutkan Ujian' : 'Mulai Ujian'}
+                                        </Tombol>
+                                    </>
+                                )
+                            )}
+                            <p id="petunjuk-mulai" aria-live="polite" className="text-center text-sm text-slate-600">
+                                {offlineLokal ? 'Jawabanmu tersimpan di perangkat ini.' : petunjuk}
+                            </p>
                         </div>
-
-                        {galatMulai && (
-                            <div role="alert" className="space-y-2.5 rounded-lg bg-coral-50 border border-coral-200 px-3.5 py-2.5 text-xs font-semibold text-coral-700">
-                                <p className="flex items-center gap-2">
-                                    <AlertTriangle className="size-4 shrink-0" />
-                                    <span>{galatMulai}</span>
-                                </p>
-                                {sesiDitutup && (
-                                    <Tombol varian="outline" ukuran="sm" penuh onClick={() => void navigate({ to: '/' })} ikonKiri={<ChevronLeft className="size-4" />}>
-                                        Kembali ke Beranda Ujian
-                                    </Tombol>
-                                )}
-                            </div>
-                        )}
-
-                        <Tombol
-                            ukuran="lg"
-                            penuh
-                            disabled={!bisaMulai}
-                            className="rounded-lg font-bold py-3.5 shadow-md shadow-primary/25 transition active:scale-[0.98]"
-                            onClick={() => mulai.mutate(masukLayarPenuh())}
-                        >
-                            {mulai.isPending ? 'Memulai Ujian…' : u.status === 'mengerjakan' ? 'Lanjutkan Ujian Sekarang' : 'Mulai Ujian Sekarang'}
-                        </Tombol>
-
-                        <p className="text-center text-xs text-slate-500">
-                            {selesai
-                                ? 'Ujian ini sudah dikumpulkan.'
-                                : sekarang < buka
-                                  ? `Ujian dibuka dalam ${durasiLengkap(buka - sekarang)}.`
-                                  : sekarang > tutup
-                                    ? 'Ujian sudah ditutup.'
-                                    : !siap
-                                      ? 'Tombol aktif setelah paket soal selesai diunduh.'
-                                      : !perangkatSiap
-                                        ? `Perbaiki dulu: ${kesiapan.penghalang.map((i) => i.judul.toLowerCase()).join(', ')}.`
-                                        : !lokasiSiap
-                                        ? 'Tombol aktif setelah posisimu didapat.'
-                                        : token.length < 6
-                                        ? 'Masukkan 6 karakter token ujian.'
-                                        : !online
-                                          ? 'Tombol aktif setelah tersambung ke internet.'
-                                          : 'Siap. Waktu ujian mulai berjalan setelah kamu menekan tombol Mulai.'}
-                        </p>
                     </div>
                 )}
             </main>
@@ -389,10 +410,166 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     )
 }
 
-function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: TahapUnduh; onUnduh: () => void }) {
+/** Gulir ke baris kesiapan yang belum beres, lalu pindahkan fokus ke sana (pembaca layar ikut). */
+function tuju(id: string) {
+    const el = document.getElementById(id)
+    if (!el) return
+    el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+    el.focus({ preventScroll: true })
+}
+
+/** Jam tutup, bukan hitung mundur per detik — sisa waktu baru muncul saat tinggal 15 menit. */
+function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
+    const buka = Date.parse(u.dibuka_pada)
+    const tutup = Date.parse(u.ditutup_pada)
+    const kelas = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold'
+
+    if (u.status === 'selesai') return <span className={cn(kelas, 'border-white/20 bg-white/10 text-sky-50')}>Ujian sudah dikumpulkan</span>
+    if (u.status === 'terkunci') {
+        return (
+            <span className={cn(kelas, 'border-coral-200/40 bg-coral-500/20 text-coral-50')}>
+                <Lock className="size-3.5" /> Dikunci pengawas
+            </span>
+        )
+    }
+    if (u.status === 'menunggu_sinkron') {
+        return (
+            <span className={cn(kelas, 'border-sky-300/40 bg-sky-500/20 text-sky-50')}>
+                <RefreshCw className="size-3.5" /> Jawaban sedang dikirim
+            </span>
+        )
+    }
+    if (sekarang > tutup) return <span className={cn(kelas, 'border-white/20 bg-white/10 text-sky-50')}>Jadwal ujian sudah ditutup</span>
+    if (sekarang < buka) {
+        return (
+            <span className={cn(kelas, 'border-amber-300/40 bg-amber-400/15 text-amber-100')}>
+                <Clock className="size-3.5" /> Dibuka {hariTanggal(u.dibuka_pada)}, {jamMenit(u.dibuka_pada)} WITA
+            </span>
+        )
+    }
+    if (tutup - sekarang < 15 * 60_000) {
+        return (
+            <span className={cn(kelas, 'border-amber-300/40 bg-amber-400/15 text-amber-100')}>
+                <Clock className="size-3.5" /> Jadwal ditutup {durasiLengkap(tutup - sekarang)} (pukul {jamMenit(u.ditutup_pada)})
+            </span>
+        )
+    }
+
+    return (
+        <span className={cn(kelas, 'border-green-500/40 bg-green-500/15 text-green-100')}>
+            <span className="size-1.5 rounded-full bg-green-500" aria-hidden /> Berlangsung · jadwal ditutup pukul {jamMenit(u.ditutup_pada)} WITA
+        </span>
+    )
+}
+
+/**
+ * Ujian dikunci pengawas atau sudah dikumpulkan tapi jawabannya belum sampai.
+ * Bila sesinya ada di perangkat ini, layar ujian yang menunggu kunci dibuka /
+ * mengirim sisa jawaban; bila tidak, arahkan murid ke pengawas atau perangkat asal.
+ */
+function KartuTertahan({ status, adaDiPerangkat, onBuka }: { status: 'terkunci' | 'menunggu_sinkron'; adaDiPerangkat: boolean; onBuka: () => void }) {
+    const terkunci = status === 'terkunci'
+
+    return (
+        <section
+            aria-labelledby="judul-tertahan"
+            className={cn('space-y-3 rounded-lg border p-4 shadow-sm sm:p-5', terkunci ? 'border-coral-200 bg-coral-50' : 'border-sky-300/60 bg-white')}
+        >
+            <div className="flex items-start gap-3">
+                <span className={cn('inline-flex size-10 shrink-0 items-center justify-center rounded-full', terkunci ? 'bg-coral-100 text-coral-700' : 'bg-sky-100 text-sky-700')}>
+                    {terkunci ? <Lock className="size-5" /> : <RefreshCw className="size-5" />}
+                </span>
+                <div className="min-w-0 space-y-1">
+                    <h2 id="judul-tertahan" className="text-base font-bold text-ink">
+                        {terkunci ? 'Ujianmu sedang dikunci' : 'Jawabanmu sedang dikirim'}
+                    </h2>
+                    <p className="text-sm text-slate-700">
+                        {terkunci
+                            ? adaDiPerangkat
+                                ? 'Jawabanmu aman. Angkat tangan dan minta pengawas membuka kunci — layar ujian terbuka lagi dengan sendirinya.'
+                                : 'Jawabanmu aman. Minta pengawas membuka kunci; halaman ini ikut diperbarui setelah kunci dibuka.'
+                            : adaDiPerangkat
+                              ? 'Ujian sudah kamu kumpulkan, tapi sebagian jawaban belum sampai ke server. Sambungkan ke internet supaya terkirim.'
+                              : 'Ujian sudah dikumpulkan dari perangkat lain. Buka aplikasi di perangkat itu dan sambungkan ke internet supaya jawaban terkirim.'}
+                    </p>
+                </div>
+            </div>
+            {adaDiPerangkat && (
+                <Tombol ukuran="lg" penuh varian={terkunci ? 'primary' : 'secondary'} onClick={onBuka}>
+                    {terkunci ? 'Buka layar ujian' : 'Lihat pengiriman jawaban'}
+                </Tombol>
+            )}
+        </section>
+    )
+}
+
+/** Lebih dari 30 menit sebelum dibuka: jam buka besar + yang bisa disiapkan sekarang, tanpa tombol mati. */
+function KartuBelumDibuka({ u, sekarang, wajibLokasi, onPanduan }: { u: UjianRingkas; sekarang: number; wajibLokasi: boolean; onPanduan: () => void }) {
+    const sisa = Date.parse(u.dibuka_pada) - sekarang
+    // Tanpa detik: hitung mundur yang berdetak hanya membuat cemas.
+    const kasar = sisa >= 60 * 60_000 ? durasiLengkap(sisa - (sisa % (60 * 60_000))).replace(' lagi', '') : `${Math.ceil(sisa / 60_000)} menit`
+
+    return (
+        <section aria-labelledby="judul-belum-dibuka" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
+            <div>
+                <h2 id="judul-belum-dibuka" className="text-sm font-semibold text-slate-600">
+                    Ujian belum dibuka
+                </h2>
+                <p className="mt-1 font-display text-h3 font-extrabold text-ink">
+                    {hariTanggal(u.dibuka_pada)}, {jamMenit(u.dibuka_pada)} WITA
+                </p>
+                <p className="text-sm text-slate-600">Sekitar {kasar} lagi. Paket soal bisa diunduh 30 menit sebelumnya.</p>
+            </div>
+            <div className="space-y-2">
+                <p className="text-sm font-bold text-ink">Yang bisa kamu siapkan sekarang</p>
+                <ul className="space-y-1.5 text-sm text-slate-700">
+                    <li className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" /> Isi daya baterai sampai penuh.
+                    </li>
+                    <li className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" /> Pastikan aplikasi ujian sudah versi terbaru.
+                    </li>
+                    {wajibLokasi && (
+                        <li className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" /> Ujian ini dikerjakan di sekolah — nyalakan GPS di perangkatmu.
+                        </li>
+                    )}
+                    <li className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" /> Pelajari cara membuka aplikasi dan mengunci layar.
+                    </li>
+                </ul>
+            </div>
+            <Tombol varian="outline" ukuran="sm" className="min-h-11" onClick={onPanduan}>
+                Buka panduan
+            </Tombol>
+        </section>
+    )
+}
+
+/** Tata tertib: terbuka di ujian pertama murid, dilipat sesudahnya. */
+function TataTertib({ terbuka, lockdown, wajibLokasi }: { terbuka: boolean; lockdown: boolean; wajibLokasi: boolean }) {
+    return (
+        <details open={terbuka || undefined} className="group rounded-lg border border-slate-200/90 bg-white shadow-sm">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-bold text-ink sm:px-5 [&::-webkit-details-marker]:hidden">
+                <span className="mr-auto">Tata tertib ujian</span>
+                <ChevronDown className="size-4 text-slate-500 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+            </summary>
+            <div className="space-y-2 px-4 pb-4 sm:px-5 sm:pb-5">
+                <Aturan ikon={<BellOff className="size-3.5" />}>Nyalakan mode Jangan Ganggu dan tutup aplikasi lain.</Aturan>
+                <Aturan ikon={<ShieldCheck className="size-3.5" />}>Tetap di layar ujian sampai selesai. Keluar aplikasi atau pindah layar akan tercatat.</Aturan>
+                {lockdown && <Aturan ikon={<ShieldCheck className="size-3.5" />}>Jangan muat ulang atau menutup aplikasi — ujian Lockdown langsung terkunci.</Aturan>}
+                {wajibLokasi && <Aturan ikon={<LocateFixed className="size-3.5" />}>Kerjakan di area sekolah. Posisimu dicek berkala.</Aturan>}
+                <Aturan ikon={<Wifi className="size-3.5" />}>Internet putus? Tenang, jawabanmu tetap tersimpan di perangkat.</Aturan>
+                <Aturan ikon={<Clock className="size-3.5" />}>Waktu mengikuti jam sekolah (WITA). Jawaban terkumpul otomatis saat waktu habis.</Aturan>
+            </div>
+        </details>
+    )
+}
+
+function KartuUnduh({ id, ujian, status, onUnduh }: { id: string; ujian: UjianRingkas; status: TahapUnduh; onUnduh: () => void }) {
     const [lencana, nada] =
         status.tahap === 'siap'
-            ? (['Siap di perangkat', 'green'] as const)
+            ? (['Siap', 'green'] as const)
             : status.tahap === 'galat'
               ? (['Gagal', 'red'] as const)
               : status.tahap === 'paket' || status.tahap === 'media' || status.tahap === 'menunggu'
@@ -402,21 +579,25 @@ function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: T
                   : (['Belum tersedia', 'neutral'] as const)
 
     return (
-        <div className="space-y-3">
+        <section id={id} tabIndex={-1} aria-labelledby="judul-paket" className="scroll-mt-4 space-y-3 outline-none">
             <div className="flex items-center gap-2 text-sm">
                 {status.tahap === 'siap' ? <CheckCircle2 className="size-5 text-green-500" /> : <DownloadCloud className="size-5 text-primary" />}
-                <span className="mr-auto font-semibold text-ink">Paket soal</span>
-                <Lencana nada={nada}>{lencana}</Lencana>
+                <h3 id="judul-paket" className="mr-auto text-sm font-semibold">
+                    Paket soal
+                </h3>
+                <Lencana nada={nada} aria-live="polite">
+                    {lencana}
+                </Lencana>
             </div>
 
             {status.tahap === 'belum' && !ujian.bisa_unduh && (
-                <p className="text-sm text-slate-500">Paket bisa diunduh 30 menit sebelum ujian dibuka ({jamMenit(ujian.dibuka_pada, true)}).</p>
+                <p className="text-sm text-slate-600">Paket bisa diunduh 30 menit sebelum ujian dibuka ({jamMenit(ujian.dibuka_pada, true)}).</p>
             )}
 
             {status.tahap === 'menunggu' && (
-                <div className="flex items-center gap-3 text-sm text-slate-500">
+                <div className="flex items-center gap-3 text-sm text-slate-600">
                     <span className="mr-auto">Paket diunduh otomatis sebentar lagi.</span>
-                    <Tombol varian="secondary" ukuran="sm" onClick={onUnduh}>
+                    <Tombol varian="secondary" ukuran="sm" className="min-h-11" onClick={onUnduh}>
                         Unduh sekarang
                     </Tombol>
                 </div>
@@ -425,7 +606,7 @@ function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: T
             {status.tahap === 'paket' && (
                 <div className="space-y-1.5">
                     <Progres nilai={status.total ? status.diterima / status.total : null} />
-                    <p className="flex justify-between text-xs text-slate-500">
+                    <p className="flex justify-between text-xs text-slate-600">
                         <span>Mengunduh paket soal…</span>
                         <span className="font-semibold tabular-nums">
                             {ukuranBerkas(status.diterima)}
@@ -438,7 +619,7 @@ function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: T
             {status.tahap === 'media' && (
                 <div className="space-y-1.5">
                     <Progres nilai={status.total ? status.selesai / status.total : null} />
-                    <p className="flex justify-between text-xs text-slate-500">
+                    <p className="flex justify-between text-xs text-slate-600">
                         <span>Mengunduh gambar soal…</span>
                         <span className="font-semibold tabular-nums">
                             {status.selesai} / {status.total}
@@ -447,35 +628,26 @@ function KartuUnduh({ ujian, status, onUnduh }: { ujian: UjianRingkas; status: T
                 </div>
             )}
 
-            {status.tahap === 'siap' && (
-                <div className="space-y-1.5">
-                    <Progres nilai={1} />
-                    <p className="text-xs text-slate-500">
-                        Tersimpan di perangkat ({ukuranBerkas(status.ukuran)}
-                        {status.media ? ` + ${status.media} gambar` : ''}). Soal terkunci sampai token dimasukkan.
-                    </p>
-                </div>
-            )}
 
             {status.tahap === 'galat' && (
                 <div className="flex items-center gap-3">
                     <p className="mr-auto text-sm text-coral-600">{status.pesan}</p>
-                    <Tombol varian="outline" ukuran="sm" ikonKiri={<RotateCw className="size-4" />} onClick={onUnduh}>
+                    <Tombol varian="outline" ukuran="sm" className="min-h-11" ikonKiri={<RotateCw className="size-4" />} onClick={onUnduh}>
                         Coba lagi
                     </Tombol>
                 </div>
             )}
-        </div>
+        </section>
     )
 }
 
-function KartuLokasi({ status, radius, onCari }: { status: TahapLokasi; radius: number | null; onCari: () => void }) {
+function KartuLokasi({ id, status, radius, onCari }: { id: string; status: TahapLokasi; radius: number | null; onCari: () => void }) {
     const lemah = status.tahap === 'siap' && status.posisi.akurasi_m > BATAS_AKURASI_M
     const [lencana, nada] =
         status.tahap === 'siap'
             ? lemah
                 ? (['Sinyal lemah', 'amber'] as const)
-                : (['Posisi didapat', 'green'] as const)
+                : (['Siap', 'green'] as const)
             : status.tahap === 'mencari'
               ? (['Mencari…', 'sky'] as const)
               : status.tahap === 'galat'
@@ -483,38 +655,43 @@ function KartuLokasi({ status, radius, onCari }: { status: TahapLokasi; radius: 
                 : (['Perlu izin', 'neutral'] as const)
 
     return (
-        <div className="space-y-3 border-t border-dashed border-slate-200 pt-4">
+        <section id={id} tabIndex={-1} aria-labelledby="judul-lokasi" className="scroll-mt-4 space-y-3 border-t border-slate-100 pt-4 outline-none">
             <div className="flex items-center gap-2 text-sm">
                 {status.tahap === 'siap' && !lemah ? <CheckCircle2 className="size-5 text-green-500" /> : <LocateFixed className="size-5 text-primary" />}
-                <span className="mr-auto font-semibold text-ink">Lokasi</span>
-                <Lencana nada={nada}>{lencana}</Lencana>
+                <h3 id="judul-lokasi" className="mr-auto text-sm font-semibold">
+                    Lokasi
+                </h3>
+                <Lencana nada={nada} aria-live="polite">
+                    {lencana}
+                </Lencana>
+                {status.tahap === 'siap' && !lemah && (
+                    <button type="button" onClick={onCari} aria-label="Perbarui posisi" className="-my-2 -mr-2 inline-flex size-11 items-center justify-center rounded-sm text-primary hover:bg-primary-50">
+                        <RotateCw className="size-4" />
+                    </button>
+                )}
             </div>
 
             {status.tahap === 'belum' && (
                 <div className="flex items-center gap-3">
-                    <p className="mr-auto text-sm text-slate-500">
-                        Ujian ini dikerjakan di sekolah{radius ? ` (radius ${radius} m)` : ''}. Izinkan akses lokasi agar posisimu bisa dicek.
+                    <p className="mr-auto text-sm text-slate-600">
+                        Ujian ini dikerjakan di sekolah{radius ? ` (radius ${radius} m)` : ''}. Lokasi belum diizinkan — ketuk Izinkan, lalu pilih Izinkan.
                     </p>
-                    <Tombol varian="secondary" ukuran="sm" onClick={onCari}>
+                    <Tombol varian="secondary" ukuran="sm" className="min-h-11" onClick={onCari}>
                         Izinkan
                     </Tombol>
                 </div>
             )}
 
             {status.tahap === 'mencari' && (
-                <p className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="size-4 animate-spin" /> Mencari posisi… di dalam gedung bisa butuh beberapa detik.
+                <p className="flex items-center gap-2 text-sm text-slate-600">
+                    <Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> Mencari posisi… di dalam gedung bisa butuh beberapa detik.
                 </p>
             )}
 
-            {status.tahap === 'siap' && (
+            {lemah && (
                 <div className="flex items-center gap-3">
-                    <p className={cn('mr-auto text-sm', lemah ? 'text-amber-700' : 'text-slate-500')}>
-                        {lemah
-                            ? `Akurasi ±${status.posisi.akurasi_m} m — terlalu kabur. Pindah ke dekat jendela lalu perbarui.`
-                            : `Akurasi ±${status.posisi.akurasi_m} m. Posisi dicek server saat kamu menekan Mulai.`}
-                    </p>
-                    <Tombol varian="outline" ukuran="sm" ikonKiri={<RotateCw className="size-4" />} onClick={onCari}>
+                    <p className="mr-auto text-sm text-amber-700">Sinyal GPS lemah. Pindah ke dekat jendela, lalu ketuk Perbarui.</p>
+                    <Tombol varian="outline" ukuran="sm" className="min-h-11" ikonKiri={<RotateCw className="size-4" />} onClick={onCari}>
                         Perbarui
                     </Tombol>
                 </div>
@@ -523,35 +700,35 @@ function KartuLokasi({ status, radius, onCari }: { status: TahapLokasi; radius: 
             {status.tahap === 'galat' && (
                 <div className="space-y-2">
                     <p className="text-sm text-coral-600">{PESAN_LOKASI_PERANGKAT[status.kode]}</p>
-                    {status.kode === 'DITOLAK' && <p className="text-xs text-slate-500">{petunjukIzin()}</p>}
+                    {status.kode === 'DITOLAK' && <p className="text-xs text-slate-600">{petunjukIzin()}</p>}
                     {status.kode !== 'TIDAK_DIDUKUNG' && (
-                        <Tombol varian="outline" ukuran="sm" ikonKiri={<RotateCw className="size-4" />} onClick={onCari}>
+                        <Tombol varian="outline" ukuran="sm" className="min-h-11" ikonKiri={<RotateCw className="size-4" />} onClick={onCari}>
                             Coba lagi
                         </Tombol>
                     )}
                 </div>
             )}
-        </div>
+        </section>
     )
 }
 
 function Butir({ ikon, label, isi }: { ikon: ReactNode; label: string; isi: ReactNode }) {
     return (
-        <div className="rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100 flex flex-col justify-between">
-            <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+        <div className="rounded-sm border border-slate-100 bg-slate-50/80 p-3">
+            <dt className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                 {ikon}
                 <span>{label}</span>
             </dt>
-            <dd className="mt-1 font-bold text-ink text-xs sm:text-sm leading-snug">{isi}</dd>
+            <dd className="mt-1 text-sm font-bold leading-snug text-ink">{isi}</dd>
         </div>
     )
 }
 
 function Aturan({ ikon, children }: { ikon: ReactNode; children: ReactNode }) {
     return (
-        <div className="flex items-start gap-2.5 rounded-lg bg-slate-50/60 p-2.5 border border-slate-100/80">
-            <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{ikon}</span>
-            <span className="text-xs text-slate-600 leading-relaxed">{children}</span>
+        <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">{ikon}</span>
+            <span className="text-sm leading-relaxed text-slate-700">{children}</span>
         </div>
     )
 }

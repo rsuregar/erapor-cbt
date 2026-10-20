@@ -3,10 +3,10 @@ import type { HTMLAttributes } from 'react'
 
 const NADA = {
     brand: ['bg-primary text-white', 'bg-primary-50 text-primary-700'],
-    sky: ['bg-sky-500 text-white', 'bg-sky-100 text-sky-600'],
+    sky: ['bg-sky-500 text-white', 'bg-sky-100 text-sky-700'],
     magenta: ['bg-magenta-500 text-white', 'bg-magenta-100 text-magenta-600'],
-    green: ['bg-green-500 text-white', 'bg-green-100 text-green-600'],
-    red: ['bg-coral-500 text-white', 'bg-coral-100 text-coral-600'],
+    green: ['bg-green-500 text-white', 'bg-green-100 text-green-700'],
+    red: ['bg-coral-500 text-white', 'bg-coral-100 text-coral-700'],
     amber: ['bg-amber-500 text-amber-900', 'bg-amber-100 text-amber-700'],
     neutral: ['bg-slate-500 text-white', 'bg-slate-100 text-slate-700'],
 } as const

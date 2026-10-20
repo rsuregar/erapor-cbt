@@ -1,13 +1,30 @@
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Token ujian 6 karakter, satu kotak per huruf — besar dan mudah dibaca
  * dari papan tulis. Satu input asli tak terlihat di atas kotak-kotak, supaya
  * ketik cepat, tempel, isi-otomatis keyboard, dan hapus selalu konsisten.
  */
-export function KotakToken({ nilai, onUbah, galat, nonaktif }: { nilai: string; onUbah: (v: string) => void; galat?: boolean; nonaktif?: boolean }) {
+export function KotakToken({
+    nilai,
+    onUbah,
+    galat,
+    nonaktif,
+    fokusOtomatis,
+}: {
+    nilai: string
+    onUbah: (v: string) => void
+    galat?: boolean
+    nonaktif?: boolean
+    /** Fokuskan begitu semua syarat lain beres — hanya di laptop; di HP keyboard yang muncul sendiri justru menutupi layar. */
+    fokusOtomatis?: boolean
+}) {
     const [fokus, setFokus] = useState(false)
+    const ref = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (fokusOtomatis && !nonaktif && matchMedia('(pointer: fine)').matches) ref.current?.focus({ preventScroll: true })
+    }, [fokusOtomatis, nonaktif])
     const huruf = nilai.padEnd(6, ' ').slice(0, 6).split('')
     const aktif = Math.min(nilai.length, 5)
 
@@ -28,6 +45,7 @@ export function KotakToken({ nilai, onUbah, galat, nonaktif }: { nilai: string; 
                 </div>
             ))}
             <input
+                ref={ref}
                 value={nilai}
                 disabled={nonaktif}
                 inputMode="text"
@@ -41,6 +59,8 @@ export function KotakToken({ nilai, onUbah, galat, nonaktif }: { nilai: string; 
                     setFokus(true)
                     const el = e.currentTarget
                     requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length))
+                    // HP: tunggu keyboard naik, lalu bawa kotak ke tengah — jangan tertutup tombol Mulai yang menempel di bawah.
+                    if (matchMedia('(pointer: coarse)').matches) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)
                 }}
                 onBlur={() => setFokus(false)}
                 onChange={(e) => onUbah(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}

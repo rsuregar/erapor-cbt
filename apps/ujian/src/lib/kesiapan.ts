@@ -2,6 +2,7 @@ import { platform } from '@/lib/api'
 import { pwaIosTerpasang, WEB_KHUSUS_IOS } from '@/lib/aksesWeb'
 import { hpMiring, jenisPerangkat, layarDibagi, layarPenuhAktif, standalone } from '@/lib/perangkat'
 import { versiUsang } from '@/lib/versi'
+import type { StatusPenyimpanan } from '@/lib/penyimpanan'
 import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
 
 /**
@@ -29,6 +30,8 @@ export type KeadaanTambahan = {
     /** dari GET /ujian (kontrak § Versi aplikasi) */
     aplikasi?: InfoAplikasi
     ruangBebas: number | null
+    /** Backend penyimpanan sesi ini (lib/penyimpanan.ts) — app native wajib SQLite. */
+    penyimpanan?: StatusPenyimpanan
     baterai: { level: number; mengisi: boolean } | null
 }
 
@@ -47,7 +50,7 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     daftar.push(
         fiturHilang.length
             ? { kunci: 'browser', judul: 'Browser', hasil: 'gagal', wajib: true, keterangan: `Browser ini tidak mendukung ${fiturHilang.join(', ')}. Perbarui browser atau pakai Chrome/Safari terbaru.` }
-            : { kunci: 'browser', judul: 'Browser', hasil: 'lulus', keterangan: 'Mendukung penyimpanan offline dan enkripsi soal.' },
+            : { kunci: 'browser', judul: 'Browser', hasil: 'lulus', keterangan: 'Bisa menyimpan jawaban tanpa internet.' },
     )
 
     const p = platform()
@@ -68,7 +71,7 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     )
 
     if (asli) {
-        daftar.push({ kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
+        daftar.push({ kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
         if (level !== 'dasar') {
             daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.' })
         }
@@ -86,8 +89,8 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
         const terpasang = WEB_KHUSUS_IOS ? pwaIosTerpasang() : standalone()
         daftar.push(
             terpasang
-                ? { kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Dibuka dari ikon di layar utama.' }
-                : { kunci: 'tampilan', judul: 'Tampilan', hasil: 'gagal', wajib: WEB_KHUSUS_IOS, aksi: 'panduan', keterangan: 'Buka ujian dari ikon "CBT Al Akhyar" di layar utama, bukan dari tab browser.' },
+                ? { kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Dibuka dari ikon di layar utama.' }
+                : { kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'gagal', wajib: WEB_KHUSUS_IOS, aksi: 'panduan', keterangan: 'Buka ujian dari ikon "CBT Al Akhyar" di layar utama, bukan dari tab browser.' },
         )
     }
 
@@ -110,6 +113,26 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
         }
     } else if (level === 'lockdown' && !asli) {
         daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Browser laptop tidak bisa dikunci. Keluar dari layar ujian langsung tercatat dan bisa mengunci ujian.' })
+    }
+
+    // App native (Android / desktop): jawaban harus di SQLite perangkat, bukan penyimpanan browser.
+    const st = t.penyimpanan
+    if (st && (st.backend !== 'indexeddb' || st.cadangan)) {
+        daftar.push(
+            st.cadangan
+                ? {
+                      kunci: 'basis_data',
+                      judul: 'Basis data',
+                      hasil: 'peringatan',
+                      keterangan: `SQLite aplikasi tidak bisa dipakai (${st.galat ?? 'galat tidak diketahui'}). Jawaban sementara disimpan di penyimpanan cadangan — beri tahu pengawas.`,
+                  }
+                : {
+                      kunci: 'basis_data',
+                      judul: 'Basis data',
+                      hasil: 'lulus',
+                      keterangan: `SQLite di perangkat${st.dimigrasikan ? ` · ${st.dimigrasikan} data lama dipindahkan` : ''}.`,
+                  },
+        )
     }
 
     if (t.ruangBebas !== null) {

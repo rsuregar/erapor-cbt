@@ -30,12 +30,14 @@ export const adaNative = () => Capacitor.getPlatform() === 'android'
 /**
  * Jembatan langsung ke SQLite database Android (erapor_cbt.db)
  * Memenuhi kontrak JembatanKvSqlite dari @erapor-cbt/exam-core.
+ * Galat SQLite DITERUSKAN, tidak diubah menjadi "data tidak ada": paket/jawaban
+ * yang tersimpan tidak boleh tampak hilang (lihat lib/penyimpanan.ts).
  */
 export const jembatanSqliteNative: JembatanKvSqlite = {
     async ambil(kunci: string): Promise<string | undefined> {
         if (!adaNative()) return undefined
-        const res = await UjianNative.sqliteAmbil({ kunci }).catch(() => ({ ada: false, nilai: null }))
-        return res.ada && res.nilai !== null ? res.nilai : undefined
+        const res = await UjianNative.sqliteAmbil({ kunci })
+        return res.ada && res.nilai !== null && res.nilai !== undefined ? res.nilai : undefined
     },
     async simpan(kunci: string, nilaiString: string): Promise<void> {
         if (!adaNative()) return
@@ -47,7 +49,7 @@ export const jembatanSqliteNative: JembatanKvSqlite = {
     },
     async daftarKunci(awalan: string): Promise<string[]> {
         if (!adaNative()) return []
-        const res = await UjianNative.sqliteDaftarKunci({ awalan }).catch(() => ({ kunci: [] }))
+        const res = await UjianNative.sqliteDaftarKunci({ awalan })
         return res.kunci ?? []
     },
 }
@@ -64,13 +66,9 @@ export const isTauri = () =>
 export const jembatanSqliteTauri: JembatanKvSqlite = {
     async ambil(kunci: string): Promise<string | undefined> {
         if (!isTauri()) return undefined
-        try {
-            const { invoke } = await import('@tauri-apps/api/core')
-            const res = await invoke<string | null>('sqlite_ambil', { kunci })
-            return res !== null && res !== undefined ? res : undefined
-        } catch {
-            return undefined
-        }
+        const { invoke } = await import('@tauri-apps/api/core')
+        const res = await invoke<string | null>('sqlite_ambil', { kunci })
+        return res !== null && res !== undefined ? res : undefined
     },
     async simpan(kunci: string, nilaiString: string): Promise<void> {
         if (!isTauri()) return
@@ -84,12 +82,8 @@ export const jembatanSqliteTauri: JembatanKvSqlite = {
     },
     async daftarKunci(awalan: string): Promise<string[]> {
         if (!isTauri()) return []
-        try {
-            const { invoke } = await import('@tauri-apps/api/core')
-            return await invoke<string[]>('sqlite_daftar_kunci', { awalan })
-        } catch {
-            return []
-        }
+        const { invoke } = await import('@tauri-apps/api/core')
+        return await invoke<string[]>('sqlite_daftar_kunci', { awalan })
     },
 }
 

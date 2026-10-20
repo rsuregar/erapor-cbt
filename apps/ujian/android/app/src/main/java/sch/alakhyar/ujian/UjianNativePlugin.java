@@ -13,6 +13,8 @@ import android.os.SystemClock;
 
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.CursorWindow;
+import android.database.sqlite.SQLiteCursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
@@ -176,6 +178,8 @@ public class UjianNativePlugin extends Plugin {
     // ——— Penyimpanan SQLite Native (Story 7.7) ———————————————————————
 
     private DatabaseHelper dbHelper;
+    /** Batas satu baris saat dibaca (paket soal terenkripsi bisa beberapa MB). */
+    private static final long BATAS_BARIS_BYTE = 32L * 1024 * 1024;
 
     private synchronized SQLiteDatabase dapatkanDb() {
         if (dbHelper == null) {
@@ -217,6 +221,10 @@ public class UjianNativePlugin extends Plugin {
         try {
             SQLiteDatabase db = dapatkanDb();
             try (Cursor cursor = db.rawQuery("SELECT nilai FROM erapor_cbt_kv WHERE kunci = ? LIMIT 1", new String[]{ kunci })) {
+                // CursorWindow bawaan Android ±2 MB per baris: paket soal besar akan gagal dibaca.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && cursor instanceof SQLiteCursor) {
+                    ((SQLiteCursor) cursor).setWindow(new CursorWindow("erapor_cbt_kv", BATAS_BARIS_BYTE));
+                }
                 JSObject ret = new JSObject();
                 if (cursor.moveToFirst()) {
                     ret.put("ada", true);

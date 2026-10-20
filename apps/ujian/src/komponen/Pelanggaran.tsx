@@ -100,31 +100,50 @@ export function IndikatorPelanggaran({ r }: { r: Ringkas }) {
  * memakai {@link DialogKesempatanTerakhir} karena wajib benar-benar dibaca.
  */
 export function PemberitahuanPelanggaran({ k, r, onTutup }: { k: Kejadian; r: Ringkas; onTutup: () => void }) {
+    // onTutup berganti identitas tiap render (timer berdetak tiap 500 ms) — simpan di ref
+    // supaya hitungan 7 detik tidak terus diulang dan kabar benar-benar hilang sendiri.
+    const tutup = useRef(onTutup)
+    tutup.current = onTutup
     useEffect(() => {
-        const t = setTimeout(onTutup, 7000)
+        const t = setTimeout(() => tutup.current(), 7000)
 
         return () => clearTimeout(t)
-    }, [k.kunci, onTutup])
+    }, [k.kunci])
 
     const sisa = r.ambang - k.ke
+    // Kejadian pertama: banyak yang tak sengaja (notifikasi, salah ketuk). Nada lembut, tanpa
+    // kata "pelanggaran"; server tetap mencatatnya. Mulai kejadian kedua: hitungan & peringatan.
+    const pertama = k.ke === 1
 
+    // Di bawah, di atas kaki halaman: tidak menutupi nomor soal / tombol ragu.
     // Di atas lapisan "kembali ke layar penuh" (z-40), di bawah dialog (z-50).
     return (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-[45] flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex justify-center px-4">
             <div role="status" aria-live="polite" className="pointer-events-auto flex w-full max-w-md animate-turun items-start gap-3 rounded-md bg-ink px-4 py-3 text-white shadow-lg">
                 <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-500" />
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold">
-                        Tercatat: {LABEL[k.jenis] ?? 'Pelanggaran'}
-                        <span className="font-medium text-white/70">{durasi(k.durasiMs)}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-white/80">
-                        {r.mengunci
-                            ? `Pelanggaran ke-${k.ke} dari ${r.ambang}. ${sisa > 0 ? `Tetap di layar ini — ujian terkunci di pelanggaran ke-${r.ambang}.` : ''}`
-                            : `Pelanggaran ke-${k.ke}, terlihat oleh pengawas.`}
-                    </p>
+                    {pertama ? (
+                        <>
+                            <p className="text-sm font-bold">Kamu tadi keluar dari layar ujian</p>
+                            <p className="mt-0.5 text-xs text-white/80">
+                                Tidak apa-apa, lanjutkan saja. Tetap di layar ini sampai selesai ya{r.mengunci ? ` — keluar ${r.ambang} kali akan mengunci ujian.` : '.'}
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-sm font-bold">
+                                Tercatat: {LABEL[k.jenis] ?? 'Pelanggaran'}
+                                <span className="font-medium text-white/70">{durasi(k.durasiMs)}</span>
+                            </p>
+                            <p className="mt-0.5 text-xs text-white/80">
+                                {r.mengunci
+                                    ? `Pelanggaran ke-${k.ke} dari ${r.ambang}. ${sisa > 0 ? `Tetap di layar ini — ujian terkunci di pelanggaran ke-${r.ambang}.` : ''}`
+                                    : `Pelanggaran ke-${k.ke}, terlihat oleh pengawas.`}
+                            </p>
+                        </>
+                    )}
                 </div>
-                <button onClick={onTutup} aria-label="Tutup" className="-mr-1 rounded-xs p-1 text-white/70 hover:text-white">
+                <button onClick={onTutup} aria-label="Tutup" className="-m-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-white/70 hover:text-white">
                     <X className="size-4" />
                 </button>
             </div>
