@@ -1,6 +1,17 @@
 name: "Deploy PWA"
 
 on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: staging
+      deploy_mode:
+        type: string
+        default: normal
+      custom_message:
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       environment:
@@ -84,6 +95,9 @@ jobs:
       - name: Build PWA Assets
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
+          # Staging: whitelabel (nama "CBT Staging", warna & ikon oranye, penanda di app).
+          VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
+          VITE_APP_BUILD: ${{ github.run_number }}
         run: |
           DEPLOY_MODE="${{ inputs.deploy_mode || 'normal' }}"
           echo "=========================================="

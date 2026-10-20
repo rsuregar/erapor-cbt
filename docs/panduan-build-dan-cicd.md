@@ -159,6 +159,61 @@ Sebelum build manual di komputer lokal, Anda dapat menyinkronkan versi seluruh p
 node scripts/set-version.mjs 1.0.0 42
 ```
 
+### E. Build STAGING (per app)
+
+Build staging terhubung ke server uji `https://erapor.staging.alakhyar.sch.id/api`
+(bisa ditimpa variabel `VITE_API_URL` di GitHub Environment `staging`) dan ber-whitelabel
+supaya tidak tertukar dengan produksi:
+
+| | Produksi | Staging |
+| --- | --- | --- |
+| Nama | CBT Al Akhyar | CBT Staging / CBT Al Akhyar Staging |
+| Ikon & warna | biru | oranye + pita "STAGING" |
+| Android app id | `sch.alakhyar.ujian` | `sch.alakhyar.ujian.staging` |
+| Desktop identifier | `id.sch.alakhyar.cbt` | `id.sch.alakhyar.cbt.staging` |
+| Di dalam app | — | garis bermotif di tepi atas, lencana STAGING, kartu di halaman Masuk |
+
+Karena app id/identifier berbeda, versi staging dan produksi bisa terpasang berdampingan.
+
+**GitHub Actions — pilih app yang mau dibuild** (tab Actions → Run workflow):
+
+| Workflow | Hasil |
+| --- | --- |
+| `Staging · Android` (`staging-android.yml`) | APK staging (release/debug) |
+| `Staging · Windows` (`staging-windows.yml`) | `.exe` + `.msi` staging |
+| `Staging · macOS` (`staging-macos.yml`) | `.dmg` staging |
+| `Staging · PWA` (`staging-pwa.yml`) | build + deploy PWA staging |
+
+Ketiga workflow native memanggil `build-*.yml` (reusable) dengan `environment: staging`.
+Centang **terbitkan** untuk menerbitkan pra-rilis `staging-X.Y.Z-bN` di repo rilis
+(`scripts/publish-staging.mjs`). App staging hanya membaca tag `staging-*` untuk cek
+pembaruan (versi lalu nomor build); app produksi tidak pernah melihatnya.
+
+**Lokal** (Mac/Windows/Linux, `scripts/build-staging.mjs`):
+
+```bash
+npm run staging:pwa                      # → apps/ujian/dist
+npm run staging:android                  # → APK debug (JDK 21 + Android SDK)
+npm run staging:android -- --release     # → APK release (butuh konfigurasi signing)
+npm run staging:desktop                  # → .dmg (Mac) / .exe + .msi (Windows), butuh Rust
+```
+
+Di balik layar: `VITE_LINGKUNGAN=staging` (web), `-Plingkungan=staging` (Gradle: overlay
+`android/app/src/staging/res`), `tauri build --config src-tauri/tauri.staging.conf.json`.
+
+### F. Ikon aplikasi
+
+Semua ikon dibuat dari satu desain di `scripts/ikon/buat-ikon.mjs` (ubin gradasi biru +
+buku & bintang dari logo; staging oranye + pita). Setelah mengubah desain:
+
+```bash
+npm run ikon                             # PWA (public/brand[/staging]) + Android (res main & staging)
+cd apps/ujian
+npx tauri icon ../../scripts/ikon/keluaran/desktop-production.png -o src-tauri/icons
+npx tauri icon ../../scripts/ikon/keluaran/desktop-staging.png -o src-tauri/icons-staging
+rm -rf src-tauri/icons-staging/android src-tauri/icons-staging/ios
+```
+
 ---
 
 ## 4. Panduan Build Manual di Komputer Lokal

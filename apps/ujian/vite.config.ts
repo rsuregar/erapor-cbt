@@ -19,39 +19,55 @@ export default defineConfig(({ mode }) => {
         readFileSync(new URL("./package.json", import.meta.url), "utf8"),
     ).version as string;
     const versi = process.env.VITE_APP_VERSION || env.VITE_APP_VERSION || pkgVersion;
+    // production | staging — staging = whitelabel (nama, warna, ikon) + penanda di app.
+    const lingkungan = (process.env.VITE_LINGKUNGAN || env.VITE_LINGKUNGAN || "production") === "staging" ? "staging" : "production";
+    const staging = lingkungan === "staging";
+    const brand = staging ? "brand/staging" : "brand";
+    const identitas = staging
+        ? { nama: "CBT Al Akhyar (Staging)", pendek: "CBT Staging", warna: "#E0532F" }
+        : { nama: "CBT Al Akhyar", pendek: "CBT Al Akhyar", warna: "#006195" };
 
     return {
         // Dilaporkan ke server saat /mulai (perangkat.versi_app).
-        define: { __VERSI_APP__: JSON.stringify(versi) },
+        define: {
+            __VERSI_APP__: JSON.stringify(versi),
+            __LINGKUNGAN__: JSON.stringify(lingkungan),
+            // Nomor build CI (run number) — pembaruan staging membandingkan versi lalu build.
+            __BUILD_APP__: JSON.stringify(Number(process.env.VITE_APP_BUILD || env.VITE_APP_BUILD || 0)),
+        },
         resolve: {
             alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
         },
         plugins: [
             react(),
+            {
+                // index.html ikut whitelabel: judul, warna tema, favicon, apple-touch-icon.
+                name: "html-lingkungan",
+                transformIndexHtml: (html: string) =>
+                    html
+                        .replaceAll("%JUDUL_APP%", identitas.nama)
+                        .replaceAll("%WARNA_TEMA%", identitas.warna)
+                        .replaceAll("%BRAND%", brand),
+            },
             VitePWA({
                 registerType: "prompt",
-                includeAssets: ["brand/*.png"],
+                includeAssets: [`${brand}/*.png`, `${brand}/*.svg`, "brand/*.png"],
                 manifest: {
-                    name: "CBT Al Akhyar",
-                    short_name: "CBT Al Akhyar",
-                    description: "Aplikasi ujian CBT murid Al Akhyar",
+                    name: identitas.nama,
+                    short_name: identitas.pendek,
+                    description: staging
+                        ? "Aplikasi ujian CBT Al Akhyar — versi STAGING (server uji)"
+                        : "Aplikasi ujian CBT murid Al Akhyar",
                     lang: "id",
                     display: "fullscreen",
                     orientation: "any",
-                    theme_color: "#006195",
+                    theme_color: identitas.warna,
                     background_color: "#F5F8FA",
                     icons: [
-                        {
-                            src: "brand/ikon-192.png",
-                            sizes: "192x192",
-                            type: "image/png",
-                        },
-                        {
-                            src: "brand/ikon-512.png",
-                            sizes: "512x512",
-                            type: "image/png",
-                            purpose: "any",
-                        },
+                        { src: `${brand}/ikon-192.png`, sizes: "192x192", type: "image/png" },
+                        { src: `${brand}/ikon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
+                        // Android/Chrome memotong ikon ke bentuk sendiri: varian penuh dengan zona aman.
+                        { src: `${brand}/ikon-maskable-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
                     ],
                 },
                 workbox: {

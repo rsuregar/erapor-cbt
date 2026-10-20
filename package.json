@@ -17,10 +17,14 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "desktop:dev": "npm run tauri:dev -w @erapor-cbt/ujian",
     "desktop:build": "npm run tauri:build -w @erapor-cbt/ujian",
+    "staging:pwa": "node scripts/build-staging.mjs pwa",
+    "staging:android": "node scripts/build-staging.mjs android",
+    "staging:desktop": "node scripts/build-staging.mjs desktop",
+    "ikon": "node scripts/ikon/buat-ikon.mjs",
     "sinkron:renderer": "node scripts/sinkron-renderer.mjs",
     "deploy:cf": "wrangler deploy",
     "deploy:cf:normal": "npm run build && wrangler deploy",
-    "deploy:cf:staging": "VITE_API_URL=https://erapor.staging.alakhyar.sch.id/api npm run build && wrangler preview --name staging",
+    "deploy:cf:staging": "VITE_LINGKUNGAN=staging VITE_API_URL=https://erapor.staging.alakhyar.sch.id/api npm run build && wrangler preview --name staging",
     "deploy:cf:maintenance": "node scripts/generate-maintenance-pwa.mjs --mode maintenance && wrangler deploy",
     "deploy:cf:disabled": "node scripts/generate-maintenance-pwa.mjs --mode web_disabled && wrangler deploy",
     "deploy:cf:ios-only": "VITE_AKSES_WEB=ios_pwa npm run build && node scripts/generate-maintenance-pwa.mjs --mode web_ios_only && wrangler deploy",
@@ -28,6 +32,7 @@
     "rilis": "node scripts/buat-tag-rilis.mjs"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

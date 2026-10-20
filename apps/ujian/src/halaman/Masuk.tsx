@@ -25,6 +25,7 @@ import {
     WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { KartuStaging, LencanaStaging } from '@/komponen/PenandaStaging'
 
 /** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
@@ -145,6 +146,7 @@ export default function Masuk() {
                             >
                                 v{__VERSI_APP__}
                             </span>
+                            <LencanaStaging />
                         </div>
                         <div className="flex items-center gap-2">
                             <IndikatorKoneksi online={online} tema="gelap" />
@@ -174,7 +176,8 @@ export default function Masuk() {
             {/* Login Card Form */}
             <div className="relative z-10 -mt-12 sm:-mt-14 flex-1 px-4 pb-10">
                 <div className="mx-auto max-w-md">
-                    <div className="mb-3 empty:hidden">
+                    <div className="mb-3 space-y-3 empty:hidden">
+                        <KartuStaging />
                         <SpanduPembaruan />
                     </div>
                     <form
@@ -345,6 +348,7 @@ export default function Masuk() {
                             >
                                 v{__VERSI_APP__}
                             </button>
+                            <LencanaStaging />
                             <span>&bull;</span>
                             <span>
                                 {isTauri()

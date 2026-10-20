@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Build staging (-Plingkungan=staging): nama & skema URL beda agar bisa dipasang berdampingan dengan produksi. -->
+<resources>
+    <string name="app_name">CBT Staging</string>
+    <string name="title_activity_main">CBT Al Akhyar (Staging)</string>
+    <string name="custom_url_scheme">sch.alakhyar.ujian.staging</string>
+</resources>

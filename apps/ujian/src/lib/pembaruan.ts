@@ -1,3 +1,4 @@
+import { STAGING } from '@/lib/lingkungan'
 import { bandingkanVersi } from '@/lib/versi'
 import { Capacitor } from '@capacitor/core'
 
@@ -9,6 +10,10 @@ import { Capacitor } from '@capacitor/core'
  *   release-win-X.Y.Z / release-macos-X.Y.Z
  *   release-mobile-X.Y.Z   → Android + iOS
  *   release-android-X.Y.Z / release-ios-X.Y.Z
+ *
+ * Build STAGING (VITE_LINGKUNGAN=staging) memakai saluran terpisah: hanya pra-rilis
+ * staging-X.Y.Z-bN (scripts/publish-staging.mjs), dibandingkan versi lalu nomor build.
+ * App produksi tidak pernah menawarkan rilis staging, dan sebaliknya.
  */
 
 export type PlatformRilis = 'windows' | 'macos' | 'android' | 'ios'
@@ -39,7 +44,7 @@ const REPO_RILIS = (import.meta.env.VITE_UPDATE_REPO as string | undefined) || '
  * terlihat paling lambat 1 jam. Bila batas terlampaui, cek gagal diam-diam.
  */
 export const TTL_CEK_PEMBARUAN_MS = 60 * 60 * 1000
-const KUNCI_CACHE = 'cbt:cek-pembaruan'
+const KUNCI_CACHE = STAGING ? 'cbt:cek-pembaruan:staging' : 'cbt:cek-pembaruan'
 
 const JENIS_TAG: Record<PlatformRilis, string[]> = {
     windows: ['desktop', 'win'],
@@ -57,6 +62,44 @@ const BERKAS: Record<PlatformRilis, RegExp[]> = {
 }
 
 const POLA_TAG = /^release-(desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(?:-.+)?$/
+/** Satu tag staging memuat berkas semua platform yang dibuild pada nomor build itu. */
+const POLA_STAGING = /^staging-(\d+\.\d+\.\d+)-b(\d+)$/
+
+export type Saluran = { staging: boolean; buildApp: number }
+
+function asetPlatform(r: RilisGithub, platform: PlatformRilis) {
+    for (const pola of BERKAS[platform]) {
+        const aset = r.assets.find((a) => pola.test(a.name))
+        if (aset) return aset
+    }
+
+    return undefined
+}
+
+/** Saluran staging: tag staging-X.Y.Z-bN terbaru yang memuat berkas platform ini, bila lebih baru dari app. */
+function pilihPembaruanStaging(rilis: RilisGithub[], platform: PlatformRilis, versiApp: string, buildApp: number): InfoPembaruan | null {
+    let terbaik: (InfoPembaruan & { build: number; dasar: string }) | null = null
+    const lebihBaru = (v: string, b: number, v2: string, b2: number) => {
+        const banding = bandingkanVersi(v, v2) ?? 0
+
+        return banding > 0 || (banding === 0 && b > b2)
+    }
+
+    for (const r of rilis) {
+        if (r.draft) continue
+        const m = POLA_STAGING.exec(r.tag_name)
+        if (!m) continue
+        const [dasar, build] = [m[1], Number(m[2])]
+        if (terbaik && !lebihBaru(dasar, build, terbaik.dasar, terbaik.build)) continue
+        const aset = asetPlatform(r, platform)
+        if (!aset) continue
+        terbaik = { versi: `${dasar}-b${build}`, tag: r.tag_name, unduh: aset.browser_download_url, halaman: r.html_url, build, dasar }
+    }
+    if (!terbaik || !lebihBaru(terbaik.dasar, terbaik.build, versiApp.replace(/-.*$/, ''), buildApp)) return null
+    const { versi, tag, unduh, halaman } = terbaik
+
+    return { versi, tag, unduh, halaman }
+}
 
 /** Platform pemasang untuk app ini; null = PWA/Linux (tidak ada pembaruan lewat rilis). */
 export function platformRilis(): PlatformRilis | null {
@@ -85,7 +128,13 @@ function normalkan(versi: string): string {
  * (mis. staging) dilewati. Rilis tanpa berkas platform ini (build platform itu
  * gagal) juga dilewati supaya tidak menawarkan unduhan yang tidak ada.
  */
-export function pilihPembaruan(rilis: RilisGithub[], platform: PlatformRilis, versiApp: string): InfoPembaruan | null {
+export function pilihPembaruan(
+    rilis: RilisGithub[],
+    platform: PlatformRilis,
+    versiApp: string,
+    saluran: Saluran = { staging: false, buildApp: 0 },
+): InfoPembaruan | null {
+    if (saluran.staging) return pilihPembaruanStaging(rilis, platform, versiApp, saluran.buildApp)
     let terbaik: InfoPembaruan | null = null
 
     for (const r of rilis) {
@@ -95,11 +144,7 @@ export function pilihPembaruan(rilis: RilisGithub[], platform: PlatformRilis, ve
         const versi = normalkan(m[2])
         if (terbaik && (bandingkanVersi(versi, terbaik.versi) ?? 0) <= 0) continue
 
-        let aset: RilisGithub['assets'][number] | undefined
-        for (const pola of BERKAS[platform]) {
-            aset = r.assets.find((a) => pola.test(a.name))
-            if (aset) break
-        }
+        const aset = asetPlatform(r, platform)
         if (!aset) continue
 
         terbaik = { versi, tag: r.tag_name, unduh: aset.browser_download_url, halaman: r.html_url }
@@ -134,7 +179,7 @@ export async function cekPembaruan(): Promise<InfoPembaruan | null> {
     })
     if (!res.ok) throw new Error(`Cek pembaruan gagal (HTTP ${res.status})`)
 
-    const info = pilihPembaruan((await res.json()) as RilisGithub[], platform, __VERSI_APP__)
+    const info = pilihPembaruan((await res.json()) as RilisGithub[], platform, __VERSI_APP__, { staging: STAGING, buildApp: __BUILD_APP__ })
     try {
         localStorage.setItem(KUNCI_CACHE, JSON.stringify({ pada: Date.now(), versiApp: __VERSI_APP__, info } satisfies IsiCache))
     } catch {

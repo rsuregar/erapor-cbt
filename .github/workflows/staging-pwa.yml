@@ -1,0 +1,25 @@
+name: "Staging · PWA"
+
+# Build & deploy PWA STAGING saja (whitelabel "CBT Staging", ikon & warna oranye, API
+# erapor.staging) ke ujian.staging / Cloudflare. Logika ada di deploy-pwa.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: 'Mode PWA'
+        type: choice
+        options: [normal, web_disabled, web_ios_only, maintenance]
+        default: normal
+      custom_message:
+        description: 'Pesan (mode web_disabled / web_ios_only / maintenance)'
+        type: string
+        default: ''
+
+jobs:
+  pwa:
+    uses: ./.github/workflows/deploy-pwa.yml
+    with:
+      environment: staging
+      deploy_mode: ${{ inputs.deploy_mode }}
+      custom_message: ${{ inputs.custom_message }}
+    secrets: inherit

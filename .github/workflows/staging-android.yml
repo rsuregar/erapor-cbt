@@ -1,0 +1,30 @@
+name: "Staging · Android"
+
+# Build APK STAGING saja (app id sch.alakhyar.ujian.staging, nama "CBT Staging", ikon oranye,
+# API erapor.staging). Logika build ada di build-android.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Jenis build'
+        type: choice
+        options: [release, debug]
+        default: release
+      terbitkan:
+        description: 'Terbitkan pra-rilis staging-<versi>-b<build> (unduhan + pembaruan otomatis app staging)'
+        type: boolean
+        default: true
+      version_name:
+        description: 'Versi X.Y.Z (kosong = dari package.json)'
+        type: string
+        default: ''
+
+jobs:
+  android:
+    uses: ./.github/workflows/build-android.yml
+    with:
+      environment: staging
+      build_type: ${{ inputs.build_type }}
+      version_name: ${{ inputs.version_name }}
+      terbitkan_staging: ${{ inputs.terbitkan }}
+    secrets: inherit

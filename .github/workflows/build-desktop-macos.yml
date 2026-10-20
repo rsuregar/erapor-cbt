@@ -5,6 +5,21 @@ on:
     tags:
       - 'release-desktop-*'
       - 'release-macos-*'
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: production
+      version_name:
+        type: string
+        default: ''
+      build_number:
+        type: string
+        default: ''
+      terbitkan_staging:
+        description: 'Terbitkan pra-rilis staging-<versi>-b<build> (dipakai workflow staging-*.yml)'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       environment:
@@ -54,7 +69,11 @@ jobs:
         id: env
         run: |
           TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
-          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
+          # Variabel environment GitHub menang; tanpa itu staging → server uji, production → server utama.
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL }}"
+          if [ -z "$API_URL" ]; then
+            if [ "$TARGET" = "staging" ]; then API_URL="https://erapor.staging.alakhyar.sch.id/api"; else API_URL="https://erapor.alakhyar.sch.id/api"; fi
+          fi
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
           # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
@@ -105,11 +124,14 @@ jobs:
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
+          VITE_APP_BUILD: ${{ steps.version.outputs.build_number }}
+          VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
           VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
-          npx @tauri-apps/cli build
+          # Staging: nama, identifier, & ikon terpisah (bisa dipasang berdampingan dengan produksi).
+          if [ "${VITE_LINGKUNGAN}" = staging ]; then npx @tauri-apps/cli build --config src-tauri/tauri.staging.conf.json; else npx @tauri-apps/cli build; fi
 
       # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installer
@@ -140,3 +162,12 @@ jobs:
           RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
           node scripts/publish-release.mjs "${{ github.ref_name }}" "${{ steps.installer.outputs.dir }}"/*
+
+      - name: Publish staging pre-release
+        if: inputs.terbitkan_staging && steps.env.outputs.target == 'staging'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
+        run: |
+          node scripts/publish-staging.mjs "staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}" "${{ steps.installer.outputs.dir }}"/*

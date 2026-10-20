@@ -1,0 +1,25 @@
+name: "Staging · Windows"
+
+# Build Exam Browser Windows STAGING saja (EXE + MSI; nama "CBT Al Akhyar Staging", identifier
+# id.sch.alakhyar.cbt.staging, ikon oranye, API erapor.staging). Logika build ada di
+# build-desktop-windows.yml (+ src-tauri/tauri.staging.conf.json).
+on:
+  workflow_dispatch:
+    inputs:
+      terbitkan:
+        description: 'Terbitkan pra-rilis staging-<versi>-b<build> (unduhan + pembaruan otomatis app staging)'
+        type: boolean
+        default: true
+      version_name:
+        description: 'Versi X.Y.Z (kosong = dari package.json)'
+        type: string
+        default: ''
+
+jobs:
+  windows:
+    uses: ./.github/workflows/build-desktop-windows.yml
+    with:
+      environment: staging
+      version_name: ${{ inputs.version_name }}
+      terbitkan_staging: ${{ inputs.terbitkan }}
+    secrets: inherit
