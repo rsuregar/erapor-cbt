@@ -20,6 +20,8 @@ interface UjianNativePlugin {
     sqliteSimpan(opsi: { kunci: string; nilai: string }): Promise<void>
     sqliteHapus(opsi: { kunci: string }): Promise<void>
     sqliteDaftarKunci(opsi: { awalan?: string }): Promise<{ kunci: string[] }>
+    unduhMedia(opsi: { url: string }): Promise<{ path: string }>
+    hapusMedia(opsi: { path: string[] }): Promise<void>
 }
 
 const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
@@ -150,6 +152,42 @@ export async function keluarAplikasi(): Promise<void> {
 export function isShortcutPengawas(e: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'code'>): boolean {
     const isModifier = e.ctrlKey || e.metaKey || e.altKey
     return isModifier && e.shiftKey && (e.code === 'KeyQ' || e.code === 'KeyX')
+}
+
+/**
+ * Media soal sebagai berkas di penyimpanan app (Android: files/media, desktop: app data/media),
+ * supaya gambar tetap tampil saat offline tanpa bergantung pada service worker.
+ * null = bukan app native (PWA memakai Cache Storage + service worker).
+ */
+export function adaMediaNative(): boolean {
+    return adaNative() || isTauri()
+}
+
+/** Unduh satu media bila belum ada; kembalikan path berkas lokal. Berkas yang sudah ada tidak butuh jaringan. */
+export async function unduhMediaNative(url: string): Promise<string> {
+    if (adaNative()) return (await UjianNative.unduhMedia({ url })).path
+    const { invoke } = await import('@tauri-apps/api/core')
+    try {
+        return await invoke<string>('unduh_media', { url })
+    } catch (e) {
+        throw new Error(typeof e === 'string' ? e : 'Gagal mengunduh media.')
+    }
+}
+
+/** Hapus berkas media (path di luar folder media diabaikan di sisi native). */
+export async function hapusMediaNative(path: string[]): Promise<void> {
+    if (path.length === 0) return
+    if (adaNative()) return UjianNative.hapusMedia({ path })
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('hapus_media', { path })
+}
+
+/** URL yang bisa dipakai <img> untuk berkas lokal. */
+export async function srcMediaNative(path: string): Promise<string> {
+    if (adaNative()) return Capacitor.convertFileSrc(path)
+    const { convertFileSrc } = await import('@tauri-apps/api/core')
+
+    return convertFileSrc(path)
 }
 
 /** Keluar / tutup aplikasi desktop Tauri (alias untuk kompatibilitas) */

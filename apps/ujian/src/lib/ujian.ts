@@ -1,4 +1,5 @@
-import { api } from '@/lib/api'
+import { api, URL_API } from '@/lib/api'
+import { adaMediaNative, hapusMediaNative, srcMediaNative, unduhMediaNative } from '@/lib/native'
 import { sesi as akun } from '@/lib/sesi'
 import { dekripsiPaket, GalatApi, type IsiPaket, type MulaiRespons, type PaketTerenkripsi, type InfoAplikasi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { penyimpanan } from '@/lib/penyimpanan'
@@ -68,48 +69,125 @@ export async function daftarUjian(): Promise<DaftarUjian> {
     }
 }
 
-/** Sesi + isi paket terdekripsi untuk layar mengerjakan. */
-export async function muatUjian(attemptId: number): Promise<{ sesi: SesiUjian; isi: IsiPaket } | null> {
+/** Sesi + isi paket terdekripsi untuk layar mengerjakan; `media` = URL soal → src berkas lokal (app native). */
+export async function muatUjian(attemptId: number): Promise<{ sesi: SesiUjian; isi: IsiPaket; media: PetaMedia } | null> {
     const sesi = await ambilSesi(attemptId)
     if (!sesi) return null
     const paket = await ambilPaket(sesi.ujian.id)
     if (!paket) return null
 
-    return { sesi, isi: await dekripsiPaket(paket, sesi.mulai.kunci) }
+    return { sesi, isi: await dekripsiPaket(paket, sesi.mulai.kunci), media: await srcMediaUjian(sesi.ujian.id) }
 }
 
-/** Setelah kumpul: buang kunci & paket; jawaban sudah di server. */
+/** Setelah kumpul: buang kunci, paket, & media lokal; jawaban sudah di server. */
 export async function bersihkan(attemptId: number, ujianId: number): Promise<void> {
     for (const k of await penyimpanan.daftarKunci(`attempt:${attemptId}:`)) await penyimpanan.hapus(k)
     await penyimpanan.hapus(`paket:${ujianId}`)
+    // Media bukan inti pengumpulan: gagal hapus berkas tidak boleh menahan layar selesai.
+    await hapusMediaUjian(ujianId).catch(() => undefined)
 }
 
+/** URL media soal → path berkas lokal (app native), per ujian. */
+export type PetaMedia = Record<string, string>
+
+const kunciMedia = (ujianId: number) => `media:${ujianId}`
+
+/** Galat pra-unduh media; pesannya aman ditampilkan ke murid. */
+export class GalatMedia extends Error {}
+
+/** URL media relatif diselesaikan terhadap server e-Rapor (bukan origin WebView app). */
+export const urlAbsolut = (url: string) => new URL(url, new URL(URL_API, globalThis.location?.href)).href
+
 /**
- * Unduh gambar/audio soal ke Cache Storage (dibaca service worker saat
- * offline). Respons lintas origin tanpa CORS disimpan "opaque" — tetap bisa
- * ditampilkan <img>. Kontrak: tombol Mulai baru aktif setelah semua media ada.
+ * Pra-unduh media soal supaya tampil saat offline. Kontrak: tombol Mulai baru aktif
+ * setelah semua media ada. Aman dipanggil ulang: yang sudah tersimpan tidak diunduh lagi.
+ * - App native: berkas di penyimpanan app (SQLite hanya menyimpan indeks URL → path).
+ *   WebView desktop tidak bisa mengandalkan service worker, jadi Cache Storage tidak cukup.
+ * - PWA: Cache Storage (dibaca service worker). Respons lintas origin tanpa CORS disimpan
+ *   "opaque" — tetap bisa ditampilkan <img>.
  */
-export async function unduhMedia(urls: string[], onProgres: (selesai: number, total: number) => void): Promise<void> {
+export async function unduhMedia(ujianId: number, urls: string[], onProgres: (selesai: number, total: number) => void): Promise<void> {
     onProgres(0, urls.length)
     if (urls.length === 0) return
-    if (!('caches' in globalThis)) {
+
+    let simpanAkhir: (() => Promise<void>) | undefined
+    let unduhSatu: (url: string) => Promise<void>
+    if (adaMediaNative()) {
+        const peta: PetaMedia = (await penyimpanan.ambil<PetaMedia>(kunciMedia(ujianId))) ?? {}
+        unduhSatu = async (url) => {
+            try {
+                peta[url] = await unduhMediaNative(urlAbsolut(url))
+            } catch (e) {
+                throw new GalatMedia(e instanceof Error ? e.message : 'Gagal mengunduh media.')
+            }
+        }
+        // Indeks disimpan juga bila sebagian gagal: unduh ulang tinggal melanjutkan.
+        simpanAkhir = () => penyimpanan.simpan(kunciMedia(ujianId), peta)
+    } else if ('caches' in globalThis) {
+        const cache = await caches.open(CACHE_MEDIA)
+        unduhSatu = async (url) => {
+            if (await cache.match(url)) return
+            const r = await fetch(url, { mode: 'no-cors', cache: 'reload' }).catch(() => {
+                throw new GalatMedia('Gagal mengunduh media. Periksa internet lalu coba lagi.')
+            })
+            if (r.type !== 'opaque' && !r.ok) throw new GalatMedia(`Gagal mengunduh media (${r.status}).`)
+            await cache.put(url, r)
+        }
+    } else {
         onProgres(urls.length, urls.length)
 
         return
     }
-    const cache = await caches.open(CACHE_MEDIA)
+
     let selesai = 0
     // Tiga sekaligus: cukup cepat tanpa membanjiri jaringan sekolah.
     const antre = [...urls]
     const pekerja = Array.from({ length: Math.min(3, antre.length) }, async () => {
         for (let url = antre.shift(); url; url = antre.shift()) {
-            if (!(await cache.match(url))) {
-                const r = await fetch(url, { mode: 'no-cors', cache: 'reload' })
-                if (r.type !== 'opaque' && !r.ok) throw new Error(`Gagal mengunduh media (${r.status}).`)
-                await cache.put(url, r)
-            }
+            await unduhSatu(url)
             onProgres(++selesai, urls.length)
         }
     })
-    await Promise.all(pekerja)
+    try {
+        await Promise.all(pekerja)
+    } finally {
+        await simpanAkhir?.()
+    }
+}
+
+/**
+ * URL media → src yang bisa dipakai <img> (berkas lokal). Kosong di PWA / bila belum diunduh.
+ * Dicatat juga dengan bentuk absolutnya, jadi cocok walau soal & daftar media menulis URL berbeda (relatif/absolut).
+ */
+export async function srcMediaUjian(ujianId: number): Promise<PetaMedia> {
+    if (!adaMediaNative()) return {}
+    const peta = (await penyimpanan.ambil<PetaMedia>(kunciMedia(ujianId))) ?? {}
+    const hasil: PetaMedia = {}
+    for (const [url, path] of Object.entries(peta)) hasil[url] = hasil[urlAbsolut(url)] = await srcMediaNative(path)
+
+    return hasil
+}
+
+/** src gambar soal → berkas lokal bila ada di peta, selain itu src asli. */
+export function srcLokal(peta: PetaMedia | undefined, src: string): string {
+    if (!peta) return src
+    try {
+        return peta[src] ?? peta[urlAbsolut(src)] ?? src
+    } catch {
+        return src
+    }
+}
+
+/** Hapus media ujian ini; berkas yang juga dipakai ujian lain (nama = hash URL) dibiarkan. */
+export async function hapusMediaUjian(ujianId: number): Promise<void> {
+    if (!adaMediaNative()) return
+    const kunci = kunciMedia(ujianId)
+    const milikIni = Object.values((await penyimpanan.ambil<PetaMedia>(kunci)) ?? {})
+    const dipakaiLain = new Set<string>()
+    for (const k of await penyimpanan.daftarKunci('media:')) {
+        if (k === kunci) continue
+        for (const p of Object.values((await penyimpanan.ambil<PetaMedia>(k)) ?? {})) dipakaiLain.add(p)
+    }
+    await hapusMediaNative(milikIni.filter((p) => !dipakaiLain.has(p)))
+    await penyimpanan.hapus(kunci)
 }

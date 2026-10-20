@@ -28,12 +28,23 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Locale;
+import org.json.JSONArray;
+
 /**
  * Kemampuan native app ujian (story 7.7) yang tidak bisa dilakukan web:
  * - kunci layar: startLockTask() — tanpa device owner, Android memakai
  *   "sematkan aplikasi" (murid tidak bisa keluar tanpa melepas sematan);
  * - lokasi dengan tanda lokasi palsu (Location.isMock / isFromMockProvider)
- *   untuk field `palsu` di kontrak § Lokasi ujian.
+ *   untuk field `palsu` di kontrak § Lokasi ujian;
+ * - media soal sebagai berkas di penyimpanan internal app (tampil saat offline).
  */
 @CapacitorPlugin(
     name = "UjianNative",
@@ -309,5 +320,93 @@ public class UjianNativePlugin extends Plugin {
             call.reject("Gagal membaca daftar kunci dari SQLite: " + e.getMessage(), "SQLITE_GAGAL");
         }
     }
-}
 
+    // ——— Media soal offline ——————————————————————————————————————————
+
+    /**
+     * Unduh media soal ke files/media/<sha256 url>.<ext> bila belum ada; resolve { path }.
+     * Berkas yang sudah ada dipakai tanpa jaringan (aman dipanggil ulang saat offline).
+     * Web menampilkannya lewat Capacitor.convertFileSrc (apps/ujian/src/lib/native.ts).
+     */
+    @PluginMethod
+    public void unduhMedia(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+            call.reject("Alamat media tidak diizinkan.", "ARGUMEN_INVALID");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                File tujuan = new File(folderMedia(), namaBerkasMedia(url));
+                if (!tujuan.exists() || tujuan.length() == 0) unduhKe(url, tujuan);
+                JSObject o = new JSObject();
+                o.put("path", tujuan.getAbsolutePath());
+                call.resolve(o);
+            } catch (Exception e) {
+                call.reject(e.getMessage() != null ? e.getMessage() : "Gagal mengunduh media.", "MEDIA_GAGAL");
+            }
+        }).start();
+    }
+
+    /** Hapus berkas media { path: string[] }; path di luar folder media diabaikan. */
+    @PluginMethod
+    public void hapusMedia(PluginCall call) {
+        JSONArray daftar = call.getArray("path", new JSArray());
+        try {
+            String folder = folderMedia().getCanonicalPath();
+            for (int i = 0; i < daftar.length(); i++) {
+                File f = new File(daftar.getString(i)).getCanonicalFile();
+                if (f.getParent() != null && f.getParent().equals(folder)) f.delete();
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Gagal menghapus media: " + e.getMessage(), "MEDIA_GAGAL");
+        }
+    }
+
+    private File folderMedia() throws Exception {
+        File folder = new File(getContext().getFilesDir(), "media");
+        if (!folder.exists() && !folder.mkdirs()) throw new Exception("Tidak bisa membuat folder media.");
+        return folder;
+    }
+
+    /** Aturan seperti nama_berkas di src-tauri/src/media.rs: sha256(url) + ekstensi alfanumerik ≤ 5. */
+    static String namaBerkasMedia(String url) throws Exception {
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(url.getBytes("UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : hash) sb.append(String.format("%02x", b));
+
+        String path = new URL(url).getPath();
+        String nama = path.substring(path.lastIndexOf('/') + 1);
+        int titik = nama.lastIndexOf('.');
+        if (titik >= 0) {
+            String ext = nama.substring(titik + 1).toLowerCase(Locale.ROOT);
+            if (!ext.isEmpty() && ext.length() <= 5 && ext.matches("[a-z0-9]+")) sb.append('.').append(ext);
+        }
+        return sb.toString();
+    }
+
+    private static void unduhKe(String url, File tujuan) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setInstanceFollowRedirects(true);
+        conn.setConnectTimeout(20000);
+        conn.setReadTimeout(30000);
+        // Tulis ke berkas sementara lalu ganti nama: berkas setengah jadi tidak pernah dianggap lengkap.
+        File sementara = new File(tujuan.getPath() + ".unduh");
+        try {
+            int status = conn.getResponseCode();
+            if (status < 200 || status >= 300) throw new Exception("Gagal mengunduh media (" + status + ").");
+            try (InputStream in = conn.getInputStream(); OutputStream out = new FileOutputStream(sementara)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            }
+            if (!sementara.renameTo(tujuan)) throw new Exception("Gagal menyimpan media.");
+        } catch (java.io.IOException e) {
+            throw new Exception("Gagal mengunduh media. Periksa internet lalu coba lagi.");
+        } finally {
+            conn.disconnect();
+            if (sementara.exists()) sementara.delete();
+        }
+    }
+}

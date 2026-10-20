@@ -1,7 +1,7 @@
 import { api } from '@/lib/api'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
-import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
+import { bersihkan, muatUjian, penyimpanan, type PetaMedia, type SesiUjian } from '@/lib/ujian'
 import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -27,7 +27,7 @@ function alasanDariGalat(g: GalatApi | null): AlasanSelesai | null {
  * dan kumpul — termasuk kumpul yang tertunda karena offline.
  */
 export function useSesiUjian(attemptId: number) {
-    const [data, setData] = useState<{ sesi: SesiUjian; isi: IsiPaket } | null>(null)
+    const [data, setData] = useState<{ sesi: SesiUjian; isi: IsiPaket; media: PetaMedia } | null>(null)
     const [status, setStatus] = useState<StatusUjian>('memuat')
     const [jawaban, setJawaban] = useState<IsiJawaban>({})
     const [berakhir, setBerakhir] = useState<string | null>(null)

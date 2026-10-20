@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import { ambilPaket, simpanPaket, unduhMedia } from '@/lib/ujian'
+import { ambilPaket, GalatMedia, simpanPaket, unduhMedia } from '@/lib/ujian'
 import { GalatApi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -32,20 +32,31 @@ export function useUnduhPaket(ujian: UjianRingkas | undefined) {
             setStatus({ tahap: 'paket', diterima: 0, total: null })
             const paket = await api.paket(ujian.id, (diterima, total) => setStatus({ tahap: 'paket', diterima, total }))
             await simpanPaket(ujian.id, paket)
-            await unduhMedia(paket.media, (selesai, total) => setStatus({ tahap: 'media', selesai, total }))
+            await unduhMedia(ujian.id, paket.media, (selesai, total) => setStatus({ tahap: 'media', selesai, total }))
             setStatus({ tahap: 'siap', ukuran: paket.isi.length, media: paket.media.length })
         } catch (e) {
-            const pesan =
-                e instanceof GalatApi
-                    ? e.kode === 'JARINGAN'
-                        ? 'Unduhan terputus. Periksa internet lalu coba lagi.'
-                        : e.message
-                    : 'Gagal menyimpan paket di perangkat.'
-            setStatus({ tahap: 'galat', pesan })
+            setStatus({ tahap: 'galat', pesan: pesanGalat(e) })
         } finally {
             berjalan.current = false
         }
     }, [ujian])
+
+    /** Paket sudah ada di perangkat: pastikan medianya juga lengkap (berkas bisa terhapus / unduhan lama terputus). */
+    const lengkapiMedia = useCallback(
+        async (ukuran: number, media: string[]) => {
+            if (!ujian || berjalan.current) return
+            berjalan.current = true
+            try {
+                await unduhMedia(ujian.id, media, (selesai, total) => setStatus({ tahap: 'media', selesai, total }))
+                setStatus({ tahap: 'siap', ukuran, media: media.length })
+            } catch (e) {
+                setStatus({ tahap: 'galat', pesan: pesanGalat(e) })
+            } finally {
+                berjalan.current = false
+            }
+        },
+        [ujian],
+    )
 
     useEffect(() => {
         if (!ujian?.bisa_unduh || status.tahap !== 'belum') return
@@ -56,7 +67,8 @@ export function useUnduhPaket(ujian: UjianRingkas | undefined) {
             const ada = await ambilPaket(ujian.id)
             if (batal) return
             if (ada) {
-                setStatus({ tahap: 'siap', ukuran: ada.isi.length, media: ada.media.length })
+                // Media yang sudah tersimpan tidak diunduh ulang, jadi ini tetap jalan saat offline.
+                void lengkapiMedia(ada.isi.length, ada.media)
 
                 return
             }
@@ -78,4 +90,11 @@ export function useUnduhPaket(ujian: UjianRingkas | undefined) {
     }, [ujian?.id, ujian?.bisa_unduh])
 
     return { status, unduh }
+}
+
+function pesanGalat(e: unknown): string {
+    if (e instanceof GalatApi) return e.kode === 'JARINGAN' ? 'Unduhan terputus. Periksa internet lalu coba lagi.' : e.message
+    if (e instanceof GalatMedia) return e.message
+
+    return 'Gagal menyimpan paket di perangkat.'
 }

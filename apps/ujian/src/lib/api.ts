@@ -17,8 +17,11 @@ export function aturDemo(aktif: boolean): void {
     demo = (import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && aktif
 }
 
+/** Alamat API e-Rapor; juga dasar untuk URL media soal yang relatif. */
+export const URL_API: string = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://erapor.alakhyar.sch.id/api' : '/api')
+
 export const api = new KlienApi({
-    baseUrl: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://erapor.alakhyar.sch.id/api' : '/api'),
+    baseUrl: URL_API,
     ambilToken: () => sesi.token(),
     ambilPerangkatId: () => sesi.perangkatId(),
     saatTidakSah: () => {
