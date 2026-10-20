@@ -21,3 +21,6 @@ apps/ujian/ios/DerivedData/
 # Keystore & Android signing
 *.keystore
 *.jks
+
+# Arsip lokal alat peninjau desain (Impeccable)
+.impeccable/

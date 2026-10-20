@@ -38,6 +38,8 @@ const TEKS = new Set(['isian', 'uraian', 'studi_kasus'])
 
 /** Pesan "diakhiri pengawas" ditahan sebelum kembali ke beranda supaya murid sempat membacanya. */
 const JEDA_PESAN_PENGAWAS_MS = 10_000
+/** Layar "selesai" cukup lama untuk dibaca anak — penutup yang paling diingat. */
+const JEDA_SELESAI_MS = 6000
 
 function terisi(j: JawabanInti | undefined): boolean {
     if (j === null || j === undefined) return false
@@ -45,6 +47,28 @@ function terisi(j: JawabanInti | undefined): boolean {
     if (Array.isArray(j)) return j.length > 0
 
     return Object.keys(j).length > 0
+}
+
+type StatusIsi = 'kosong' | 'sebagian' | 'lengkap'
+
+/**
+ * Benar/salah & menjodohkan baru lengkap bila SEMUA baris terisi — dulu satu baris
+ * saja sudah dihitung "dijawab", dan murid baru kaget saat nilai keluar.
+ */
+function statusJawaban(s: SoalPaket, j: JawabanInti | undefined): StatusIsi {
+    if (!terisi(j)) return 'kosong'
+    const isi = Object.values((j ?? {}) as Record<string, unknown>)
+    if (s.jenis === 'benar_salah') {
+        const n = ((s.opsi as { pernyataan?: unknown[] } | null)?.pernyataan ?? []).length
+        return n > 0 && isi.filter((v) => typeof v === 'boolean').length < n ? 'sebagian' : 'lengkap'
+    }
+    if (s.jenis === 'menjodohkan') {
+        const n = ((s.opsi as { kiri?: unknown[] } | null)?.kiri ?? []).length
+        const terpasang = isi.filter((v) => typeof v === 'string' && v !== '').length
+        if (terpasang === 0) return 'kosong'
+        return n > 0 && terpasang < n ? 'sebagian' : 'lengkap'
+    }
+    return 'lengkap'
 }
 
 function keTampil(s: SoalPaket, stimulus: Record<string, { judul: string | null; konten: unknown }>): SoalTampil {
@@ -83,7 +107,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         if (u.status === 'selesai') {
             const timer = setTimeout(() => {
                 void navigate({ to: '/', replace: true })
-            }, u.alasanSelesai ? JEDA_PESAN_PENGAWAS_MS : 1800)
+            }, u.alasanSelesai ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS)
 
             return () => clearTimeout(timer)
         }
@@ -229,7 +253,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                     olehPengawas ? (
                         <Megaphone className="size-12 text-amber-500" />
                     ) : (
-                        <CheckCircle2 className="size-12 text-emerald-500 animate-bounce" />
+                        <CheckCircle2 className="size-12 text-green-500 animate-turun" />
                     )
                 }
                 judul={
@@ -241,10 +265,10 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 }
                 isi={
                     u.alasanSelesai === 'sesi_dihentikan'
-                        ? 'Sesi ujian telah dihentikan oleh pengawas/guru. Seluruh lembar pengerjaan Anda telah otomatis dikumpulkan dan tersimpan aman di server.'
+                        ? 'Sesi ujian dihentikan oleh pengawas/guru. Semua jawabanmu sudah dikumpulkan otomatis dan tersimpan aman di server.'
                         : u.alasanSelesai === 'dikumpulkan_pengawas'
-                          ? 'Pengawas/guru telah mengumpulkan ujian Anda. Jawaban yang sudah terkirim tersimpan aman di server — aplikasi tidak mengalami gangguan.'
-                          : 'Ujian telah selesai dan jawaban Anda berhasil dikumpulkan ke server. Mengalihkan Anda kembali ke dashboard...'
+                          ? 'Pengawas/guru sudah mengumpulkan ujianmu. Jawaban yang terkirim tersimpan aman di server — aplikasimu tidak bermasalah.'
+                          : 'Terima kasih sudah mengerjakan dengan jujur. Jawabanmu sudah terkirim dan tersimpan aman. Nilai bisa dilihat setelah dirilis guru.'
                 }
             >
                 <div className="mt-4 flex flex-col items-center gap-2">
@@ -252,7 +276,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         Kembali ke beranda sekarang
                     </Link>
                     <p className="text-[11px] text-slate-400">
-                        {olehPengawas ? `Otomatis kembali ke beranda dalam ${JEDA_PESAN_PENGAWAS_MS / 1000} detik…` : 'Otomatis dialihkan ke dashboard…'}
+                        {`Otomatis kembali ke beranda dalam ${(olehPengawas ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS) / 1000} detik…`}
                     </p>
                 </div>
             </Layar>
@@ -291,7 +315,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">
                 <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3 sm:px-6">
                     <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <img src="/brand/logogram.png" alt="" className="size-8 shrink-0 object-contain drop-shadow-xs" />
+                        {/* HP: ruang untuk nama ujian lebih penting dari logo. */}
+                        <img src="/brand/logogram.png" alt="" className="hidden size-8 shrink-0 object-contain drop-shadow-xs sm:block" />
                         <div className="min-w-0">
                             <p className="truncate text-xs sm:text-sm font-extrabold text-ink leading-tight">{u.data?.sesi.ujian.nama}</p>
                             <p className="truncate text-[11px] font-semibold text-slate-500">{u.data?.sesi.ujian.mapel}</p>
@@ -302,7 +327,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         onClick={() => setTimerTampil((v) => !v)}
                         className={cn(
                             'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-display text-sm sm:text-base font-bold tabular-nums transition shadow-2xs border',
-                            peringatan ? 'bg-coral-50 border-coral-200 text-coral-600 animate-pulse' : 'bg-slate-100/90 border-slate-200/90 text-slate-800 hover:bg-slate-200/70',
+                            peringatan ? 'bg-coral-50 border-coral-200 text-coral-700' : 'bg-slate-100/90 border-slate-200/90 text-slate-800 hover:bg-slate-200/70',
                         )}
                         aria-label={timerTampil ? 'Sembunyikan waktu' : 'Tampilkan waktu'}
                         title={timerTampil ? 'Sembunyikan waktu tersisa' : 'Tampilkan waktu tersisa'}
@@ -359,7 +384,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             <span className="font-bold">Pesan pengawas: </span>
                             {u.pesan!.teks}
                         </p>
-                        <button onClick={() => setPesanDitutup(u.pesan!.pada)} aria-label="Tutup pesan" className="rounded-xs p-0.5">
+                        <button onClick={() => setPesanDitutup(u.pesan!.pada)} aria-label="Tutup pesan pengawas" className="-my-2 -mr-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md">
                             <X className="size-4" />
                         </button>
                     </div>
@@ -387,7 +412,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 ) : (
                     aktif &&
                     u.data && (
-                        <div className="relative z-10 flex-1 min-h-0 flex flex-col w-full h-full max-w-7xl mx-auto">
+                        // Satu-satunya area gulir soal (HP: bacaan + soal mengalir; lg: panel per kolom).
+                        <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 min-h-0 overflow-y-auto overscroll-contain">
                             <TampilanSoal
                                 key={aktif.id}
                                 soal={keTampil(aktif, u.data.isi.stimulus)}
@@ -399,6 +425,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                 onRagu={(r) => u.jawab(aktif.id, j?.jawaban ?? null, r)}
                                 skalaFont={skalaFont}
                                 onUbahSkalaFont={ubahSkalaFont}
+                                kontrolDiKaki
                             />
                         </div>
                     )
@@ -415,13 +442,42 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         <p className="truncate text-xs font-semibold text-slate-700">{nama}</p>
                     </div>
 
+                    {/* HP: ragu-ragu & ukuran teks di zona jempol (renderer menyembunyikannya di atas). */}
+                    {!tinjau && aktif && (
+                        <div className="flex items-center gap-1.5 sm:hidden">
+                            <button
+                                type="button"
+                                aria-pressed={!!j?.ragu}
+                                aria-label={j?.ragu ? 'Batalkan tanda ragu-ragu' : 'Tandai ragu-ragu'}
+                                onClick={() => u.jawab(aktif.id, j?.jawaban ?? null, !j?.ragu)}
+                                className={cn(
+                                    'inline-flex size-11 items-center justify-center rounded-xl border-2 transition active:scale-95',
+                                    j?.ragu ? 'border-amber-500 bg-amber-100 text-amber-800' : 'border-slate-200 bg-white text-slate-600',
+                                )}
+                            >
+                                <Bookmark className={cn('size-5', j?.ragu && 'fill-amber-500 text-amber-600')} />
+                            </button>
+                            <UkuranTeks skala={skalaFont} onUbah={ubahSkalaFont} />
+                        </div>
+                    )}
+
                     <div className="flex flex-1 justify-center">
                         <button
                             onClick={() => setPanel(true)}
-                            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition"
-                            aria-label="Buka navigasi nomor soal"
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition sm:px-4"
+                            aria-label={tinjau ? 'Buka daftar nomor soal' : `Soal ${indeks + 1} dari ${soal.length}. Buka daftar nomor soal`}
                         >
-                            <span>{tinjau ? 'Tinjauan Jawaban' : `Soal ${indeks + 1} dari ${soal.length}`}</span>
+                            {tinjau ? (
+                                <span>Nomor soal</span>
+                            ) : (
+                                <span className="tabular-nums">
+                                    <span className="hidden sm:inline">Soal </span>
+                                    {indeks + 1}
+                                    <span className="sm:hidden">/</span>
+                                    <span className="hidden sm:inline"> dari </span>
+                                    {soal.length}
+                                </span>
+                            )}
                             <ChevronUp className="size-4 text-white/70" />
                         </button>
                     </div>
@@ -429,7 +485,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                     <div className="flex flex-1 justify-end gap-2">
                         {tinjau ? (
                             <Tombol varian="outline" onClick={() => setTinjau(false)} ikonKiri={<ChevronLeft className="size-4" />} className="rounded-xl font-semibold">
-                                Kembali ke Soal
+                                Ke soal
                             </Tombol>
                         ) : (
                             <>
@@ -478,16 +534,22 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
             {konfirmasi && (
                 <Dialog onTutup={() => setKonfirmasi(false)}>
-                    <h2 className="text-title">Kumpulkan sekarang?</h2>
-                    <p className="mt-1 text-sm">
-                        {ringkas.kosong > 0 || ringkas.ragu > 0
-                            ? `Masih ada ${ringkas.kosong} soal kosong dan ${ringkas.ragu} ragu-ragu. `
-                            : 'Semua soal sudah dijawab. '}
-                        Setelah dikumpulkan, jawaban tidak bisa diubah.
+                    <h2 id="judul-dialog" className="text-title">Kumpulkan sekarang?</h2>
+                    {ringkas.kosong + ringkas.sebagian + ringkas.ragu === 0 ? (
+                        <p className="mt-1 text-sm">Semua soal sudah dijawab.</p>
+                    ) : (
+                        <ul className="mt-2 space-y-1 text-sm">
+                            {ringkas.kosong > 0 && <li><b>Kosong:</b> soal {ringkas.nomorKosong.join(', ')}</li>}
+                            {ringkas.sebagian > 0 && <li><b>Belum lengkap:</b> soal {ringkas.nomorSebagian.join(', ')}</li>}
+                            {ringkas.ragu > 0 && <li><b>Ragu-ragu:</b> {ringkas.ragu} soal</li>}
+                        </ul>
+                    )}
+                    <p className="mt-2 text-sm">
+                        {sisaMs !== null && sisaMs > 0 ? `Sisa waktu ${waktuMundur(sisaMs / 1000)}. ` : ''}Setelah dikumpulkan, jawaban tidak bisa diubah.
                     </p>
                     <div className="mt-5 flex justify-end gap-2">
-                        <Tombol varian="outline" onClick={() => setKonfirmasi(false)}>
-                            Batal
+                        <Tombol varian="outline" onClick={() => setKonfirmasi(false)} data-fokus-awal>
+                            Periksa lagi
                         </Tombol>
                         <Tombol
                             onClick={() => {
@@ -525,7 +587,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             )}
 
             {masukSection && !p.kejadian && !dibukaPengawas && (
-                <div className="pointer-events-none fixed inset-x-0 top-16 z-30 flex justify-center px-4">
+                <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 flex justify-center px-4">
                     <div role="status" aria-live="polite" className="pointer-events-auto flex w-full max-w-md animate-turun items-center gap-3 rounded-md bg-sky-700 px-4 py-3 text-white shadow-lg">
                         <Layers className="size-5 shrink-0 text-sky-200" />
                         <p className="min-w-0 flex-1 text-sm">
@@ -549,13 +611,15 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
             {blokir.status === 'blocked' && (
                 <Dialog onTutup={() => blokir.reset()}>
-                    <h2 className="text-title">Keluar dari layar ujian?</h2>
+                    <h2 id="judul-dialog" className="text-title">Keluar dari layar ujian?</h2>
                     <p className="mt-1 text-sm">Waktu tetap berjalan dan jawabanmu tetap tersimpan. Kembali ke sini sebelum waktu habis untuk mengumpulkan.</p>
                     <div className="mt-5 flex justify-end gap-2">
                         <Tombol varian="outline" onClick={() => blokir.proceed()}>
                             Keluar
                         </Tombol>
-                        <Tombol onClick={() => blokir.reset()}>Tetap di sini</Tombol>
+                        <Tombol onClick={() => blokir.reset()} data-fokus-awal>
+                            Tetap di sini
+                        </Tombol>
                     </div>
                 </Dialog>
             )}
@@ -590,15 +654,19 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     )
 
     function hitung(daftar: SoalPaket[], isi: IsiJawaban) {
-        let dijawab = 0
+        const nomorKosong: number[] = []
+        const nomorSebagian: number[] = []
         let ragu = 0
         for (const s of daftar) {
             const x = isi[s.id]
-            if (terisi(x?.jawaban)) dijawab++
+            const st = statusJawaban(s, x?.jawaban)
+            if (st === 'kosong') nomorKosong.push(s.nomor)
+            if (st === 'sebagian') nomorSebagian.push(s.nomor)
             if (x?.ragu) ragu++
         }
+        const dijawab = daftar.length - nomorKosong.length - nomorSebagian.length
 
-        return { dijawab, ragu, kosong: daftar.length - dijawab }
+        return { dijawab, ragu, kosong: nomorKosong.length, sebagian: nomorSebagian.length, nomorKosong, nomorSebagian }
     }
 }
 
@@ -622,14 +690,20 @@ function StatusSimpan({ online, tertunda }: { online: boolean; tertunda: number 
     )
 }
 
-function kelasNomor(terjawab: boolean, ragu: boolean, aktif: boolean) {
+function kelasNomor(status: StatusIsi, ragu: boolean, aktif: boolean) {
     return cn(
-        'relative inline-flex aspect-square items-center justify-center rounded-lg border-2 text-sm font-bold transition active:scale-95 shadow-2xs',
-        terjawab ? 'border-primary bg-primary text-white shadow-xs' : 'border-dashed border-slate-300 bg-white text-ink hover:border-slate-400',
-        aktif && 'ring-2 ring-slate-900 ring-offset-2',
-        ragu && 'border-amber-500 bg-amber-50 text-amber-900',
+        'relative inline-flex aspect-square min-h-11 items-center justify-center rounded-lg border-2 text-sm font-bold transition active:scale-95',
+        status === 'lengkap' && 'border-primary bg-primary text-white',
+        // Belum lengkap: setengah terisi, tetap terbaca beda dari "dijawab".
+        status === 'sebagian' && 'border-primary bg-[linear-gradient(135deg,theme(colors.primary.100)_50%,white_50%)] text-primary-800',
+        status === 'kosong' && 'border-dashed border-slate-400 bg-white text-ink hover:border-slate-500',
+        aktif && 'ring-2 ring-ink ring-offset-2',
+        // Ragu: bingkai kuning saja — isi tetap menunjukkan status jawaban.
+        ragu && 'border-amber-500',
     )
 }
+
+const LABEL_STATUS: Record<StatusIsi, string> = { lengkap: 'sudah dijawab', sebagian: 'belum lengkap', kosong: 'belum dijawab' }
 
 function PanelNomor({
     soal,
@@ -646,12 +720,21 @@ function PanelNomor({
     onTinjau: () => void
     onTutup: () => void
 }) {
+    const ref = useLapisan(onTutup)
+
     return (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 backdrop-blur-xs sm:items-center p-0 sm:p-4" onClick={onTutup}>
-            <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-lg border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <div
+                ref={ref}
+                role="dialog"
+                aria-modal
+                aria-labelledby="judul-panel-nomor"
+                className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-lg border border-slate-200"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h2 className="text-base sm:text-lg font-bold text-ink">Daftar Nomor Soal</h2>
-                    <button onClick={onTutup} aria-label="Tutup" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+                    <h2 id="judul-panel-nomor" className="text-base sm:text-lg font-bold text-ink">Daftar Nomor Soal</h2>
+                    <button onClick={onTutup} aria-label="Tutup daftar nomor soal" className="-m-1.5 inline-flex size-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
                         <X className="size-5" />
                     </button>
                 </div>
@@ -674,7 +757,10 @@ function Legenda() {
                 <span className="size-3.5 rounded-sm bg-primary" /> Sudah Dijawab
             </span>
             <span className="inline-flex items-center gap-1.5 font-medium">
-                <span className="size-3.5 rounded-sm border-2 border-dashed border-slate-300 bg-white" /> Belum Dijawab
+                <span className="size-3.5 rounded-sm border-2 border-primary bg-[linear-gradient(135deg,theme(colors.primary.100)_50%,white_50%)]" /> Belum Lengkap
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="size-3.5 rounded-sm border-2 border-dashed border-slate-400 bg-white" /> Belum Dijawab
             </span>
             <span className="inline-flex items-center gap-1.5 font-medium text-amber-700">
                 <Bookmark className="size-3.5 fill-amber-500 text-amber-500" /> Ragu-ragu
@@ -714,7 +800,13 @@ function GridNomor({
                             const x = jawaban[s.id]
 
                             return (
-                                <button key={s.id} onClick={() => onPilih(i)} className={kelasNomor(terisi(x?.jawaban), !!x?.ragu, i === aktif)}>
+                                <button
+                                    key={s.id}
+                                    onClick={() => onPilih(i)}
+                                    className={kelasNomor(statusJawaban(s, x?.jawaban), !!x?.ragu, i === aktif)}
+                                    aria-label={`Soal ${s.nomor}, ${LABEL_STATUS[statusJawaban(s, x?.jawaban)]}${x?.ragu ? ', ditandai ragu-ragu' : ''}${i === aktif ? ', sedang dibuka' : ''}`}
+                                    aria-current={i === aktif ? 'step' : undefined}
+                                >
                                     {s.nomor}
                                     {x?.ragu && <Bookmark className="absolute -right-1 -top-1.5 size-3.5 fill-amber-500 text-amber-500 drop-shadow-xs" />}
                                 </button>
@@ -737,7 +829,7 @@ function Tinjauan({
 }: {
     soal: SoalPaket[]
     jawaban: IsiJawaban
-    ringkas: { dijawab: number; ragu: number; kosong: number }
+    ringkas: { dijawab: number; ragu: number; kosong: number; sebagian: number; nomorKosong: number[]; nomorSebagian: number[] }
     galat: string | null
     onPilih: (i: number) => void
     onKumpul: () => void
@@ -748,11 +840,17 @@ function Tinjauan({
                 <h1 className="text-xl sm:text-2xl font-extrabold text-ink">Tinjau Jawaban Ujian</h1>
                 <p className="text-xs sm:text-sm text-slate-500">Periksa kembali sebelum mengumpulkan. Ketuk nomor soal untuk membuka dan mengubah jawaban.</p>
             </div>
+            {/* Tiga angka berjumlah sama dengan banyak soal; ragu-ragu adalah tanda, bukan status. */}
             <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
                 <Angka label="Dijawab" nilai={ringkas.dijawab} kelas="bg-sky-50 border border-sky-200/80 text-sky-800" />
-                <Angka label="Ragu-ragu" nilai={ringkas.ragu} kelas="bg-amber-50 border border-amber-200/80 text-amber-800" />
+                <Angka label="Belum lengkap" nilai={ringkas.sebagian} kelas={ringkas.sebagian ? 'bg-primary-50 border border-primary-200 text-primary-800' : 'bg-slate-100 border border-slate-200 text-slate-700'} />
                 <Angka label="Kosong" nilai={ringkas.kosong} kelas={ringkas.kosong ? 'bg-coral-50 border border-coral-200/80 text-coral-700' : 'bg-slate-100 border border-slate-200 text-slate-700'} />
             </div>
+            {ringkas.ragu > 0 && (
+                <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-amber-800">
+                    <Bookmark className="size-4 fill-amber-500 text-amber-500" /> {ringkas.ragu} soal ditandai ragu-ragu
+                </p>
+            )}
             <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
                 <Legenda />
                 <GridNomor soal={soal} jawaban={jawaban} aktif={-1} kolom="grid-cols-6 sm:grid-cols-10" onPilih={onPilih} />
@@ -806,12 +904,86 @@ function Watermark({ teks }: { teks: string }) {
     )
 }
 
+/** Esc menutup; fokus pindah ke dalam lapisan (tombol [data-fokus-awal] atau yang pertama). */
+function useLapisan(onTutup: () => void) {
+    const ref = useRef<HTMLDivElement>(null)
+    const tutup = useRef(onTutup)
+    tutup.current = onTutup
+    useEffect(() => {
+        const sebelum = document.activeElement as HTMLElement | null
+        const el = ref.current
+        ;(el?.querySelector<HTMLElement>('[data-fokus-awal]') ?? el?.querySelector<HTMLElement>('button, [href], input, select, textarea'))?.focus()
+        const esc = (e: KeyboardEvent) => e.key === 'Escape' && tutup.current()
+        document.addEventListener('keydown', esc)
+
+        return () => {
+            document.removeEventListener('keydown', esc)
+            sebelum?.focus?.()
+        }
+    }, [])
+
+    return ref
+}
+
 function Dialog({ children, onTutup }: { children: React.ReactNode; onTutup: () => void }) {
+    const ref = useLapisan(onTutup)
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-6" onClick={onTutup}>
-            <div role="dialog" aria-modal className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div ref={ref} role="dialog" aria-modal aria-labelledby="judul-dialog" className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
                 {children}
             </div>
+        </div>
+    )
+}
+
+/** Ukuran teks soal untuk HP: satu tombol "Aa" di kaki, pilihan muncul di atasnya. */
+function UkuranTeks({ skala, onUbah }: { skala: number; onUbah: (s: number) => void }) {
+    const [buka, setBuka] = useState(false)
+    const PILIHAN = [
+        { nilai: 0.85, label: 'Kecil', kelas: 'text-sm' },
+        { nilai: 1, label: 'Normal', kelas: 'text-base' },
+        { nilai: 1.15, label: 'Besar', kelas: 'text-lg' },
+        { nilai: 1.3, label: 'Lebih besar', kelas: 'text-xl' },
+    ]
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                aria-label="Ukuran teks soal"
+                aria-expanded={buka}
+                onClick={() => setBuka((v) => !v)}
+                className="inline-flex size-11 items-center justify-center rounded-xl border-2 border-slate-200 bg-white font-display text-base font-bold text-slate-700 active:scale-95"
+            >
+                Aa
+            </button>
+            {buka && (
+                <>
+                    <div className="fixed inset-0 z-30" onClick={() => setBuka(false)} />
+                    <div role="menu" aria-label="Ukuran teks" className="absolute bottom-14 left-0 z-40 w-44 animate-turun rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                        {PILIHAN.map((p) => (
+                            <button
+                                key={p.nilai}
+                                role="menuitemradio"
+                                aria-checked={Math.abs(skala - p.nilai) < 0.01}
+                                onClick={() => {
+                                    onUbah(p.nilai)
+                                    setBuka(false)
+                                }}
+                                className={cn(
+                                    'flex min-h-11 w-full items-center justify-between rounded-md px-3 font-semibold',
+                                    p.kelas,
+                                    Math.abs(skala - p.nilai) < 0.01 ? 'bg-primary-50 text-primary-800' : 'text-slate-700 hover:bg-slate-50',
+                                )}
+                            >
+                                {p.label}
+                                {Math.abs(skala - p.nilai) < 0.01 && <Check className="size-4" />}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
         </div>
     )
 }

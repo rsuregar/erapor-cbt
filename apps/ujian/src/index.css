@@ -36,9 +36,11 @@
         @apply outline-none shadow-ring;
     }
 
-    input:focus-visible,
-    textarea:focus-visible,
-    select:focus-visible {
+    /* Kolom form app punya gaya fokus sendiri. Kecuali kolom jawaban soal
+       ([data-isian-jawaban], renderer): cincin fokusnya justru dibutuhkan murid. */
+    input:not([data-isian-jawaban]):focus-visible,
+    textarea:not([data-isian-jawaban]):focus-visible,
+    select:not([data-isian-jawaban]):focus-visible {
         box-shadow: none !important;
         outline: none !important;
     }
