@@ -1,6 +1,6 @@
 import { Progres } from '@/komponen/Progres'
 import { Tombol } from '@/komponen/Tombol'
-import { bisaPasangPembaruan, bukaTautanLuar, pasangPembaruanDesktop } from '@/lib/native'
+import { adaNative, bisaPasangPembaruan, bukaTautanLuar, pasangPembaruan } from '@/lib/native'
 import { terapkanPembaruan, usePembaruanPwa } from '@/lib/pembaruanPwa'
 import { usePembaruan } from '@/lib/usePembaruan'
 import { Download, RotateCw, X } from 'lucide-react'
@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 const ditutup = new Set<string>()
 const KUNCI_PWA = 'pwa'
 
-/** Status pasang di dalam app (desktop): null = belum mulai. */
+/** Status pasang di dalam app (desktop & Android): null = belum mulai. */
 type StatusPasang = { tahap: 'unduh'; diterima: number; total: number | null } | { tahap: 'memasang' } | null
 
 const mb = (byte: number) => (byte / 1024 / 1024).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -18,6 +18,7 @@ const mb = (byte: number) => (byte / 1024 / 1024).toLocaleString('id-ID', { mini
 /**
  * Spanduk "versi baru tersedia" untuk layar di luar ujian (Masuk, Beranda).
  * Desktop dengan updater: unduh + pasang di dalam app dengan progres, lalu mulai ulang.
+ * Android: unduh APK dengan progres lalu buka pemasang sistem.
  * App native lain (atau updater gagal): unduh pemasang dari GitHub Releases. PWA: pasang
  * service worker baru yang sudah terunduh lalu muat ulang — tidak pernah ditampilkan di layar ujian.
  */
@@ -30,29 +31,38 @@ export function SpanduPembaruan() {
     const [bisaPasang, setBisaPasang] = useState(false)
     const [pasang, setPasang] = useState<StatusPasang>(null)
     const [galatPasang, setGalatPasang] = useState<string | null>(null)
+    const [pemasangTerbuka, setPemasangTerbuka] = useState(false)
+    const unduh = info?.unduh
     const manifes = info?.manifes
 
     useEffect(() => {
-        if (!manifes) return
+        if (!unduh) return
         let batal = false
-        void bisaPasangPembaruan().then((b) => !batal && setBisaPasang(b))
+        void bisaPasangPembaruan({ unduh, manifes }).then((b) => !batal && setBisaPasang(b))
 
         return () => {
             batal = true
         }
-    }, [manifes])
+    }, [unduh, manifes])
 
-    const pasangSekarang = (url: string) => {
+    const pasangSekarang = (rilis: { unduh: string; manifes?: string }) => {
         setGalatPasang(null)
+        setPemasangTerbuka(false)
         setPasang({ tahap: 'unduh', diterima: 0, total: null })
-        pasangPembaruanDesktop(url, (p) => {
+        pasangPembaruan(rilis, (p) => {
             if (p.jenis === 'mulai') setPasang({ tahap: 'unduh', diterima: 0, total: p.total })
             else if (p.jenis === 'progres') setPasang((s) => (s?.tahap === 'unduh' ? { ...s, diterima: s.diterima + p.diterima } : s))
             else setPasang({ tahap: 'memasang' })
-        }).catch((e: unknown) => {
-            setPasang(null)
-            setGalatPasang(typeof e === 'string' ? e : e instanceof Error ? e.message : 'Pembaruan gagal.')
         })
+            // Android: pemasang sistem terbuka; bila murid membatalkan, app kembali ke sini.
+            .then(() => {
+                setPasang(null)
+                setPemasangTerbuka(true)
+            })
+            .catch((e: unknown) => {
+                setPasang(null)
+                setGalatPasang(e instanceof Error ? e.message : 'Pembaruan gagal.')
+            })
     }
     const tutup = (kunci: string) => {
         ditutup.add(kunci)
@@ -60,7 +70,7 @@ export function SpanduPembaruan() {
     }
 
     if (info && !ditutup.has(info.versi)) {
-        const dalamApp = bisaPasang && info.manifes
+        const dalamApp = bisaPasang
         const sibuk = pasang !== null
 
         return (
@@ -80,15 +90,18 @@ export function SpanduPembaruan() {
                 {pasang?.tahap === 'memasang' && (
                     <div className="space-y-1">
                         <Progres nilai={null} className="bg-sky-200" />
-                        <p className="text-xs">Memasang pembaruan… Aplikasi akan tertutup dan terbuka kembali otomatis.</p>
+                        <p className="text-xs">
+                            {adaNative() ? 'Membuka pemasang… Tekan Pasang/Perbarui di layar berikutnya.' : 'Memasang pembaruan… Aplikasi akan tertutup dan terbuka kembali otomatis.'}
+                        </p>
                     </div>
                 )}
-                {galatPasang && <p className="text-xs text-red-700">Pembaruan otomatis gagal: {galatPasang} Gunakan Unduh manual.</p>}
+                {pemasangTerbuka && <p className="text-xs">Tekan Pasang/Perbarui di layar pemasang. Bila tadi dibatalkan, tekan Perbarui sekarang lagi.</p>}
+                {galatPasang && <p className="text-xs text-red-700">Pembaruan otomatis gagal: {galatPasang} Bila tetap gagal, gunakan Unduh manual.</p>}
                 {galat && <p className="text-xs text-red-700">Gagal membuka tautan unduhan. Coba lagi atau hubungi pengawas / tim IT.</p>}
                 {!sibuk && (
                     <div className="flex flex-wrap gap-2">
                         {dalamApp && (
-                            <Tombol ukuran="sm" className="min-h-11" ikonKiri={<RotateCw className="size-4" />} onClick={() => pasangSekarang(info.manifes!)}>
+                            <Tombol ukuran="sm" className="min-h-11" ikonKiri={<RotateCw className="size-4" />} onClick={() => pasangSekarang(info)}>
                                 Perbarui sekarang
                             </Tombol>
                         )}
