@@ -102,6 +102,12 @@ Tag `release-*` membangun lalu **menerbitkan** hasil build ke GitHub Release. No
 | `release-android-X.Y.Z` | Android saja | `.apk` |
 | `release-ios-X.Y.Z` | iOS saja | `.xcarchive.zip` |
 
+Judul rilis diawali versi supaya daftar rilis terbaca berurutan:
+- produksi: `vX.Y.Z · CBT Al Akhyar <platform>`, mis. `v0.3.0 · CBT Al Akhyar Android`;
+- staging: `vX.Y.Z-bN · CBT Al Akhyar Staging`.
+
+Nama **tag** tidak ikut berubah, karena app yang sudah terpasang mencari pembaruan dari pola tag `release-<jenis>-X.Y.Z` / `staging-X.Y.Z-bN` (`apps/ujian/src/lib/pembaruan.ts`).
+
 Buat tag dari `main` (bersih & sama dengan `origin/main`) dengan pembantu rilis. Pembantu ini menampilkan catatan rilis, membuat **tag beranotasi** berisi catatan itu, lalu push:
 
 ```bash

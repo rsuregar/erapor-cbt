@@ -55,6 +55,9 @@ const NAMA = {
   ios: 'iOS',
 };
 
+/** "v0.3.0 · CBT Al Akhyar Android" — versi dulu, lalu nama app & platform. */
+const judulRilis = (v, j) => `v${v} · CBT Al Akhyar ${NAMA[j]}`;
+
 const catatan = join(mkdtempSync(join(tmpdir(), 'catatan-rilis-')), 'catatan.md');
 writeFileSync(catatan, buatCatatanRilis(tag));
 
@@ -72,7 +75,8 @@ if (!ada) {
   try {
     gh(
       'release', 'create', tag,
-      '--title', `CBT Al Akhyar ${NAMA[jenis]} v${versi}`,
+      // Versi di depan supaya daftar rilis terbaca berurutan per versi.
+      '--title', judulRilis(versi, jenis),
       '--notes-file', catatan,
       ...(praRilis ? ['--prerelease'] : []),
     );

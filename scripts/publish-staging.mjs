@@ -50,7 +50,7 @@ const catatan = [
 
 if (!ada()) {
   try {
-    gh('release', 'create', tag, '--prerelease', '--title', `CBT Al Akhyar ${tag.replace(/^staging-/, 'Staging ')}`, '--notes', catatan);
+    gh('release', 'create', tag, '--prerelease', '--title', `v${tag.replace(/^staging-/, '')} · CBT Al Akhyar Staging`, '--notes', catatan);
   } catch {
     // Platform lain pada build yang sama baru saja membuatnya: lanjut mengunggah.
     if (!ada()) gagal(`Gagal membuat rilis ${tag}.`);
