@@ -134,12 +134,19 @@ export type Detak = {
     lokasi?: Lokasi
 }
 
+/** Alasan server menolak satu entri jawaban (entri tetap diakui, keluar dari outbox). */
+export type AlasanDitolak = 'SOAL_TIDAK_DIKENAL' | 'LEWAT_WAKTU' | 'FORMAT_JAWABAN'
+
 /** POST /attempt/{attempt}/sinkron */
 export type SinkronRespons = {
     diakui: Record<string, number>
+    /** Entri yang tidak disimpan; versi server lama mungkin tidak mengirimnya. */
+    ditolak?: { soal_id: number; alasan: AlasanDitolak | string }[]
     waktu_server: string
     berakhir_pada: string
     status: StatusPengerjaan
+    /** Diisi bila status selesai karena pengawas; null = dikumpulkan murid / waktu habis. */
+    alasan_selesai?: AlasanSelesai | null
     pesan_pengawas: string | null
     pesan_pada: string | null
 }
