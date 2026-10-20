@@ -165,7 +165,7 @@ export default function Beranda() {
     return (
         <div className="min-h-full bg-slate-50/70 pb-16">
             {/* Header / Hero Section */}
-            <header className="relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-3.5 pt-4 pb-12 text-white shadow-lg sm:px-6 sm:pt-6 sm:pb-16">
+            <header className="permukaan-gelap relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-3.5 pt-4 pb-12 text-white shadow-lg sm:px-6 sm:pt-6 sm:pb-16">
                 {/* Decorative Ambient Backgrounds */}
                 <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-white/5 blur-3xl" aria-hidden="true" />
                 <div className="pointer-events-none absolute -left-16 bottom-0 size-72 rounded-full bg-sky-400/10 blur-2xl" aria-hidden="true" />
@@ -175,7 +175,7 @@ export default function Beranda() {
                     <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 sm:pb-4">
                         <div className="flex items-center gap-2 sm:gap-2.5">
                             <img src="/brand/lockup-putih.png" alt="Al Akhyar" className="h-7 sm:h-9 w-auto drop-shadow-sm" />
-                            <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10">
+                            <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10">
                                 v{__VERSI_APP__}
                             </span>
                             {/* Layar sempit: kepala penuh; garis atas & lencana di kaki tetap menandai staging. */}
@@ -186,21 +186,21 @@ export default function Beranda() {
                             <IndikatorKoneksi online={online} tema="gelap" />
 
                             <button
-                                className="inline-flex size-8 sm:size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+                                className="inline-flex size-11 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
                                 aria-label="Segarkan data ujian"
                                 title="Segarkan data"
                                 onClick={() => ujian.refetch()}
                             >
-                                <RefreshCw className={cn('size-3.5 sm:size-4', ujian.isFetching && 'animate-spin')} />
+                                <RefreshCw className={cn('size-4', ujian.isFetching && 'animate-spin motion-reduce:animate-none')} />
                             </button>
 
                             <button
-                                className="inline-flex size-8 sm:size-9 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+                                className="inline-flex size-11 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
                                 aria-label="Keluar dari akun murid"
                                 title="Keluar akun"
                                 onClick={() => setModalKeluarAkun(true)}
                             >
-                                <LogOut className="size-3.5 sm:size-4" />
+                                <LogOut className="size-4" />
                             </button>
                         </div>
                     </div>
@@ -208,14 +208,14 @@ export default function Beranda() {
                     {/* Student Identity & Greeting */}
                     <div className="flex items-center justify-between gap-3 pt-0.5">
                         <div className="min-w-0 space-y-0.5 sm:space-y-1">
-                            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-md border border-white/15">
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold text-sky-100 backdrop-blur-md border border-white/15">
                                 <Sparkles className="size-3 text-amber-300" />
                                 <span>{tanggalGanda(new Date(sekarang))}</span>
                             </div>
                             <h1 className="font-display text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm truncate">
                                 {nama ? `Assalamu'alaikum, ${nama.split(' ')[0]}` : "Assalamu'alaikum"}
                             </h1>
-                            <p className="text-[11px] sm:text-xs text-sky-100/80 truncate">
+                            <p className="text-xs text-sky-100 truncate">
                                 Pusat Ujian Digital (CBT) Al Akhyar
                             </p>
                         </div>
@@ -224,50 +224,25 @@ export default function Beranda() {
                             <FotoMurid nama={murid?.nama ?? nama ?? 'Murid'} foto={murid?.foto} ukuran="sm" className="ring-2 ring-white/60 bg-white" />
                             <div className="hidden sm:block pr-1 text-left">
                                 <p className="text-xs font-bold leading-tight text-white line-clamp-1">{murid?.nama ?? nama ?? 'Murid'}</p>
-                                <p className="text-[10px] text-sky-200 mt-0.5">{nis ? `NIS: ${nis}` : 'Peserta Ujian'}</p>
+                                <p className="text-xs text-sky-100 mt-0.5">{nis ? `NIS: ${nis}` : 'Peserta Ujian'}</p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Quick Summary Stat Cards with Large Watermark Background */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {/* Ringkasan angka (bukan tombol — penyaringan cukup lewat tab di bawah). */}
+                    <dl className="grid grid-cols-3 gap-2 sm:gap-3">
                         {[
-                            { id: 'Hari Ini', label: 'Hari Ini', count: kelompok['Hari Ini'].length, icon: BookOpenCheck },
-                            { id: 'Mendatang', label: 'Mendatang', count: kelompok.Mendatang.length, icon: CalendarClock },
-                            { id: 'Riwayat', label: 'Selesai', count: kelompok.Riwayat.length, icon: Trophy },
-                        ].map((item) => {
-                            const aktif = tabAktif === item.id
-                            return (
-                                <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={() => setTabAktif(item.id as KategoriTab)}
-                                    className={cn(
-                                        'group relative overflow-hidden rounded-lg p-2.5 sm:p-3.5 text-left transition-all backdrop-blur-md border select-none',
-                                        aktif
-                                            ? 'bg-white text-ink border-white shadow-md ring-2 ring-white/50'
-                                            : 'bg-white/10 text-white border-white/15 hover:bg-white/15 active:scale-[0.98]',
-                                    )}
-                                >
-                                    {/* Large Decorative Background Watermark Icon */}
-                                    <item.icon
-                                        className={cn(
-                                            'pointer-events-none absolute -right-2 -bottom-2 sm:-right-1 sm:-bottom-1 size-12 sm:size-14 transition-transform duration-300 group-hover:scale-110',
-                                            aktif ? 'text-primary/10' : 'text-white/[0.14]',
-                                        )}
-                                        aria-hidden="true"
-                                    />
-
-                                    <div className="relative z-10">
-                                        <span className={cn('block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider', aktif ? 'text-primary' : 'text-sky-100/80')}>
-                                            {item.label}
-                                        </span>
-                                        <p className="mt-1 text-xl sm:text-2xl font-black leading-none">{item.count}</p>
-                                    </div>
-                                </button>
-                            )
-                        })}
-                    </div>
+                            { label: 'Hari ini', count: kelompok['Hari Ini'].length, icon: BookOpenCheck },
+                            { label: 'Mendatang', count: kelompok.Mendatang.length, icon: CalendarClock },
+                            { label: 'Selesai', count: kelompok.Riwayat.length, icon: Trophy },
+                        ].map((item) => (
+                            <div key={item.label} className="relative overflow-hidden rounded-lg border border-white/15 bg-white/10 p-2.5 text-white backdrop-blur-md sm:p-3.5">
+                                <item.icon className="pointer-events-none absolute -bottom-2 -right-2 size-12 text-white/[0.14] sm:size-14" aria-hidden="true" />
+                                <dt className="relative text-xs font-semibold text-sky-100">{item.label}</dt>
+                                <dd className="relative mt-1 text-xl font-black leading-none sm:text-2xl">{item.count}</dd>
+                            </div>
+                        ))}
+                    </dl>
                 </div>
             </header>
 
@@ -283,7 +258,7 @@ export default function Beranda() {
                 )}
 
                 {/* Full-width Balanced Filter Tabs Navigation */}
-                <div className="grid grid-cols-4 gap-1 rounded-lg bg-white p-1 shadow-sm border border-slate-200/80">
+                <div role="tablist" aria-label="Saring ujian" className="grid grid-cols-4 gap-1 rounded-lg bg-white p-1 shadow-sm border border-slate-200/80">
                     {[
                         { id: 'Semua', label: 'Semua', count: daftarSemua.length },
                         { id: 'Hari Ini', label: 'Hari Ini', count: kelompok['Hari Ini'].length },
@@ -296,9 +271,12 @@ export default function Beranda() {
                             <button
                                 key={tab.id}
                                 type="button"
+                                role="tab"
+                                aria-selected={aktif}
+                                aria-controls="daftar-ujian"
                                 onClick={() => setTabAktif(tab.id as KategoriTab)}
                                 className={cn(
-                                    'flex items-center justify-center gap-1 rounded-lg py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold transition-all',
+                                    'flex min-h-11 items-center justify-center gap-1 rounded-md px-1 text-xs font-bold transition-all sm:text-sm',
                                     aktif
                                         ? 'bg-primary text-white shadow-sm shadow-primary/20'
                                         : 'text-slate-600 hover:bg-slate-100/70 hover:text-ink',
@@ -307,8 +285,8 @@ export default function Beranda() {
                                 <span className="truncate">{tab.label}</span>
                                 <span
                                     className={cn(
-                                        'rounded-full px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold leading-none',
-                                        aktif ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500',
+                                        'hidden rounded-full px-1.5 py-0.5 text-micro font-extrabold leading-none sm:inline-block',
+                                        aktif ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700',
                                     )}
                                 >
                                     {tab.count}
@@ -333,7 +311,7 @@ export default function Beranda() {
 
                 {/* Exam List */}
                 {!ujian.isPending && daftarFilter.length > 0 && (
-                    <div className="space-y-3">
+                    <div id="daftar-ujian" role="tabpanel" className="space-y-3">
                         {daftarFilter.map((u) => (
                             <KartuUjian key={u.id} ujian={u} sekarang={sekarang} riwayat={tabAktif === 'Riwayat' || u.status === 'selesai'} />
                         ))}
@@ -346,8 +324,8 @@ export default function Beranda() {
                         <div className="flex size-12 items-center justify-center rounded-lg bg-primary-50 text-primary mb-2.5">
                             <CalendarClock className="size-6" />
                         </div>
-                        <h3 className="text-sm sm:text-base font-bold text-ink">Tidak ada ujian di tab ini</h3>
-                        <p className="mt-1 max-w-sm text-xs text-slate-500">
+                        <h2 className="text-sm sm:text-base font-bold text-ink">Tidak ada ujian di tab ini</h2>
+                        <p className="mt-1 max-w-sm text-sm text-slate-600">
                             {tabAktif === 'Hari Ini'
                                 ? 'Tidak ada ujian yang dijadwalkan untuk hari ini. Silakan cek tab Mendatang atau Selesai.'
                                 : 'Jadwal ujian yang ditetapkan guru akan tampil otomatis di sini.'}
@@ -356,7 +334,7 @@ export default function Beranda() {
                             <button
                                 type="button"
                                 onClick={() => setTabAktif('Semua')}
-                                className="mt-3 text-xs font-bold text-primary hover:underline"
+                                className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-primary hover:underline"
                             >
                                 Lihat semua jadwal ujian &rarr;
                             </button>
@@ -377,20 +355,20 @@ export default function Beranda() {
                             <span className="block font-bold text-ink text-xs sm:text-sm group-hover:text-primary transition-colors">
                                 Panduan Perangkat &amp; Kunci Layar
                             </span>
-                            <span className="block text-[11px] text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
+                            <span className="block text-xs text-slate-600 mt-0.5 line-clamp-1 sm:line-clamp-none">
                                 Petunjuk instalasi aplikasi ujian, izin lokasi, dan mode aman proktor
                             </span>
                         </span>
-                        <ChevronRight className="size-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                        <ChevronRight className="size-4 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                 )}
 
                 {/* Footer Informasi Versi Aplikasi */}
-                <footer className="pt-4 pb-2 text-center space-y-1 text-slate-400 text-[11px]">
+                <footer className="pt-4 pb-2 text-center space-y-1 text-slate-600 text-xs">
                     <div className="flex items-center justify-center gap-1.5">
-                        <span className="font-semibold text-slate-500">CBT Al Akhyar</span>
+                        <span className="font-semibold text-slate-700">CBT Al Akhyar</span>
                         <span>&bull;</span>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.2 font-medium text-slate-600">
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">
                             v{__VERSI_APP__}
                         </span>
                         <LencanaStaging />
@@ -405,7 +383,7 @@ export default function Beranda() {
                                   : 'Web PWA'}
                         </span>
                     </div>
-                    <p className="text-slate-400">Yayasan Pendidikan Islam Al Akhyar</p>
+                    <p>Yayasan Pendidikan Islam Al Akhyar</p>
                 </footer>
             </main>
 
@@ -417,9 +395,9 @@ export default function Beranda() {
                             <LogOut className="size-5" />
                         </div>
                         <div>
-                            <h3 className="text-base sm:text-lg font-bold text-ink">Keluar dari Akun?</h3>
-                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                Anda akan keluar dari sesi akun murid saat ini dan diarahkan kembali ke halaman Masuk. Aplikasi tetap berada dalam mode aman.
+                            <h2 className="text-base sm:text-lg font-bold text-ink">Keluar dari akun?</h2>
+                            <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                                Kamu akan keluar dari akun ini dan kembali ke halaman Masuk. Aplikasi tetap dalam mode aman.
                             </p>
                         </div>
                         <div className="flex items-center justify-end gap-2.5 pt-1">
@@ -445,13 +423,13 @@ export default function Beranda() {
                             <Power className="size-5" />
                         </div>
                         <div>
-                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-900">
                                 Khusus Pengawas / Proktor
                             </span>
-                            <h3 className="mt-1 text-base sm:text-lg font-bold text-ink">
+                            <h2 className="mt-1 text-base sm:text-lg font-bold text-ink">
                                 Tutup Aplikasi CBT
-                            </h3>
-                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                            </h2>
+                            <p className="mt-1 text-sm text-slate-600 leading-relaxed">
                                 Masukkan PIN Pengawas untuk menutup aplikasi dan membuka kembali akses desktop/perangkat.
                             </p>
                             <div className="mt-3 space-y-1.5 text-left">
@@ -471,7 +449,7 @@ export default function Beranda() {
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 />
                                 {galatPin && (
-                                    <p className="text-xs font-medium text-rose-600">{galatPin}</p>
+                                    <p className="text-xs font-medium text-coral-700">{galatPin}</p>
                                 )}
                             </div>
                         </div>
@@ -525,57 +503,57 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
             <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                     {sedangDibuka && u.status !== 'selesai' && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="inline-flex items-center gap-1 rounded-md bg-green-100 px-1.5 py-0.5 text-xs font-bold text-green-700">
+                            <span className="size-1.5 rounded-full bg-green-500" aria-hidden />
                             <span>Berlangsung</span>
                         </span>
                     )}
                     {u.mapel && (
-                        <span className="inline-flex items-center rounded-md bg-primary-50 px-2 py-0.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wide text-primary">
+                        <span className="inline-flex items-center rounded-md bg-primary-50 px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide text-primary-700">
                             {u.mapel}
                         </span>
                     )}
                     {u.level_keamanan === 'lockdown' && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
-                            <ShieldAlert className="size-2.5" />
+                        <span className="inline-flex items-center gap-1 rounded-md bg-coral-100 px-1.5 py-0.5 text-xs font-bold text-coral-700">
+                            <ShieldAlert className="size-3" />
                             <span>Lockdown</span>
                         </span>
                     )}
                     {u.level_keamanan === 'ketat' && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
-                            <Lock className="size-2.5" />
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">
+                            <Lock className="size-3" />
                             <span>Ketat</span>
                         </span>
                     )}
                 </div>
 
-                <Lencana nada={nada} className="shrink-0 text-[10px] sm:text-xs py-0.5 px-2">
+                <Lencana nada={nada} className="shrink-0 text-xs py-0.5 px-2">
                     {label}
                 </Lencana>
             </div>
 
             {/* Exam Title */}
-            <h3 className="mt-1.5 text-sm sm:text-base font-bold text-ink leading-snug group-hover:text-primary transition-colors line-clamp-2">
+            <h2 className="mt-1.5 text-body sm:text-body-lg font-bold text-ink leading-snug group-hover:text-primary transition-colors line-clamp-2">
                 {u.nama}
-            </h3>
+            </h2>
 
             {/* Meta Information List */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-slate-500">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600">
                 <span className="inline-flex items-center gap-1">
-                    <CalendarClock className="size-3 text-slate-400 shrink-0" />
+                    <CalendarClock className="size-3 text-slate-500 shrink-0" />
                     <span>{hariTanggal(u.dibuka_pada)}, {jamMenit(u.dibuka_pada)}–{jamMenit(u.ditutup_pada)} WITA</span>
                 </span>
                 <span className="inline-flex items-center gap-1">
-                    <Clock className="size-3 text-slate-400 shrink-0" />
+                    <Clock className="size-3 text-slate-500 shrink-0" />
                     <span>{durasi} Menit</span>
                 </span>
                 <span className="inline-flex items-center gap-1">
-                    <ListChecks className="size-3 text-slate-400 shrink-0" />
+                    <ListChecks className="size-3 text-slate-500 shrink-0" />
                     <span>{u.jumlah_soal} Soal</span>
                 </span>
                 {u.sesi && (
                     <span className="inline-flex items-center gap-1">
-                        <MapPin className="size-3 text-slate-400 shrink-0" />
+                        <MapPin className="size-3 text-slate-500 shrink-0" />
                         <span>
                             {u.sesi.nama}
                             {u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}
@@ -586,26 +564,26 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
 
             {/* Bottom Actions Area */}
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
-                <div className="min-w-0 text-xs">
+                <div className="min-w-0 text-sm">
                     {!riwayat && u.status !== 'selesai' && (
                         sekarang < buka ? (
-                            <span className="inline-flex items-center gap-1.5 text-slate-600 truncate">
-                                <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                            <span className="inline-flex items-center gap-1.5 text-slate-700 truncate">
+                                <span className="size-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
                                 <span>Dibuka <strong className="font-semibold text-primary">{durasiLengkap(buka - sekarang)}</strong></span>
-                                <span className="text-slate-400 text-[11px] hidden xs:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
+                                <span className="text-slate-600 hidden sm:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
                             </span>
                         ) : sedangDibuka ? (
-                            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold truncate">
-                                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                                <span>Sisa <strong className="font-bold text-emerald-800">{durasiLengkap(tutup - sekarang)}</strong></span>
-                                <span className="text-slate-400 font-normal text-[11px]">(s/d {jamMenit(u.ditutup_pada)} WITA)</span>
+                            <span className="inline-flex items-center gap-1.5 text-green-700 font-semibold truncate">
+                                <span className="size-1.5 rounded-full bg-green-500 shrink-0" aria-hidden />
+                                <span>Ditutup pukul <strong className="font-bold">{jamMenit(u.ditutup_pada)}</strong></span>
+                                <span className="text-slate-600 font-normal hidden sm:inline">WITA</span>
                             </span>
                         ) : (
-                            <span className="text-slate-400">Jadwal telah berakhir</span>
+                            <span className="text-slate-600">Jadwal telah berakhir</span>
                         )
                     )}
                     {(riwayat || u.status === 'selesai') && (
-                        <span className="text-slate-400">Ujian telah diselesaikan</span>
+                        <span className="text-slate-600">Ujian sudah dikumpulkan</span>
                     )}
                 </div>
 
@@ -614,9 +592,9 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                         <Link
                             to="/hasil/$attemptId"
                             params={{ attemptId: u.attempt_id }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 active:scale-95"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-amber-100 px-3.5 text-sm font-bold text-amber-900 transition hover:brightness-95 active:scale-95"
                         >
-                            <Trophy className="size-3.5 text-amber-600" />
+                            <Trophy className="size-4 text-amber-700" />
                             <span>Hasil</span>
                         </Link>
                     )}
@@ -626,7 +604,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                             to="/ujian/$ujianId"
                             params={{ ujianId: u.id }}
                             className={cn(
-                                'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition shadow-sm active:scale-95',
+                                'inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-bold transition shadow-sm active:scale-95',
                                 sedangDibuka
                                     ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
                                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -639,7 +617,7 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                                       ? 'Mulai Ujian'
                                       : 'Persiapan Ujian'}
                             </span>
-                            <ArrowRight className="size-3.5 opacity-80" />
+                            <ArrowRight className="size-4 opacity-80" />
                         </Link>
                     )}
                 </div>
@@ -652,7 +630,7 @@ function Kerangka() {
     return (
         <div className="space-y-3" aria-hidden>
             {[0, 1].map((i) => (
-                <div key={i} className="h-32 animate-pulse rounded-lg bg-white border border-slate-100 p-3.5 shadow-sm space-y-2.5">
+                <div key={i} className="h-32 animate-pulse motion-reduce:animate-none rounded-lg bg-white border border-slate-100 p-3.5 shadow-sm space-y-2.5">
                     <div className="flex items-center justify-between">
                         <div className="h-4 w-20 rounded bg-slate-200" />
                         <div className="h-4 w-16 rounded-full bg-slate-100" />
