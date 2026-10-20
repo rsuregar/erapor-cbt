@@ -23,7 +23,7 @@ Tekan salah satu kombinasi tombol berikut di keyboard:
 - `Ctrl` + `Shift` + `Q` *(Quit)*
 - `Ctrl` + `Shift` + `X` *(Exit)*
 - `Alt` + `Shift` + `Q` / `X`
-- *(Untuk macOS: `Cmd` + `Shift` + `Q` / `X`)*
+- *(Untuk macOS: gunakan `Ctrl` + `Shift` + `Q` / `X` atau `Option` + `Shift` + `Q` / `X`. Hindari `Cmd` + `Shift` + `Q` karena itu shortcut Log Out bawaan macOS. `Cmd` + `Q` sengaja dinonaktifkan di aplikasi ujian.)*
 
 > [!TIP]
 > Kombinasi tombol ini dapat ditekan kapan saja di layar masuk, baik saat kursor sedang berada di dalam kolom input maupun di luar kolom input.
