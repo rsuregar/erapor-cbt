@@ -80,6 +80,33 @@ describe('JamServer', () => {
         expect(jam.sisaMs('2026-10-20T07:32:00+08:00')).toBe(30_000)
         expect(jam.sisaMs('2026-10-20T07:00:00+08:00')).toBe(0)
     })
+
+    it('tetap berjalan saat perangkat tidur (monotonik berhenti, jam dinding maju)', () => {
+        const mono = 1000
+        let dinding = 5_000_000
+        const jam = new JamServer('2026-10-20T07:30:00+08:00', () => mono, () => dinding)
+        dinding += 10 * 60_000 // HP tidur 10 menit sambil offline
+        expect(jam.sisaMs('2026-10-20T07:45:00+08:00')).toBe(5 * 60_000)
+    })
+
+    it('memundurkan jam perangkat tidak menambah waktu', () => {
+        let mono = 1000
+        let dinding = 5_000_000
+        const jam = new JamServer('2026-10-20T07:30:00+08:00', () => mono, () => dinding)
+        mono += 60_000
+        dinding -= 60 * 60_000 // murid memundurkan jam 1 jam
+        expect(jam.sisaMs('2026-10-20T07:32:00+08:00')).toBe(60_000)
+    })
+
+    it('setel dari server menyetel ulang kedua dasar', () => {
+        let mono = 0
+        let dinding = 0
+        const jam = new JamServer('2026-10-20T07:30:00+08:00', () => mono, () => dinding)
+        dinding += 5 * 60_000
+        jam.setel('2026-10-20T07:31:00+08:00')
+        mono += 1000
+        expect(jam.sisaMs('2026-10-20T07:32:00+08:00')).toBe(59_000)
+    })
 })
 
 describe('Penyinkron', () => {
