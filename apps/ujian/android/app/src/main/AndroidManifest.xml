@@ -38,6 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Pembaruan app dari dalam app: membuka pemasang sistem untuk APK rilis (UjianNativePlugin.pasangApk). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Ujian "di sekolah" (kontrak § Lokasi ujian); posisi dibaca hanya saat Mulai dan selama ujian. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

@@ -160,7 +160,15 @@ Tanpa langkah ini build tetap berjalan normal, hanya saja app desktop memakai un
 3. Rilis berikutnya memuat berkas tambahan: `*-updater.json` (manifes) per platform dan, untuk macOS, `*.app.tar.gz`. Windows memakai pemasang `*-setup.exe` yang sama.
 4. **Rilis pertama yang membawa pubkey tetap harus dipasang manual**; mulai rilis sesudahnya pembaruan bisa dari dalam app. App dari build tanpa pubkey tidak pernah menampilkan tombol **Perbarui sekarang**.
 
-Rincian teknis: web memilih rilis (logika di atas) lalu mengirim URL manifes ke perintah Rust `pasang_pembaruan` (`src-tauri/src/pembaruan.rs`). Manifes hanya diterima dari `https://github.com/`, dan berkas pembaruan ditolak bila tanda tangannya tidak cocok dengan pubkey yang tertanam di app.
+#### Pembaruan Android di dalam app
+Tidak butuh setup tambahan selain keystore rilis (secret `ANDROID_KEYSTORE_BASE64` dkk.) yang sudah wajib untuk tag `release-*`.
+* Spanduk menampilkan **Perbarui sekarang**: APK rilis diunduh dengan bilah progres, lalu pemasang sistem Android terbuka dan murid menekan **Perbarui/Pasang** (Android tidak mengizinkan app memasang diam-diam).
+* Pertama kali, Android meminta izin **"Izinkan dari sumber ini"** untuk app ujian; layar setelannya dibuka otomatis, lalu tekan **Perbarui sekarang** lagi.
+* Sebelum membuka pemasang, app memeriksa nama paket dan sertifikat APK sama dengan app terpasang. APK dengan keystore lain (mis. APK debug) ditolak dengan pesan jelas; pasang ulang manual.
+* APK hanya diunduh dari `https://github.com/`. Nomor build (`versionCode`) wajib naik tiap rilis, sudah otomatis dari nomor build CI.
+* Izin `REQUEST_INSTALL_PACKAGES` ada di `AndroidManifest.xml`. Ini sesuai untuk distribusi lewat GitHub Releases; bila kelak diterbitkan ke Google Play, fitur ini harus dimatikan untuk build Play (kebijakan Play).
+
+Rincian teknis desktop: web memilih rilis (logika di atas) lalu mengirim URL manifes ke perintah Rust `pasang_pembaruan` (`src-tauri/src/pembaruan.rs`). Manifes hanya diterima dari `https://github.com/`, dan berkas pembaruan ditolak bila tanda tangannya tidak cocok dengan pubkey yang tertanam di app.
 * iOS: berkas rilis adalah arsip tanpa tanda tangan, bukan IPA yang bisa dipasang langsung; distribusi iOS ke murid tetap lewat jalur Apple (TestFlight/App Store).
 * Jaringan/GitHub gagal → spanduk tidak tampil (tanpa galat).
 

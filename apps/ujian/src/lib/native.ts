@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 
 /**
  * Jembatan ke plugin native app (android/…/UjianNativePlugin.java). Semua
@@ -20,6 +20,8 @@ interface UjianNativePlugin {
     sqliteSimpan(opsi: { kunci: string; nilai: string }): Promise<void>
     sqliteHapus(opsi: { kunci: string }): Promise<void>
     sqliteDaftarKunci(opsi: { awalan?: string }): Promise<{ kunci: string[] }>
+    pasangApk(opsi: { url: string }): Promise<void>
+    addListener(event: 'progresPembaruan', cb: (p: ProgresPembaruan) => void): Promise<PluginListenerHandle>
 }
 
 const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
@@ -141,12 +143,18 @@ export async function keluarAplikasi(): Promise<void> {
     }
 }
 
-/** Progres dari perintah Rust `pasang_pembaruan` (src-tauri/src/pembaruan.rs). */
+/** Progres pasang pembaruan: Rust `pasang_pembaruan` (desktop) atau event `progresPembaruan` (Android). `diterima` = byte sejak event sebelumnya. */
 export type ProgresPembaruan = { jenis: 'mulai'; total: number | null } | { jenis: 'progres'; diterima: number } | { jenis: 'memasang' }
 
-/** True bila build desktop ini bisa memasang pembaruan sendiri (CI menyertakan pubkey updater). */
-export async function bisaPasangPembaruan(): Promise<boolean> {
-    if (!isTauri()) return false
+type RilisDipasang = { unduh: string; manifes?: string }
+
+/**
+ * True bila app ini bisa memasang pembaruan sendiri: Android (APK rilis), atau desktop
+ * yang dibuild dengan pubkey updater dan rilisnya memuat manifes.
+ */
+export async function bisaPasangPembaruan(info: RilisDipasang): Promise<boolean> {
+    if (adaNative()) return true
+    if (!isTauri() || !info.manifes) return false
     try {
         const { invoke } = await import('@tauri-apps/api/core')
 
@@ -157,14 +165,39 @@ export async function bisaPasangPembaruan(): Promise<boolean> {
 }
 
 /**
- * Unduh, verifikasi tanda tangan, dan pasang pembaruan desktop, lalu app dimulai ulang.
- * Melempar galat (pesan dari Rust) bila gagal; pemanggil kembali ke unduh manual.
+ * Unduh dengan progres lalu pasang pembaruan. Melempar Error berpesan bila gagal
+ * (pemanggil kembali ke unduh manual).
+ * - Desktop: verifikasi tanda tangan, pasang, app dimulai ulang (promise tidak selesai).
+ * - Android: resolve saat pemasang sistem terbuka; murid menekan "Pasang".
  */
-export async function pasangPembaruanDesktop(manifes: string, onProgres: (p: ProgresPembaruan) => void): Promise<void> {
+export async function pasangPembaruan(info: RilisDipasang, onProgres: (p: ProgresPembaruan) => void): Promise<void> {
+    if (adaNative()) {
+        const dengar = await UjianNative.addListener('progresPembaruan', onProgres)
+        try {
+            await UjianNative.pasangApk({ url: info.unduh })
+        } catch (e) {
+            const { code, message } = e as { code?: string; message?: string }
+            throw new Error(
+                code === 'IZIN_PASANG'
+                    ? 'Aktifkan "Izinkan dari sumber ini" untuk app ujian di layar setelan yang terbuka, lalu tekan Perbarui sekarang lagi.'
+                    : (message ?? 'Pembaruan gagal.'),
+            )
+        } finally {
+            void dengar.remove()
+        }
+
+        return
+    }
+    if (!isTauri() || !info.manifes) throw new Error('Pembaruan di dalam app tidak tersedia.')
+
     const { Channel, invoke } = await import('@tauri-apps/api/core')
     const progres = new Channel<ProgresPembaruan>()
     progres.onmessage = onProgres
-    await invoke('pasang_pembaruan', { manifes, progres })
+    try {
+        await invoke('pasang_pembaruan', { manifes: info.manifes, progres })
+    } catch (e) {
+        throw new Error(typeof e === 'string' ? e : e instanceof Error ? e.message : 'Pembaruan gagal.')
+    }
 }
 
 /**
