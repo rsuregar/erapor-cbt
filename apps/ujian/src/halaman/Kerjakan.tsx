@@ -700,7 +700,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         ].map(([tombol, arti]) => (
                             <div key={tombol} className="flex items-center gap-3">
                                 <dt className="w-16 shrink-0">
-                                    <kbd className="inline-flex min-w-9 items-center justify-center rounded-md border border-slate-300 border-b-2 bg-slate-50 px-2 py-0.5 font-sans text-xs font-bold text-ink">
+                                    <kbd className="inline-flex min-w-9 items-center justify-center rounded-md border border-slate-300 bg-slate-50 shadow-[0_1px_0_theme(colors.slate.300)] px-2 py-0.5 font-sans text-xs font-bold text-ink">
                                         {tombol}
                                     </kbd>
                                 </dt>
