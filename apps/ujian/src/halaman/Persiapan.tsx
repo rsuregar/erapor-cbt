@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { dekripsiPaket, GalatApi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, BellOff, CheckCircle2, ChevronDown, ChevronLeft, Clock, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
+import { AlertTriangle, BellOff, CheckCircle2, ChevronDown, ChevronLeft, Clock, Lock, RefreshCw, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 const KEAMANAN = { dasar: 'Dasar', ketat: 'Ketat', lockdown: 'Lockdown' } as const
@@ -96,11 +96,19 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
             pertama: !d.data.some((x) => x.id !== ujianId && x.status !== 'belum_mulai'),
         }),
         networkMode: 'always',
+        // Dikunci pengawas: periksa lebih sering supaya halaman ikut terbuka begitu kuncinya dilepas.
+        refetchInterval: (q) => (q.state.data?.data.find((x) => x.id === ujianId)?.status === 'terkunci' ? 15_000 : false),
     })
     // Sudah dimulai di perangkat ini? Offline tetap bisa dilanjutkan tanpa /mulai.
     const lokal = useQuery({ queryKey: ['sesi-lokal', ujianId], queryFn: () => sesiLokalUjian(ujianId), networkMode: 'always' })
     const lanjutLokal = () => lokal.data && navigate({ to: '/kerjakan/$attemptId', params: { attemptId: lokal.data.mulai.attempt_id }, replace: true })
     const u = ujian.data?.u
+    /** Masuk ke layar ujian dari sesi di perangkat ini (tanpa /mulai), dengan layar penuh & kunci seperti Mulai. */
+    const bukaLokal = () => {
+        void masukLayarPenuh()
+        if (u && u.level_keamanan !== 'dasar') void kunciLayar()
+        lanjutLokal()
+    }
     const aplikasi = ujian.data?.aplikasi
     const { status, unduh } = useUnduhPaket(u)
     const wajibLokasi = !!u?.lokasi?.wajib
@@ -184,6 +192,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const selesai = u.status === 'selesai'
     const melanjutkan = u.status === 'mengerjakan'
     const lockdown = u.level_keamanan === 'lockdown'
+    // Terkunci / jawaban belum terkirim: bukan saatnya token — layar ujian (Kerjakan) yang menangani.
+    const tertahan = u.status === 'terkunci' || u.status === 'menunggu_sinkron'
     // Lebih dari 30 menit sebelum dibuka: paket pun belum bisa diunduh — tampilkan keadaan tenang.
     const masihLama = !selesai && sekarang < buka - 30 * 60_000
     const lokasiSiap = !wajibLokasi || lokasi.status.tahap === 'siap'
@@ -281,31 +291,35 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                         </SpanduOffline>
                     )}
 
+                    {tertahan && <KartuTertahan status={u.status as 'terkunci' | 'menunggu_sinkron'} adaDiPerangkat={!!lokal.data} onBuka={bukaLokal} />}
+
                     {masihLama && <KartuBelumDibuka u={u} sekarang={sekarang} wajibLokasi={wajibLokasi} onPanduan={() => void navigate({ to: '/panduan' })} />}
 
-                    {/* Satu ringkasan kesiapan: paket, lokasi, perangkat. */}
-                    <section aria-labelledby="judul-sebelum" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
-                        <h2 id="judul-sebelum" className="text-base font-bold text-ink">
-                            Sebelum mulai
-                        </h2>
-                        <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
-                        {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
-                        <div className="border-t border-slate-100 pt-4">
-                            <KartuKesiapan
-                                id="cek-perangkat"
-                                daftar={kesiapan.daftar}
-                                penghalang={kesiapan.penghalang}
-                                onAksi={(a) => {
-                                    const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
-                                    if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
-                                    else if (a === 'layar_penuh') void masukLayarPenuh()
-                                    else if (a === 'panduan') void navigate({ to: '/panduan' })
-                                }}
-                            />
-                        </div>
-                    </section>
+                    {/* Satu ringkasan kesiapan: paket, lokasi, perangkat. Tak perlu bila murid kembali lewat sesi di perangkat ini. */}
+                    {!(tertahan && (u.status === 'menunggu_sinkron' || lokal.data)) && (
+                        <section aria-labelledby="judul-sebelum" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
+                            <h2 id="judul-sebelum" className="text-base font-bold text-ink">
+                                Sebelum mulai
+                            </h2>
+                            <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
+                            {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
+                            <div className="border-t border-slate-100 pt-4">
+                                <KartuKesiapan
+                                    id="cek-perangkat"
+                                    daftar={kesiapan.daftar}
+                                    penghalang={kesiapan.penghalang}
+                                    onAksi={(a) => {
+                                        const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
+                                        if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
+                                        else if (a === 'layar_penuh') void masukLayarPenuh()
+                                        else if (a === 'panduan') void navigate({ to: '/panduan' })
+                                    }}
+                                />
+                            </div>
+                        </section>
+                    )}
 
-                    {!offlineLokal && !masihLama && !selesai && (
+                    {!offlineLokal && !masihLama && !selesai && !tertahan && (
                         <section aria-labelledby="judul-token" className="space-y-3 rounded-lg border border-slate-200/90 bg-white p-4 text-center shadow-sm sm:p-5">
                             <h2 id="judul-token" className="text-base font-bold text-ink">
                                 {melanjutkan ? 'Token untuk melanjutkan' : 'Token ujian'}
@@ -363,19 +377,11 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                 </div>
 
                 {/* Tombol Mulai menempel di bawah layar: di HP tetap terlihat walau kartu di atas panjang. */}
-                {!masihLama && (
+                {!masihLama && !tertahan && (
                     <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:-mx-6 sm:px-6">
                         <div className="mx-auto max-w-xl space-y-2">
                             {offlineLokal ? (
-                                <Tombol
-                                    ukuran="lg"
-                                    penuh
-                                    onClick={() => {
-                                        void masukLayarPenuh()
-                                        if (u.level_keamanan !== 'dasar') void kunciLayar()
-                                        lanjutLokal()
-                                    }}
-                                >
+                                <Tombol ukuran="lg" penuh onClick={bukaLokal}>
                                     Lanjutkan Ujian
                                 </Tombol>
                             ) : (
@@ -419,6 +425,20 @@ function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
     const kelas = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold'
 
     if (u.status === 'selesai') return <span className={cn(kelas, 'border-white/20 bg-white/10 text-sky-50')}>Ujian sudah dikumpulkan</span>
+    if (u.status === 'terkunci') {
+        return (
+            <span className={cn(kelas, 'border-coral-200/40 bg-coral-500/20 text-coral-50')}>
+                <Lock className="size-3.5" /> Dikunci pengawas
+            </span>
+        )
+    }
+    if (u.status === 'menunggu_sinkron') {
+        return (
+            <span className={cn(kelas, 'border-sky-300/40 bg-sky-500/20 text-sky-50')}>
+                <RefreshCw className="size-3.5" /> Jawaban sedang dikirim
+            </span>
+        )
+    }
     if (sekarang > tutup) return <span className={cn(kelas, 'border-white/20 bg-white/10 text-sky-50')}>Jadwal ujian sudah ditutup</span>
     if (sekarang < buka) {
         return (
@@ -439,6 +459,47 @@ function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
         <span className={cn(kelas, 'border-green-500/40 bg-green-500/15 text-green-100')}>
             <span className="size-1.5 rounded-full bg-green-500" aria-hidden /> Berlangsung · jadwal ditutup pukul {jamMenit(u.ditutup_pada)} WITA
         </span>
+    )
+}
+
+/**
+ * Ujian dikunci pengawas atau sudah dikumpulkan tapi jawabannya belum sampai.
+ * Bila sesinya ada di perangkat ini, layar ujian yang menunggu kunci dibuka /
+ * mengirim sisa jawaban; bila tidak, arahkan murid ke pengawas atau perangkat asal.
+ */
+function KartuTertahan({ status, adaDiPerangkat, onBuka }: { status: 'terkunci' | 'menunggu_sinkron'; adaDiPerangkat: boolean; onBuka: () => void }) {
+    const terkunci = status === 'terkunci'
+
+    return (
+        <section
+            aria-labelledby="judul-tertahan"
+            className={cn('space-y-3 rounded-lg border p-4 shadow-sm sm:p-5', terkunci ? 'border-coral-200 bg-coral-50' : 'border-sky-300/60 bg-white')}
+        >
+            <div className="flex items-start gap-3">
+                <span className={cn('inline-flex size-10 shrink-0 items-center justify-center rounded-full', terkunci ? 'bg-coral-100 text-coral-700' : 'bg-sky-100 text-sky-700')}>
+                    {terkunci ? <Lock className="size-5" /> : <RefreshCw className="size-5" />}
+                </span>
+                <div className="min-w-0 space-y-1">
+                    <h2 id="judul-tertahan" className="text-base font-bold text-ink">
+                        {terkunci ? 'Ujianmu sedang dikunci' : 'Jawabanmu sedang dikirim'}
+                    </h2>
+                    <p className="text-sm text-slate-700">
+                        {terkunci
+                            ? adaDiPerangkat
+                                ? 'Jawabanmu aman. Angkat tangan dan minta pengawas membuka kunci — layar ujian terbuka lagi dengan sendirinya.'
+                                : 'Jawabanmu aman. Minta pengawas membuka kunci; halaman ini ikut diperbarui setelah kunci dibuka.'
+                            : adaDiPerangkat
+                              ? 'Ujian sudah kamu kumpulkan, tapi sebagian jawaban belum sampai ke server. Sambungkan ke internet supaya terkirim.'
+                              : 'Ujian sudah dikumpulkan dari perangkat lain. Buka aplikasi di perangkat itu dan sambungkan ke internet supaya jawaban terkirim.'}
+                    </p>
+                </div>
+            </div>
+            {adaDiPerangkat && (
+                <Tombol ukuran="lg" penuh varian={terkunci ? 'primary' : 'secondary'} onClick={onBuka}>
+                    {terkunci ? 'Buka layar ujian' : 'Lihat pengiriman jawaban'}
+                </Tombol>
+            )}
+        </section>
     )
 }
 

@@ -7,7 +7,7 @@ import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { isNative, isTauri, keluarAplikasi } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
-import { durasiLengkap, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
+import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
@@ -566,10 +566,20 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
                 <div className="min-w-0 text-sm">
                     {!riwayat && u.status !== 'selesai' && (
-                        sekarang < buka ? (
+                        u.status === 'terkunci' ? (
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-coral-700">
+                                <Lock className="size-4 shrink-0" aria-hidden />
+                                <span className="truncate">Tunggu pengawas</span>
+                            </span>
+                        ) : u.status === 'menunggu_sinkron' ? (
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-sky-700">
+                                <RefreshCw className="size-4 shrink-0" aria-hidden />
+                                <span className="truncate">Jawaban dikirim…</span>
+                            </span>
+                        ) : sekarang < buka ? (
                             <span className="inline-flex items-center gap-1.5 text-slate-700 truncate">
                                 <span className="size-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
-                                <span>Dibuka <strong className="font-semibold text-primary">{durasiLengkap(buka - sekarang)}</strong></span>
+                                <span>Dibuka <strong className="font-semibold text-primary">{durasiTenang(buka - sekarang)}</strong></span>
                                 <span className="text-slate-600 hidden sm:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
                             </span>
                         ) : sedangDibuka ? (
@@ -605,17 +615,19 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                             params={{ ujianId: u.id }}
                             className={cn(
                                 'inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-bold transition shadow-sm active:scale-95',
-                                sedangDibuka
+                                sedangDibuka && (u.status === 'belum_mulai' || u.status === 'mengerjakan')
                                     ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
                                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
                             )}
                         >
                             <span>
-                                {u.status === 'mengerjakan'
-                                    ? 'Lanjutkan Ujian'
-                                    : sedangDibuka
-                                      ? 'Mulai Ujian'
-                                      : 'Persiapan Ujian'}
+                                {u.status === 'terkunci' || u.status === 'menunggu_sinkron'
+                                    ? 'Lihat status'
+                                    : u.status === 'mengerjakan'
+                                      ? 'Lanjutkan Ujian'
+                                      : sedangDibuka
+                                        ? 'Mulai Ujian'
+                                        : 'Persiapan Ujian'}
                             </span>
                             <ArrowRight className="size-4 opacity-80" />
                         </Link>
