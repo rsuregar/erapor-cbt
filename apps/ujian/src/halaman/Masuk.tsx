@@ -3,7 +3,7 @@ import { Masukan } from "@/komponen/Masukan";
 import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo } from "@/lib/api";
-import { isNative, isTauri, keluarAplikasi } from "@/lib/native";
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -44,8 +44,7 @@ export default function Masuk() {
     // Cheatsheet Pengawas: Shortcut keyboard khusus proktor untuk membuka dialog keluar
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
-            const isModifier = e.ctrlKey || e.metaKey || e.altKey;
-            if (isModifier && e.shiftKey && (e.key === "Q" || e.key === "q" || e.key === "X" || e.key === "x")) {
+            if (isShortcutPengawas(e)) {
                 e.preventDefault();
                 setModalAdminKeluar(true);
             }

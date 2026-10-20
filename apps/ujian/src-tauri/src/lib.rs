@@ -1,13 +1,49 @@
 use rusqlite::{params, Connection};
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
 
 struct DbState(Mutex<Connection>);
 
+/// Hanya `keluar_aplikasi` (setelah PIN pengawas) yang boleh menutup aplikasi di mode
+/// Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
+static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
 fn keluar_aplikasi(app_handle: tauri::AppHandle) {
+    KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
     app_handle.exit(0);
+}
+
+/// Menu default Tauri di macOS berisi "Quit" (Cmd+Q) yang menutup aplikasi tanpa PIN.
+/// Ganti dengan menu tanpa Quit/Close, tapi tetap sertakan Edit agar Cmd+C/V/Z di input jalan.
+#[cfg(all(target_os = "macos", not(debug_assertions)))]
+fn pasang_menu_macos(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
+
+    let menu_app = Submenu::with_items(
+        app,
+        "Ujian",
+        true,
+        &[&PredefinedMenuItem::about(app, None, None)?],
+    )?;
+    let menu_edit = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+    app.set_menu(Menu::with_items(app, &[&menu_app, &menu_edit])?)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -100,6 +136,9 @@ pub fn run() {
 
             app.manage(DbState(Mutex::new(conn)));
 
+            #[cfg(all(target_os = "macos", not(debug_assertions)))]
+            pasang_menu_macos(app.handle())?;
+
             Ok(())
         })
         .plugin(tauri_plugin_http::init())
@@ -120,6 +159,17 @@ pub fn run() {
                 let _ = api;
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                // Di mode Exam Browser (Release), tolak keluar selain lewat `keluar_aplikasi` (Cmd+Q di macOS)
+                #[cfg(not(debug_assertions))]
+                if !KELUAR_DIIZINKAN.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                }
+                #[cfg(debug_assertions)]
+                let _ = api;
+            }
+        });
 }
