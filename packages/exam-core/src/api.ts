@@ -1,4 +1,5 @@
 import type {
+    AlasanSelesai,
     EntriJawaban,
     EntriPelanggaran,
     DaftarUjianRespons,
@@ -104,7 +105,7 @@ export class KlienApi {
         return this.minta('POST', `/cbt/attempt/${attemptId}/pelanggaran`, form)
     }
 
-    async kumpul(attemptId: number, waktuKlienMs?: number, perangkatId?: string): Promise<{ status: string }> {
+    async kumpul(attemptId: number, waktuKlienMs?: number, perangkatId?: string): Promise<{ status: string; alasan_selesai?: AlasanSelesai | null }> {
         const id = await this.idPerangkat(perangkatId)
         return this.minta('POST', `/cbt/attempt/${attemptId}/kumpul`, {
             ...(id ? { perangkat_id: id } : {}),

@@ -3,7 +3,7 @@ import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { PenulisJawaban } from '@/lib/penulisJawaban'
 import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
-import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
+import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanDitolak, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type StatusUjian = 'memuat' | 'mengerjakan' | 'terkunci' | 'mengumpulkan' | 'menunggu_sinkron' | 'selesai' | 'tidak_ada'
@@ -37,6 +37,8 @@ export function useSesiUjian(attemptId: number) {
     const [galatKumpul, setGalatKumpul] = useState<string | null>(null)
     /** Jawaban yang gagal ditulis ke perangkat (sedang dicoba ulang). >0 = jangan tutup app. */
     const [gagalSimpan, setGagalSimpan] = useState(0)
+    /** Jawaban yang tidak disimpan server (soal id → alasan); dihapus bila kiriman berikutnya diterima. */
+    const [ditolak, setDitolak] = useState<Record<string, AlasanDitolak | string>>({})
     /** null = dikumpulkan murid / waktu habis; selain itu diakhiri pengawas. */
     const [alasanSelesai, setAlasanSelesai] = useState<AlasanSelesai | null>(null)
 
@@ -102,7 +104,21 @@ export function useSesiUjian(attemptId: number) {
                 saatRespons: (r) => {
                     setBerakhir(r.berakhir_pada)
                     if (r.pesan_pengawas && r.pesan_pada) setPesan({ teks: r.pesan_pengawas, pada: r.pesan_pada })
-                    if (r.status === 'selesai') void selesai()
+                    const tolak = r.ditolak ?? []
+                    if (tolak.length > 0 || Object.keys(r.diakui).length > 0) {
+                        setDitolak((d) => {
+                            const baru = { ...d }
+                            for (const id of Object.keys(r.diakui)) delete baru[id]
+                            for (const t of tolak) baru[String(t.soal_id)] = t.alasan
+                            return baru
+                        })
+                    }
+                    // Diakhiri pengawas / waktu habis: server masih menerima jawaban offline yang
+                    // dibuat sebelumnya, jadi kirim habis antrean dulu baru bersihkan data lokal.
+                    if (r.status === 'selesai') {
+                        setAlasanSelesai(r.alasan_selesai ?? null)
+                        void selesaiSetelahTerkirim()
+                    }
                     else if (r.status === 'terkunci') setStatus('terkunci')
                     else if (statusRef.current === 'terkunci') setStatus('mengerjakan')
                 },
@@ -125,6 +141,12 @@ export function useSesiUjian(attemptId: number) {
                     }
                 },
             })
+            const selesaiSetelahTerkirim = async () => {
+                await penulis.current?.tulisSemua()
+                // Respons sinkron berikutnya memanggil ini lagi sampai antrean kosong.
+                if ((await o.jumlahTertunda()) === 0) void selesai()
+                else p.picu()
+            }
             penyinkron.current = p
             p.mulai()
             if (kumpulTertunda) {
@@ -231,7 +253,8 @@ export function useSesiUjian(attemptId: number) {
                 await penyinkron.current.kirim()
                 if ((await outbox.current.jumlahTertunda()) === 0) {
                     try {
-                        await api.kumpul(attemptId, ms)
+                        const hasil = await api.kumpul(attemptId, ms)
+                        setAlasanSelesai(hasil.alasan_selesai ?? null)
                         await selesai()
 
                         return
@@ -287,6 +310,7 @@ export function useSesiUjian(attemptId: number) {
         pesan,
         galatKumpul,
         gagalSimpan,
+        ditolak,
         alasanSelesai,
         jam: jam.current,
         msSejakMulai,
