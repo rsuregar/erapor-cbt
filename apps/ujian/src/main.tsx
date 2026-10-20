@@ -6,6 +6,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 // Tangkap beforeinstallprompt sedini mungkin (hanya muncul sekali per muat).
 import './lib/pasang'
+// Kunci zoom manual (cubit / ketuk dua kali) di PWA & HP.
+import './lib/kunciZoom'
 import { router } from './router'
 import { alihkanKeHalamanNonaktif, webDitolak } from './lib/aksesWeb'
 

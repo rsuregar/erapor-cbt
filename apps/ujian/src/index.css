@@ -12,6 +12,13 @@
         height: 100%;
     }
 
+    /* Tanpa zoom ketuk-dua-kali (dan tanpa jeda 300 ms pada ketukan). */
+    html {
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
     body {
         @apply bg-slate-50 font-sans text-body text-slate-700 antialiased;
         text-rendering: optimizeLegibility;

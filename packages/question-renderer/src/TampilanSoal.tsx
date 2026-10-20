@@ -76,14 +76,14 @@ export default function TampilanSoal({
           ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
           : 'grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
 
+    // Jangan campur pl-0/pr-0 dengan px-*: di CSS Tailwind pl/pr ditulis setelah px,
+    // sehingga padding sisi itu jadi 0 dan soal menempel ke tepi layar HP.
     const kelasKiri = tata === 'dua-kolom'
-        ? 'pr-6 lg:pr-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
-        : 'pb-6 lg:pb-0 pr-0 lg:pr-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-3.5 bg-slate-50/40'
+        ? 'h-full overflow-y-auto px-4 pt-5 pb-6 sm:px-6 sm:pt-6 lg:pr-8 space-y-3.5 bg-slate-50/40'
+        : 'h-full overflow-y-auto px-4 pt-5 pb-6 sm:px-6 sm:pt-6 lg:pb-0 lg:pr-8 space-y-3.5 bg-slate-50/40'
 
     const kelasKanan = duaKolom
-        ? tata === 'dua-kolom'
-            ? 'pl-6 lg:pl-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-4 bg-white'
-            : 'pl-0 lg:pl-8 h-full overflow-y-auto pt-5 sm:pt-6 pb-6 px-4 sm:px-6 space-y-4 bg-white'
+        ? 'h-full overflow-y-auto px-4 pt-5 pb-6 sm:px-6 sm:pt-6 lg:pl-8 space-y-4 bg-white'
         : 'space-y-4'
 
     return (
@@ -109,14 +109,14 @@ export default function TampilanSoal({
             <div className={kelasKanan}>
                 {(nomor !== undefined || onRagu) && (
                     <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-slate-200/90 bg-slate-100/75 p-2 sm:px-3 sm:py-2 dark:border-slate-700 dark:bg-slate-800">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                             {nomor !== undefined && (
-                                <span className="inline-flex h-7 sm:h-8 items-center justify-center rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-xs dark:bg-slate-100 dark:text-slate-900 tabular-nums">
+                                <span className="inline-flex h-7 sm:h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-slate-900 px-3 text-xs sm:text-sm font-extrabold text-white shadow-xs dark:bg-slate-100 dark:text-slate-900 tabular-nums">
                                     Soal {nomor}
                                 </span>
                             )}
                             {section && (
-                                <span className="inline-block max-w-[14rem] sm:max-w-xs truncate rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300" title={section}>
+                                <span className="inline-block min-w-0 max-w-[11rem] truncate rounded-md sm:max-w-xs border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-300" title={section}>
                                     {section}
                                 </span>
                             )}
@@ -125,7 +125,7 @@ export default function TampilanSoal({
                                     type="button"
                                     aria-pressed={ragu}
                                     onClick={() => onRagu(!ragu)}
-                                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition active:scale-95 ${
+                                    className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition active:scale-95 ${
                                         ragu
                                             ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold shadow-xs dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700'
                                             : 'bg-white/90 text-slate-700 border border-slate-300/80 hover:bg-white hover:border-slate-400 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'
