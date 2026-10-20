@@ -14,7 +14,7 @@ import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit } from '@/lib/tanggal'
-import { ambilPaket, daftarUjian, sesiLokalUjian, simpanSesi } from '@/lib/ujian'
+import { ambilPaket, daftarUjian, sesiLokalUjian, simpanPaket, simpanSesi } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { terapkanPembaruan, useKesiapan } from '@/lib/useKesiapan'
 import { useLokasi, type TahapLokasi } from '@/lib/useLokasi'
@@ -126,8 +126,14 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                 if (e instanceof GalatApi && e.sementara && lokal.data) return lokal.data.mulai
                 throw e
             }
-            const paket = await ambilPaket(ujianId)
-            if (!paket) throw new Error('Paket belum ada di perangkat.')
+            // Paket bisa hilang setelah kartu "siap" tampil (mis. tab lain menyelesaikan /
+            // membersihkan ujian yang sama). Jangan buntu: unduh ulang — paketnya terenkripsi
+            // dan kecocokannya diperiksa saat dekripsi di bawah.
+            let paket = await ambilPaket(ujianId)
+            if (!paket) {
+                paket = await api.paket(ujianId)
+                await simpanPaket(ujianId, paket)
+            }
             await dekripsiPaket(paket, r.kunci) // pastikan paket cocok sebelum masuk layar ujian
             await simpanSesi({
                 mulai: r,
