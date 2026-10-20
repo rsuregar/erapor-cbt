@@ -411,6 +411,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             </header>
 
+            {u.gagalSimpan > 0 && (
+                <div role="alert" className="border-b border-coral-200 bg-coral-50">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-coral-700">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <p>
+                            <b>{u.gagalSimpan} jawaban belum tersimpan di perangkat.</b> Aplikasi terus mencoba menyimpannya. Jangan tutup aplikasi — panggil pengawas.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {offline ? (
                 <div role="status" className="border-b border-amber-100 bg-amber-100">
                     <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">

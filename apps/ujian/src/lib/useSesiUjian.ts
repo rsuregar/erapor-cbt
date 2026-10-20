@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
+import { PenulisJawaban } from '@/lib/penulisJawaban'
 import { bersihkan, muatUjian, penyimpanan, type SesiUjian } from '@/lib/ujian'
 import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -34,6 +35,8 @@ export function useSesiUjian(attemptId: number) {
     const [koneksi, setKoneksi] = useState({ online: true, tertunda: 0 })
     const [pesan, setPesan] = useState<{ teks: string; pada: string } | null>(null)
     const [galatKumpul, setGalatKumpul] = useState<string | null>(null)
+    /** Jawaban yang gagal ditulis ke perangkat (sedang dicoba ulang). >0 = jangan tutup app. */
+    const [gagalSimpan, setGagalSimpan] = useState(0)
     /** null = dikumpulkan murid / waktu habis; selain itu diakhiri pengawas. */
     const [alasanSelesai, setAlasanSelesai] = useState<AlasanSelesai | null>(null)
 
@@ -44,7 +47,7 @@ export function useSesiUjian(attemptId: number) {
     const posisi = useRef<PosisiDidapat | null>(null)
     /** kiosk_aktif di detak: null di PWA (web tidak bisa membaca kunci OS) */
     const kios = useRef<boolean | null>(null)
-    const tundaTeks = useRef(new Map<number, ReturnType<typeof setTimeout>>())
+    const penulis = useRef<PenulisJawaban>()
     const statusRef = useRef<StatusUjian>('memuat')
     statusRef.current = status
     const sedangKumpul = useRef(false)
@@ -72,6 +75,12 @@ export function useSesiUjian(attemptId: number) {
             await o.muatDariServer(sesi.mulai.jawaban_tersimpan)
             const j = new JamServer(new Date(Date.now() + sesi.selisihJam).toISOString())
             outbox.current = o
+            penulis.current = new PenulisJawaban({
+                catat: (soalId, isi, ragu, ms) => o.catat(soalId, isi, ragu, ms),
+                setelahTulis: () => penyinkron.current?.picu(),
+                saatGagalBerubah: setGagalSimpan,
+                jedaTeksMs: JEDA_TEKS_MS,
+            })
             jam.current = j
             setJawaban(await o.jawaban())
             setBerakhir(sesi.mulai.berakhir_pada)
@@ -124,14 +133,21 @@ export function useSesiUjian(attemptId: number) {
         })()
 
         const segarkan = () => void penyinkron.current?.kirim()
-        const terlihat = () => document.visibilityState === 'visible' && segarkan()
+        // App ke latar / halaman ditutup: OS bisa mematikan app kapan saja, jadi ketikan yang
+        // masih ditunda ditulis sekarang dan dikirim selagi bisa.
+        const amankan = () => void penulis.current?.tulisSemua().then(segarkan)
+        const terlihat = () => (document.visibilityState === 'visible' ? segarkan() : amankan())
         window.addEventListener('online', segarkan)
+        window.addEventListener('pagehide', amankan)
         document.addEventListener('visibilitychange', terlihat)
 
         return () => {
             batal = true
+            // Layar ujian ditutup: tulis yang tertunda dulu, baru sinkron dihentikan.
+            void penulis.current?.henti()
             penyinkron.current?.henti()
             window.removeEventListener('online', segarkan)
+            window.removeEventListener('pagehide', amankan)
             document.removeEventListener('visibilitychange', terlihat)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,6 +190,7 @@ export function useSesiUjian(attemptId: number) {
 
     const selesai = useCallback(async () => {
         penyinkron.current?.henti()
+        penulis.current?.buang()
         await lepasKunciLayar()
         const ujianId = data?.sesi.ujian.id ?? (await muatUjian(attemptId).catch(() => null))?.sesi.ujian.id
         if (ujianId) await bersihkan(attemptId, ujianId)
@@ -185,27 +202,10 @@ export function useSesiUjian(attemptId: number) {
         (soalId: number, isi: Jawaban, ragu: boolean, opsi: { teks?: boolean } = {}) => {
             if (statusRef.current === 'selesai') return
             setJawaban((j) => ({ ...j, [soalId]: { jawaban: isi, ragu } }))
-            const tulis = async () => {
-                tundaTeks.current.delete(soalId)
-                await outbox.current?.catat(soalId, isi, ragu, msSejakMulai())
-                penyinkron.current?.picu()
-            }
-            const lama = tundaTeks.current.get(soalId)
-            if (lama) clearTimeout(lama)
-            if (opsi.teks) tundaTeks.current.set(soalId, setTimeout(() => void tulis(), JEDA_TEKS_MS))
-            else void tulis()
+            penulis.current?.catat(soalId, isi, ragu, msSejakMulai(), opsi)
         },
         [msSejakMulai],
     )
-
-    const tulisSemuaTertunda = useCallback(async () => {
-        for (const [soalId, t] of tundaTeks.current) {
-            clearTimeout(t)
-            const j = jawaban[soalId]
-            if (j) await outbox.current?.catat(soalId, j.jawaban, j.ragu, msSejakMulai())
-        }
-        tundaTeks.current.clear()
-    }, [jawaban, msSejakMulai])
 
     /**
      * Kumpul: semua jawaban harus sudah diakui server dulu. Offline → tandai
@@ -217,7 +217,13 @@ export function useSesiUjian(attemptId: number) {
         try {
             setGalatKumpul(null)
             setStatus('mengumpulkan')
-            await tulisSemuaTertunda()
+            // Jawaban yang belum tertulis di perangkat bisa hilang bila app tertutup sebelum terkirim: jangan kumpul dulu.
+            if ((await penulis.current?.tulisSemua()) ?? 0) {
+                setGalatKumpul('Ada jawaban yang belum tersimpan di perangkat. Jangan tutup aplikasi; panggil pengawas lalu coba kumpulkan lagi.')
+                setStatus('mengerjakan')
+
+                return
+            }
             await penyimpanan.simpan(`attempt:${attemptId}:kumpul`, true)
             const ms = msSejakMulai()
 
@@ -261,7 +267,7 @@ export function useSesiUjian(attemptId: number) {
         } finally {
             sedangKumpul.current = false
         }
-    }, [attemptId, msSejakMulai, selesai, tulisSemuaTertunda])
+    }, [attemptId, msSejakMulai, selesai])
 
     kumpulRef.current = kumpul
 
@@ -280,6 +286,7 @@ export function useSesiUjian(attemptId: number) {
         koneksi,
         pesan,
         galatKumpul,
+        gagalSimpan,
         alasanSelesai,
         jam: jam.current,
         msSejakMulai,
