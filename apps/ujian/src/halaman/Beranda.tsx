@@ -33,6 +33,7 @@ import {
     Trophy,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { LencanaStaging } from '@/komponen/PenandaStaging'
 
 const STATUS: Record<UjianRingkas['status'], [string, NadaLencana]> = {
     belum_mulai: ['Belum dikerjakan', 'neutral'],
@@ -177,6 +178,8 @@ export default function Beranda() {
                             <span className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10">
                                 v{__VERSI_APP__}
                             </span>
+                            {/* Layar sempit: kepala penuh; garis atas & lencana di kaki tetap menandai staging. */}
+                            <LencanaStaging className="hidden sm:inline-flex" />
                         </div>
 
                         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -390,6 +393,7 @@ export default function Beranda() {
                         <span className="rounded bg-slate-100 px-1.5 py-0.2 font-medium text-slate-600">
                             v{__VERSI_APP__}
                         </span>
+                        <LencanaStaging />
                         <span>&bull;</span>
                         <span>
                             {isTauri()

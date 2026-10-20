@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+// Build staging: ./gradlew assembleRelease -Plingkungan=staging (nama task & lokasi APK tetap).
+// App id ".staging" → bisa dipasang berdampingan dengan produksi; nama & ikon dari src/staging/res.
+def lingkungan = project.findProperty('lingkungan') ?: 'production'
+def stagingBuild = lingkungan == 'staging'
+
 android {
     namespace "sch.alakhyar.ujian"
     compileSdk rootProject.ext.compileSdkVersion
@@ -10,6 +15,10 @@ android {
         versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
         versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "0.2.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        if (stagingBuild) {
+            applicationIdSuffix ".staging"
+            versionNameSuffix "-staging"
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -20,6 +29,14 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    // Overlay lewat source set build type (prioritas di atas main) — menambah folder ke
+    // main sendiri akan bentrok "Duplicate resources".
+    if (stagingBuild) {
+        sourceSets {
+            debug.res.srcDirs += 'src/staging/res'
+            release.res.srcDirs += 'src/staging/res'
         }
     }
 }

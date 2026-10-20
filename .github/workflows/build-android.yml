@@ -5,6 +5,24 @@ on:
     tags:
       - 'release-mobile-*'
       - 'release-android-*'
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: production
+      build_type:
+        type: string
+        default: release
+      version_name:
+        type: string
+        default: ''
+      build_number:
+        type: string
+        default: ''
+      terbitkan_staging:
+        description: 'Terbitkan pra-rilis staging-<versi>-b<build> (dipakai workflow staging-*.yml)'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       environment:
@@ -68,7 +86,11 @@ jobs:
         id: env
         run: |
           TARGET="${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}"
-          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL || 'https://erapor.alakhyar.sch.id/api' }}"
+          # Variabel environment GitHub menang; tanpa itu staging → server uji, production → server utama.
+          API_URL="${{ vars.VITE_API_URL || secrets.VITE_API_URL }}"
+          if [ -z "$API_URL" ]; then
+            if [ "$TARGET" = "staging" ]; then API_URL="https://erapor.staging.alakhyar.sch.id/api"; else API_URL="https://erapor.alakhyar.sch.id/api"; fi
+          fi
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
           # Nama berkas: env hanya ditulis bila bukan production (mis. "-staging").
@@ -119,6 +141,8 @@ jobs:
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
+          VITE_APP_BUILD: ${{ steps.version.outputs.build_number }}
+          VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
           VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
         run: |
           npm run build -w @erapor-cbt/ujian
@@ -155,11 +179,14 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Staging: app id ".staging", nama & ikon staging (lihat android/app/build.gradle).
+          LINGKUNGAN: ${{ steps.env.outputs.target }}
         run: |
           cd apps/ujian/android
           if [ "$BUILD_TYPE" = "release" ]; then
             ./gradlew assembleRelease \
               -PversionCode="${BUILD_NUMBER}" \
+              -Plingkungan="${LINGKUNGAN}" \
               -PversionName="${VERSION_NAME}" \
               -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
               -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
@@ -168,6 +195,7 @@ jobs:
           else
             ./gradlew assembleDebug \
               -PversionCode="${BUILD_NUMBER}" \
+              -Plingkungan="${LINGKUNGAN}" \
               -PversionName="${VERSION_NAME}"
           fi
 
@@ -209,3 +237,12 @@ jobs:
           RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
           node scripts/publish-release.mjs "${{ github.ref_name }}" "${{ steps.apk.outputs.path }}"
+
+      - name: Publish staging pre-release
+        if: inputs.terbitkan_staging && steps.env.outputs.target == 'staging'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
+        run: |
+          node scripts/publish-staging.mjs "staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}" "${{ steps.apk.outputs.path }}"

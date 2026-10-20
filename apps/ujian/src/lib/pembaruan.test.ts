@@ -69,4 +69,34 @@ describe('pilihPembaruan', () => {
     it('tag "release-win-2" dinormalkan menjadi 2.0.0', () => {
         expect(pilihPembaruan([rilis('release-win-2', ['x.exe'])], 'windows', '1.9.9')?.versi).toBe('2.0.0')
     })
+
+    describe('saluran staging', () => {
+        const st = { staging: true, buildApp: 10 }
+
+        it('hanya membaca tag staging-X.Y.Z-bN; app produksi mengabaikannya', () => {
+            const r = [
+                rilis('staging-0.3.0-b12', ['cbt-staging.apk'], { prerelease: true }),
+                rilis('release-android-0.4.0', ['prod.apk']),
+            ]
+            expect(pilihPembaruan(r, 'android', '0.3.0', st)?.tag).toBe('staging-0.3.0-b12')
+            expect(pilihPembaruan(r, 'android', '0.3.0')?.tag).toBe('release-android-0.4.0')
+        })
+
+        it('membandingkan versi lalu nomor build', () => {
+            const r = [
+                rilis('staging-0.3.0-b12', ['a.apk'], { prerelease: true }),
+                rilis('staging-0.3.0-b9', ['b.apk'], { prerelease: true }),
+                rilis('staging-0.2.9-b40', ['c.apk'], { prerelease: true }),
+            ]
+            expect(pilihPembaruan(r, 'android', '0.3.0', st)?.versi).toBe('0.3.0-b12')
+            expect(pilihPembaruan(r, 'android', '0.3.0', { staging: true, buildApp: 12 })).toBeNull()
+            expect(pilihPembaruan(r, 'android', '0.2.9', { staging: true, buildApp: 99 })?.tag).toBe('staging-0.3.0-b12')
+        })
+
+        it('melewati build staging tanpa berkas platform ini', () => {
+            const r = [rilis('staging-0.3.0-b20', ['x.exe'], { prerelease: true }), rilis('staging-0.3.0-b15', ['x.dmg'], { prerelease: true })]
+            expect(pilihPembaruan(r, 'macos', '0.3.0', st)?.tag).toBe('staging-0.3.0-b15')
+            expect(pilihPembaruan(r, 'windows', '0.3.0', st)?.tag).toBe('staging-0.3.0-b20')
+        })
+    })
 })

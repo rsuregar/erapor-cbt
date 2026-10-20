@@ -8,10 +8,12 @@ import Kerjakan from './halaman/Kerjakan'
 import Masuk from './halaman/Masuk'
 import Panduan, { type UntukPanduan } from './halaman/Panduan'
 import Persiapan from './halaman/Persiapan'
+import { GarisStaging } from '@/komponen/PenandaStaging'
 
 function AkarLayout() {
     return (
         <>
+            <GarisStaging />
             <NotifikasiKoneksiGlobal />
             <Outlet />
         </>
