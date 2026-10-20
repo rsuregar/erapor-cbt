@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { sesi } from "@/lib/sesi";
 import { hariTanggal, jamMenit } from "@/lib/tanggal";
 import { cn } from "@/lib/utils";
+import { GalatApi } from "@erapor-cbt/exam-core";
 import { RenderKonten, type TiptapNode } from "@erapor-cbt/question-renderer";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -23,6 +24,33 @@ import {
     XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+
+/**
+ * Pengelompokan butir: soal yang dianulir dan yang belum berskor (selama
+ * ujian masih berjalan) tidak dihitung sebagai benar maupun perlu dipelajari.
+ */
+type ButirSkor = { anulir: string | null; skor: number | null; bobot: number };
+const dianulir = (s: ButirSkor) => s.anulir !== null;
+const benarPenuh = (s: ButirSkor) => !dianulir(s) && s.skor !== null && s.skor >= s.bobot;
+const perluDipelajari = (s: ButirSkor) => !dianulir(s) && s.skor !== null && s.skor < s.bobot;
+
+/** Pesan galat yang bisa dipahami murid; "belum dirilis" menyebut jadwalnya bila ada. */
+function pesanGalatHasil(e: Error | null): { judul: string; isi: string; cobaLagi: boolean } {
+    if (e instanceof GalatApi && e.kode === "BELUM_DIRILIS") {
+        const pada = typeof e.data.dirilis_pada === "string" ? e.data.dirilis_pada : null;
+        return {
+            judul: "Nilai belum dirilis",
+            isi: pada
+                ? `Guru menjadwalkan nilai ujian ini terbit ${hariTanggal(pada)}, pukul ${jamMenit(pada, true)}.`
+                : "Guru belum merilis nilai ujian ini. Cek lagi nanti.",
+            cobaLagi: false,
+        };
+    }
+    if (e instanceof GalatApi && e.sementara) {
+        return { judul: "Hasil belum bisa dimuat", isi: "Tidak tersambung ke server. Periksa internet lalu coba lagi.", cobaLagi: true };
+    }
+    return { judul: "Hasil tidak ditemukan", isi: "Hasil ujian ini belum tersedia. Tanyakan ke guru bila menurutmu ini keliru.", cobaLagi: false };
+}
 
 const angka = (n: number | null) =>
     n === null ? "—" : String(n).replace(".", ",");
@@ -53,19 +81,10 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
     // Hitung statistik butir soal
     const totalSoal = h?.soal.length ?? 0;
-    const soalPenuh = useMemo(
-        () =>
-            h?.soal.filter((s) => s.skor !== null && s.skor >= s.bobot)
-                .length ?? 0,
-        [h?.soal],
-    );
-    const soalEvaluasi = useMemo(
-        () =>
-            h?.soal.filter(
-                (s) => s.skor === null || s.skor < s.bobot || s.anulir !== null,
-            ).length ?? 0,
-        [h?.soal],
-    );
+    const soalPenuh = useMemo(() => h?.soal.filter(benarPenuh).length ?? 0, [h?.soal]);
+    const soalEvaluasi = useMemo(() => h?.soal.filter(perluDipelajari).length ?? 0, [h?.soal]);
+    // Selama ujian masih berjalan skor per butir belum dikirim: rincian per soal disembunyikan.
+    const adaRincian = useMemo(() => h?.soal.some((s) => s.skor !== null) ?? false, [h?.soal]);
     const selisihKktp = useMemo(() => {
         if (
             h?.kktp === null ||
@@ -79,12 +98,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
     const daftarTampil = useMemo(() => {
         if (!h?.soal) return [];
-        if (filter === "penuh")
-            return h.soal.filter((s) => s.skor !== null && s.skor >= s.bobot);
-        if (filter === "evaluasi")
-            return h.soal.filter(
-                (s) => s.skor === null || s.skor < s.bobot || s.anulir !== null,
-            );
+        if (filter === "penuh") return h.soal.filter(benarPenuh);
+        if (filter === "evaluasi") return h.soal.filter(perluDipelajari);
         return h.soal;
     }, [h?.soal, filter]);
 
@@ -105,8 +120,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
     if (hasil.isPending) {
         return (
             <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-                <div className="size-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                <p className="mt-4 text-sm font-semibold text-slate-500">
+                <div className="size-10 animate-spin rounded-full border-4 border-primary border-t-transparent motion-reduce:animate-none" />
+                <p className="mt-4 text-sm font-semibold text-slate-600">
                     Memuat hasil ujian…
                 </p>
             </div>
@@ -114,23 +129,22 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
     }
 
     if (hasil.isError || !h) {
+        const galat = pesanGalatHasil(hasil.error);
         return (
             <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-                <AlertCircle className="size-12 text-coral-500" />
-                <h1 className="mt-3 text-lg font-bold text-ink">
-                    Hasil Ujian Tidak Ditemukan
-                </h1>
-                <p className="mt-1 max-w-sm text-sm text-slate-500">
-                    {hasil.error?.message ??
-                        "Data hasil ujian belum tersedia atau sudah diarsipkan."}
-                </p>
-                <Tombol
-                    varian="primary"
-                    className="mt-5 rounded-xl font-bold"
-                    onClick={() => navigate({ to: "/" })}
-                >
-                    Kembali ke Beranda
-                </Tombol>
+                {galat.cobaLagi ? <AlertCircle className="size-12 text-coral-500" /> : <Clock className="size-12 text-primary" />}
+                <h1 className="mt-3 text-lg font-bold text-ink">{galat.judul}</h1>
+                <p className="mt-1 max-w-sm text-sm text-slate-600">{galat.isi}</p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+                    {galat.cobaLagi && (
+                        <Tombol varian="outline" onClick={() => void hasil.refetch()}>
+                            Coba lagi
+                        </Tombol>
+                    )}
+                    <Tombol varian="primary" onClick={() => navigate({ to: "/" })}>
+                        Kembali ke Beranda
+                    </Tombol>
+                </div>
             </div>
         );
     }
@@ -140,7 +154,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
     return (
         <div className="min-h-full bg-slate-50/70 pb-20">
             {/* Hero Header Section */}
-            <header className="relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-4 pt-4 pb-16 sm:pb-20 text-white shadow-lg sm:px-6 print:rounded-none print:bg-white print:text-black print:pb-4 print:shadow-none">
+            <header className="permukaan-gelap relative overflow-hidden rounded-b-[1.75rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-4 pt-4 pb-16 sm:pb-20 text-white shadow-lg sm:px-6 print:rounded-none print:bg-white print:text-black print:pb-4 print:shadow-none">
                 {/* Decorative Ambient Backgrounds */}
                 <div
                     className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-white/5 blur-3xl print:hidden"
@@ -153,13 +167,12 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
                 <div className="relative mx-auto max-w-3xl space-y-4">
                     {/* Top Bar: Back */}
-                    <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 print:hidden">
+                    <div className="flex items-center justify-between gap-3 print:hidden">
                         <button
                             onClick={() => navigate({ to: "/" })}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
-                            aria-label="Kembali ke beranda"
+                            className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95"
                         >
-                            <ChevronLeft className="size-4" />
+                            <ChevronLeft className="size-5" />
                             <span>Kembali</span>
                         </button>
                     </div>
@@ -168,13 +181,13 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                     <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
                             {h.ujian.mapel && (
-                                <span className="inline-flex items-center rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-sky-100 backdrop-blur-md border border-white/15 print:border-slate-300 print:text-slate-800">
+                                <span className="inline-flex items-center rounded-md bg-white/15 px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide text-sky-100 backdrop-blur-md border border-white/15 print:border-slate-300 print:text-slate-800">
                                     {h.ujian.mapel}
                                 </span>
                             )}
-                            <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-0.5 text-[11px] font-bold text-sky-100 backdrop-blur-md border border-white/15 print:border-slate-300 print:text-slate-800">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-0.5 text-xs font-bold text-sky-100 backdrop-blur-md border border-white/15 print:border-slate-300 print:text-slate-800">
                                 <Award className="size-3 text-sky-200" />
-                                <span>Hasil Evaluasi Resmi</span>
+                                <span>Hasil ujian</span>
                             </span>
                         </div>
 
@@ -183,7 +196,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         </h1>
 
                         {namaMurid && (
-                            <p className="text-xs text-sky-100/90 font-medium">
+                            <p className="text-sm text-sky-50 font-medium">
                                 Peserta:{" "}
                                 <span className="font-bold text-white">
                                     {namaMurid}
@@ -201,8 +214,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                     <div className="grid gap-5 sm:grid-cols-2 sm:items-center">
                         {/* Left Side: Score & Status */}
                         <div className="space-y-2.5 border-b sm:border-b-0 sm:border-r border-slate-100 pb-4 sm:pb-0 sm:pr-6">
-                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                Nilai Akhir Ujian
+                            <p className="text-sm font-bold text-slate-600">
+                                Nilai akhir
                             </p>
                             <div className="flex items-baseline gap-3">
                                 <span className="font-display text-4xl sm:text-5xl font-black text-ink tracking-tight leading-none">
@@ -211,19 +224,19 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                 {h.tuntas !== null && (
                                     <span
                                         className={cn(
-                                            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-extrabold tracking-wide border",
+                                            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold border",
                                             tuntas
-                                                ? "bg-emerald-50 text-emerald-700 border-emerald-300/80 shadow-2xs"
-                                                : "bg-coral-50 text-coral-700 border-coral-300/80 shadow-2xs",
+                                                ? "bg-green-100 text-green-700 border-transparent"
+                                                : "bg-amber-100 text-amber-900 border-transparent",
                                         )}
                                     >
                                         {tuntas ? (
                                             <CheckCircle2 className="size-3.5" />
                                         ) : (
-                                            <AlertCircle className="size-3.5" />
+                                            <TrendingUp className="size-3.5" />
                                         )}
                                         <span>
-                                            {tuntas ? "TUNTAS" : "REMEDIAL"}
+                                            {tuntas ? "Tuntas" : "Belum tuntas"}
                                         </span>
                                     </span>
                                 )}
@@ -233,17 +246,17 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             {selisihKktp !== null && (
                                 <p
                                     className={cn(
-                                        "text-xs font-semibold",
+                                        "text-sm font-semibold",
                                         selisihKktp >= 0
-                                            ? "text-emerald-600"
-                                            : "text-coral-600",
+                                            ? "text-green-700"
+                                            : "text-amber-700",
                                     )}
                                 >
                                     {selisihKktp > 0
-                                        ? `Melampaui target KKTP (${h.kktp}) sebesar +${angka(selisihKktp)} poin`
+                                        ? `${angka(selisihKktp)} poin di atas KKTP (${h.kktp}). Hebat!`
                                         : selisihKktp < 0
-                                          ? `Belum mencapai target KKTP (${h.kktp}) selisih ${angka(Math.abs(selisihKktp))} poin`
-                                          : `Tepat mencapai batas KKTP (${h.kktp})`}
+                                          ? `${angka(Math.abs(selisihKktp))} poin lagi untuk mencapai KKTP (${h.kktp}).`
+                                          : `Tepat mencapai KKTP (${h.kktp}).`}
                                 </p>
                             )}
                         </div>
@@ -251,22 +264,22 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         {/* Right Side: Key Detail Metrics */}
                         <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:pl-2">
                             <div className="rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
-                                <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                                <dt className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                                     <Target className="size-3 text-primary" />
-                                    <span>Skor Diperoleh</span>
+                                    <span>Skor</span>
                                 </dt>
                                 <dd className="mt-1 font-extrabold text-ink text-sm sm:text-base">
                                     {angka(h.skor)}{" "}
-                                    <span className="text-xs font-normal text-slate-400">
+                                    <span className="text-xs font-normal text-slate-600">
                                         / {angka(h.skor_maks)}
                                     </span>
                                 </dd>
                             </div>
 
                             <div className="rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
-                                <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                                <dt className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                                     <Award className="size-3 text-primary" />
-                                    <span>Batas KKTP</span>
+                                    <span>KKTP</span>
                                 </dt>
                                 <dd className="mt-1 font-extrabold text-ink text-sm sm:text-base">
                                     {h.kktp !== null ? h.kktp : "—"}
@@ -274,9 +287,9 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                             </div>
 
                             <div className="col-span-2 rounded-lg bg-slate-50/80 p-2.5 sm:p-3 border border-slate-100">
-                                <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                                <dt className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                                     <Clock className="size-3 text-primary" />
-                                    <span>Waktu Dikumpulkan (WITA)</span>
+                                    <span>Dikumpulkan</span>
                                 </dt>
                                 <dd className="mt-1 font-bold text-ink text-xs sm:text-sm">
                                     {h.dikumpulkan_pada
@@ -288,51 +301,52 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                     </div>
                 </div>
 
-                {/* 3 Quick Overview Stat Cards with Large Watermark Background */}
+                {/* Ringkasan per butir — hanya bila skor per soal sudah ada. */}
+                {adaRincian && (
                 <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
-                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                    <div className="relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs">
                         <CheckCircle2
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-emerald-500/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-green-500/20"
                         />
                         <div className="relative z-10 space-y-0.5 sm:space-y-1">
-                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                                Benar Penuh
+                            <p className="text-xs font-semibold text-slate-600 truncate">
+                                Benar penuh
                             </p>
-                            <p className="font-display text-lg sm:text-2xl font-black text-emerald-600">
+                            <p className="font-display text-lg sm:text-2xl font-black text-green-700">
                                 {soalPenuh}
                             </p>
-                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
-                                dari {totalSoal} butir soal
+                            <p className="text-xs text-slate-600 leading-tight">
+                                dari {totalSoal} soal
                             </p>
                         </div>
                     </div>
 
-                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                    <div className="relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs">
                         <MinusCircle
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-amber-500/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-amber-500/20"
                         />
                         <div className="relative z-10 space-y-0.5 sm:space-y-1">
-                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                                Perlu Evaluasi
+                            <p className="text-xs font-semibold text-slate-600 truncate">
+                                Perlu dipelajari
                             </p>
-                            <p className="font-display text-lg sm:text-2xl font-black text-amber-600">
+                            <p className="font-display text-lg sm:text-2xl font-black text-amber-700">
                                 {soalEvaluasi}
                             </p>
-                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
+                            <p className="text-xs text-slate-600 leading-tight">
                                 skor sebagian / nol
                             </p>
                         </div>
                     </div>
 
-                    <div className="group relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs transition hover:shadow-md">
+                    <div className="relative overflow-hidden rounded-lg border border-slate-200/80 bg-white p-2.5 sm:p-4 shadow-xs">
                         <TrendingUp
                             aria-hidden="true"
-                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-primary/20 opacity-12 transition group-hover:scale-110"
+                            className="pointer-events-none absolute -right-1 -bottom-1 sm:-right-2 sm:-bottom-2 size-9 sm:size-14 text-primary/20"
                         />
                         <div className="relative z-10 space-y-0.5 sm:space-y-1">
-                            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                            <p className="text-xs font-semibold text-slate-600 truncate">
                                 Ketercapaian
                             </p>
                             <p className="font-display text-lg sm:text-2xl font-black text-primary">
@@ -341,26 +355,26 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                     : 0}
                                 %
                             </p>
-                            <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
-                                total skor diperoleh
+                            <p className="text-xs text-slate-600 leading-tight">
+                                dari skor maksimal
                             </p>
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* Banner info penundaan pembahasan (bila sedang berjalan) */}
                 {h.pembahasan_ditunda && (
-                    <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50/90 p-4 text-xs text-sky-900 shadow-xs">
-                        <Info className="size-4 shrink-0 text-sky-600 mt-0.5" />
+                    <div className="flex items-start gap-3 rounded-lg border border-sky-300/60 bg-sky-100/60 p-4 text-sm text-ink shadow-xs">
+                        <Info className="size-4 shrink-0 text-sky-700 mt-0.5" />
                         <div className="space-y-0.5">
-                            <p className="font-bold text-sm text-sky-950">
-                                Jadwal Ujian Masih Berlangsung
+                            <p className="font-bold">
+                                Ujian ini masih berjalan untuk peserta lain
                             </p>
-                            <p className="text-sky-800 leading-relaxed">
-                                Nilai akhir Anda sudah tercatat di atas. Kunci
-                                jawaban dan pembahasan per butir soal akan
-                                otomatis terbuka setelah seluruh jadwal ujian
-                                selesai
+                            <p className="text-slate-700 leading-relaxed">
+                                Nilaimu sudah tercatat di atas. Rincian per
+                                soal, kunci, dan pembahasan terbuka setelah
+                                semua jadwal ujian selesai
                                 {h.pembahasan_terbuka_pada
                                     ? ` (${jamMenit(h.pembahasan_terbuka_pada, true)})`
                                     : ""}
@@ -371,43 +385,47 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 )}
 
                 {/* Filter & Toolbar Soal */}
+                {adaRincian && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-2 border-t border-slate-200/80 print:hidden">
-                    <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-1 w-full sm:w-auto">
+                    <div role="group" aria-label="Saring soal" className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-1 w-full sm:w-auto">
                         <button
                             type="button"
+                            aria-pressed={filter === "semua"}
                             onClick={() => setFilter("semua")}
                             className={cn(
-                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
+                                "flex-1 sm:flex-initial min-h-11 rounded-md px-2.5 sm:px-3 text-sm font-bold transition text-center",
                                 filter === "semua"
                                     ? "bg-white text-ink shadow-xs"
-                                    : "text-slate-600 hover:text-ink",
+                                    : "text-slate-700 hover:text-ink",
                             )}
                         >
                             Semua ({totalSoal})
                         </button>
                         <button
                             type="button"
+                            aria-pressed={filter === "penuh"}
                             onClick={() => setFilter("penuh")}
                             className={cn(
-                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
+                                "flex-1 sm:flex-initial min-h-11 rounded-md px-2.5 sm:px-3 text-sm font-bold transition text-center",
                                 filter === "penuh"
-                                    ? "bg-white text-emerald-700 shadow-xs"
-                                    : "text-slate-600 hover:text-emerald-700",
+                                    ? "bg-white text-green-700 shadow-xs"
+                                    : "text-slate-700 hover:text-green-700",
                             )}
                         >
                             Benar ({soalPenuh})
                         </button>
                         <button
                             type="button"
+                            aria-pressed={filter === "evaluasi"}
                             onClick={() => setFilter("evaluasi")}
                             className={cn(
-                                "flex-1 sm:flex-initial rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition text-center",
+                                "flex-1 sm:flex-initial min-h-11 rounded-md px-2.5 sm:px-3 text-sm font-bold transition text-center",
                                 filter === "evaluasi"
                                     ? "bg-white text-amber-700 shadow-xs"
-                                    : "text-slate-600 hover:text-amber-700",
+                                    : "text-slate-700 hover:text-amber-700",
                             )}
                         >
-                            Evaluasi ({soalEvaluasi})
+                            Dipelajari ({soalEvaluasi})
                         </button>
                     </div>
 
@@ -415,17 +433,18 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         <button
                             type="button"
                             onClick={toggleBukaSemua}
-                            className="inline-flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-slate-200/80 sm:border-transparent bg-white sm:bg-transparent px-3 py-1.5 text-xs font-bold text-primary hover:text-primary-700 hover:bg-slate-50 sm:hover:bg-transparent transition shadow-2xs sm:shadow-none"
+                            className="inline-flex min-h-11 items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-slate-200/80 sm:border-transparent bg-white sm:bg-transparent px-3 text-sm font-bold text-primary hover:text-primary-700 hover:bg-slate-50 sm:hover:bg-transparent transition shadow-2xs sm:shadow-none"
                         >
                             <Lightbulb className="size-3.5 text-amber-500" />
                             <span>
                                 {semuaBuka
-                                    ? "Tutup Semua Pembahasan"
-                                    : "Buka Semua Pembahasan"}
+                                    ? "Tutup semua pembahasan"
+                                    : "Buka semua pembahasan"}
                             </span>
                         </button>
                     )}
                 </div>
+                )}
 
                 {/* Daftar Butir Soal */}
                 <div className="space-y-4">
@@ -437,9 +456,9 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         </div>
                     ) : (
                         daftarTampil.map((s) => {
-                            const penuh = s.skor !== null && s.skor >= s.bobot;
+                            const penuh = benarPenuh(s);
                             const nol = s.skor === 0;
-                            const dianulir = s.anulir !== null;
+                            const anulir = dianulir(s);
                             const terbuka = bukaMap[s.id] ?? semuaBuka;
 
                             return (
@@ -457,8 +476,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
                                         {/* Status Skor Badge */}
                                         <div>
-                                            {dianulir ? (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600">
+                                            {anulir ? (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
                                                     Dianulir
                                                 </span>
                                             ) : s.skor === null ? null : (
@@ -466,10 +485,10 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                                     className={cn(
                                                         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border",
                                                         penuh
-                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-300/80"
+                                                            ? "bg-green-100 text-green-700 border-transparent"
                                                             : nol
-                                                              ? "bg-coral-50 text-coral-700 border-coral-300/80"
-                                                              : "bg-amber-50 text-amber-700 border-amber-300/80",
+                                                              ? "bg-coral-100 text-coral-700 border-transparent"
+                                                              : "bg-amber-100 text-amber-700 border-transparent",
                                                     )}
                                                 >
                                                     {penuh ? (
@@ -527,8 +546,8 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                         <div className="flex items-start gap-2.5 rounded-lg bg-amber-50/80 border border-amber-200/80 p-3 text-xs sm:text-sm text-amber-900">
                                             <MessageSquareText className="size-4 shrink-0 text-amber-600 mt-0.5" />
                                             <div className="space-y-0.5">
-                                                <p className="font-bold text-amber-950 text-xs uppercase tracking-wide">
-                                                    Catatan Guru:
+                                                <p className="font-bold text-amber-900 text-sm">
+                                                    Catatan guru
                                                 </p>
                                                 <p className="leading-relaxed">
                                                     {s.komentar.join(" · ")}
@@ -545,19 +564,16 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                                 onClick={() =>
                                                     toggleAccordion(s.id)
                                                 }
-                                                className="flex w-full items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 transition"
+                                                className="flex min-h-11 w-full items-center justify-between rounded-lg bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 px-3.5 text-sm font-bold text-slate-700 transition"
                                                 aria-expanded={terbuka}
                                             >
                                                 <span className="flex items-center gap-2 text-primary font-bold">
                                                     <Lightbulb className="size-4 text-amber-500" />
-                                                    <span>
-                                                        Kunci Jawaban &amp;
-                                                        Pembahasan
-                                                    </span>
+                                                    <span>Pembahasan</span>
                                                 </span>
                                                 <ChevronDown
                                                     className={cn(
-                                                        "size-4 text-slate-400 transition-transform duration-200",
+                                                        "size-4 text-slate-500 transition-transform duration-200 motion-reduce:transition-none",
                                                         terbuka && "rotate-180",
                                                     )}
                                                 />
