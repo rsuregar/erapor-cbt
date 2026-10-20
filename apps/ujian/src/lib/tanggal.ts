@@ -106,3 +106,11 @@ export function durasiLengkap(ms: number): string {
 
     return `${totalMenit} menit lagi`
 }
+
+/** Seperti durasiLengkap tapi tanpa detik ("12 menit lagi") — untuk layar di luar ujian, supaya tidak berdetak membuat cemas. */
+export function durasiTenang(ms: number): string {
+    if (ms <= 0) return 'sekarang'
+    if (ms < 60_000) return 'kurang dari 1 menit lagi'
+
+    return durasiLengkap(ms - (ms % 60_000))
+}

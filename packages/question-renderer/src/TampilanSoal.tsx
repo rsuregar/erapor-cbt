@@ -66,6 +66,11 @@ type Props = {
  * di panel guru dan layar ujian di app murid, supaya tampilannya identik
  * (PRD G-05). Hanya bergantung pada React, KaTeX, dan Tailwind.
  */
+/** Judul bacaan tanpa awalan "Bacaan:" — label di atasnya sudah menyebut "Bacaan". */
+function judulBacaan(judul: string | null | undefined): string {
+    return (judul ?? '').replace(/^\s*(bacaan|wacana)\s*[:\-–—]\s*/i, '').trim()
+}
+
 export default function TampilanSoal({
     soal,
     nomor,
@@ -118,16 +123,23 @@ export default function TampilanSoal({
         <div className={kelasGrid}>
             {soal.stimulus && (
                 <section className={duaKolom ? kelasKiri : 'mb-5 rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700'}>
-                    <div className="mb-3.5 flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-slate-700">
-                        <div className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-800 border border-sky-200/70 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800">
-                            <svg viewBox="0 0 24 24" className="size-3.5 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2">
+                    {/* Label kecil di atas, judul lebar penuh di bawah — judul panjang terlipat rapi, bukan pil dua baris. */}
+                    <header className="mb-3.5 space-y-1 border-b border-slate-200/80 pb-3 dark:border-slate-700">
+                        <p className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <svg viewBox="0 0 24 24" className="size-3.5 shrink-0 text-sky-700 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                             </svg>
-                            <span>{soal.stimulus.judul || 'Wacana / Bahan Bacaan'}</span>
-                        </div>
-                        <span className="text-xs font-medium text-slate-500">Gunakan untuk menjawab soal</span>
-                    </div>
+                            <span className="font-bold uppercase tracking-wide text-sky-800 dark:text-sky-300">Bacaan</span>
+                            <span aria-hidden="true">·</span>
+                            <span>gunakan untuk menjawab soal</span>
+                        </p>
+                        {judulBacaan(soal.stimulus.judul) && (
+                            <h2 className="text-base font-bold leading-snug text-slate-900 dark:text-slate-100" dir="auto">
+                                {judulBacaan(soal.stimulus.judul)}
+                            </h2>
+                        )}
+                    </header>
                     <div className="leading-relaxed" style={{ fontSize: `${skala * 100}%` }}>
                         <RenderKonten doc={soal.stimulus.konten} />
                     </div>

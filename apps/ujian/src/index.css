@@ -32,8 +32,14 @@
         @apply font-bold tracking-tight text-ink;
     }
 
-    :focus-visible {
-        @apply outline-none shadow-ring;
+    /* Garis fokus padat 2px: terlihat di latar putih maupun kepala biru (.permukaan-gelap). */
+    :focus-visible:not([data-isian-jawaban]) {
+        outline: 2px solid theme('colors.primary.DEFAULT');
+        outline-offset: 2px;
+    }
+
+    .permukaan-gelap :focus-visible {
+        outline-color: theme('colors.white');
     }
 
     /* Kolom form app punya gaya fokus sendiri. Kecuali kolom jawaban soal

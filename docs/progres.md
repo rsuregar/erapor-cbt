@@ -14,7 +14,7 @@ disebut.
 | ID | Story | Status | Sprint |
 | --- | --- | --- | --- |
 | 2.5 | Sesi login bertahan, satu perangkat | Selesai (perangkat terikat per attempt) | S3 |
-| 6.1 | Daftar ujian hari ini / mendatang / riwayat | Kode jadi | S3 |
+| 6.1 | Daftar ujian hari ini / mendatang / riwayat | Kode jadi — beranda & persiapan ditinjau ulang 20 Okt: target sentuh 44 px, tab ARIA, ringkasan "Sebelum mulai" (paket/lokasi/perangkat), token + tombol Mulai menempel di bawah, keadaan "Belum dibuka", tata tertib terbuka di ujian pertama | S3 |
 | 6.2 | Pra-unduh paket terenkripsi + indikator siap | Kode jadi | S3 |
 | 6.3 | Mengerjakan semua jenis soal di HP & laptop | Kode jadi — UX ditinjau ulang 20 Okt (PR #5): soal panjang bisa digulir, HP satu aliran gulir, status "belum lengkap", benar/salah pil 44 px, petunjuk per jenis soal, pintasan keyboard laptop | S3 |
 | 6.4 | Timer jam server, kumpul otomatis | Kode jadi | S3 |
@@ -49,6 +49,18 @@ Sesuai penyesuaian kebutuhan operasional lab komputer dan laptop sekolah:
    - **Desktop Windows & macOS**: Menggunakan SQLite native (`erapor_cbt.db` via Rust `rusqlite` bundled) yang tersimpan di direktori App Data OS (`%APPDATA%` di Windows, `~/Library/Application Support` di macOS).
    - **Web PWA**: Menggunakan `IndexedDB` (`erapor-cbt-ujian`).
    - **Satu backend per sesi** (PR #4): `PenyimpananApp` (`apps/ujian/src/lib/penyimpanan.ts`) menguji SQLite saat app dibuka lalu memakainya secara eksklusif — tidak ada lagi jatuh ke IndexedDB per panggilan yang bisa membelah data jawaban. Bila SQLite tak bisa dipakai sama sekali, seluruh sesi memakai IndexedDB (status "cadangan" di cek kesiapan). Data IndexedDB dari versi lama dimigrasikan ke SQLite. Rincian: `docs/arsitektur-dan-offline-desktop.md`.
+
+---
+
+## Risiko yang diketahui
+
+- **PIN pengawas tertanam di kode** (`apps/ujian/src/halaman/Beranda.tsx`
+  `tanganiTutupAppPengawas`, juga `Masuk.tsx`): bila `VITE_PIN_PENGAWAS`
+  kosong, PIN jatuh ke `alakhyar`, dan `778899` selalu diterima. Keduanya
+  ikut ter-bundle di JS PWA/APK sehingga bisa dibaca murid yang membongkar
+  app. Akibatnya murid bisa menutup app kiosk sendiri (pelanggaran tetap
+  tercatat server). Ditunda atas keputusan 20 Okt 2026; perbaikan yang
+  disarankan: PIN per sesi dari server (hash) dan tanpa PIN cadangan.
 
 ---
 

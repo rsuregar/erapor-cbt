@@ -25,10 +25,11 @@ export default {
                     900: '#00253B',
                     DEFAULT: '#006195',
                 },
-                sky: { 100: '#D6F0FB', 300: '#7ACFF0', 500: '#29ABE2', 600: '#1B93C6' },
+                // 700: teks di atas latar 100 (lencana) — kontras ≥ 4,5:1.
+                sky: { 100: '#D6F0FB', 300: '#7ACFF0', 500: '#29ABE2', 600: '#1B93C6', 700: '#0D6A8F' },
                 magenta: { 100: '#FCD9E6', 300: '#F583AC', 500: '#EC2A6B', 600: '#CE1D57' },
                 coral: { 50: '#FDF1F0', 100: '#FBDDDA', 200: '#F6B9B3', 500: '#E8493F', 600: '#CE352C', 700: '#A92A22' },
-                green: { 100: '#DCF5EA', 500: '#2FA97B', 600: '#218A62' },
+                green: { 100: '#DCF5EA', 500: '#2FA97B', 600: '#218A62', 700: '#186A4B' },
                 amber: { 100: '#FDEFCB', 500: '#F5A623', 700: '#8A6410', 900: '#5A3D00' },
                 ink: '#1E2A32',
                 slate: {

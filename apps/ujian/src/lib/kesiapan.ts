@@ -50,7 +50,7 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     daftar.push(
         fiturHilang.length
             ? { kunci: 'browser', judul: 'Browser', hasil: 'gagal', wajib: true, keterangan: `Browser ini tidak mendukung ${fiturHilang.join(', ')}. Perbarui browser atau pakai Chrome/Safari terbaru.` }
-            : { kunci: 'browser', judul: 'Browser', hasil: 'lulus', keterangan: 'Mendukung penyimpanan offline dan enkripsi soal.' },
+            : { kunci: 'browser', judul: 'Browser', hasil: 'lulus', keterangan: 'Bisa menyimpan jawaban tanpa internet.' },
     )
 
     const p = platform()
@@ -71,7 +71,7 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     )
 
     if (asli) {
-        daftar.push({ kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
+        daftar.push({ kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
         if (level !== 'dasar') {
             daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.' })
         }
@@ -89,8 +89,8 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
         const terpasang = WEB_KHUSUS_IOS ? pwaIosTerpasang() : standalone()
         daftar.push(
             terpasang
-                ? { kunci: 'tampilan', judul: 'Tampilan', hasil: 'lulus', keterangan: 'Dibuka dari ikon di layar utama.' }
-                : { kunci: 'tampilan', judul: 'Tampilan', hasil: 'gagal', wajib: WEB_KHUSUS_IOS, aksi: 'panduan', keterangan: 'Buka ujian dari ikon "CBT Al Akhyar" di layar utama, bukan dari tab browser.' },
+                ? { kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Dibuka dari ikon di layar utama.' }
+                : { kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'gagal', wajib: WEB_KHUSUS_IOS, aksi: 'panduan', keterangan: 'Buka ujian dari ikon "CBT Al Akhyar" di layar utama, bukan dari tab browser.' },
         )
     }
 

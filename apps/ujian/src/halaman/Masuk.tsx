@@ -74,7 +74,7 @@ export default function Masuk() {
         const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || "alakhyar";
         const pinValid = pinPengawas.trim() === pinTarget || pinPengawas.trim() === "778899";
         if (!pinValid) {
-            setGalatPin("PIN Pengawas salah. Hubungi proctor / tim IT.");
+            setGalatPin("PIN pengawas salah. Hubungi tim IT sekolah.");
             return;
         }
         setGalatPin(null);
@@ -103,21 +103,30 @@ export default function Masuk() {
         },
     });
 
-    const galat =
-        masuk.error instanceof GalatApi
-            ? masuk.error.status === 401
-                ? "NIS atau kata sandi tidak cocok. Periksa kembali penulisan Anda."
-                : masuk.error.status === 429
-                  ? "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi."
-                  : masuk.error.kode === "JARINGAN"
-                    ? "Tidak tersambung ke server e-Rapor. Periksa koneksi internet Anda."
-                    : masuk.error.message
-            : null;
+    // Setiap kegagalan harus terlihat: galat di luar GalatApi pun diberi pesan, bukan diam.
+    const galat = !masuk.error
+        ? null
+        : masuk.error instanceof GalatApi
+          ? masuk.error.status === 401
+              ? "NIS atau kata sandi tidak cocok. Periksa lagi penulisannya, termasuk huruf besar dan kecil."
+              : masuk.error.status === 429
+                ? "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi."
+                : masuk.error.kode === "JARINGAN"
+                  ? "Tidak tersambung ke server e-Rapor. Periksa internetmu lalu coba lagi."
+                  : masuk.error.status >= 500
+                    ? "Server sedang sibuk. Tunggu sebentar lalu coba lagi."
+                    : masuk.error.message || "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas."
+          : "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas.";
+    // Pesan galat lama hilang begitu murid memperbaiki isiannya.
+    const ubahIsian = (atur: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+        atur(e.target.value);
+        if (masuk.isError) masuk.reset();
+    };
 
     return (
         <main className="flex min-h-full flex-col bg-slate-50/70">
             {/* Header / Hero Section */}
-            <section className="relative overflow-hidden rounded-b-[2rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-6 pb-24 pt-8 text-white shadow-lg">
+            <section className="permukaan-gelap relative overflow-hidden rounded-b-[2rem] sm:rounded-b-[2.5rem] bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-6 pb-24 pt-8 text-white shadow-lg">
                 {/* Subtle Decorative Ambient Background */}
                 <div
                     className="pointer-events-none absolute -right-16 -top-16 size-72 rounded-full bg-white/5 blur-3xl"
@@ -140,7 +149,7 @@ export default function Masuk() {
                                 title="Sekolah Islam Al Akhyar"
                             />
                             <span
-                                className="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10 select-none cursor-pointer"
+                                className="rounded-md bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-sky-100 backdrop-blur-sm border border-white/10 select-none cursor-pointer"
                                 onClick={tanganiKlikRahasiaAdmin}
                                 title="Versi Aplikasi"
                             >
@@ -167,7 +176,7 @@ export default function Masuk() {
                     </h1>
 
                     {/* Subtitle */}
-                    <p className="mt-1.5 text-sm sm:text-body text-sky-100/90 leading-relaxed">
+                    <p className="mt-1.5 text-sm sm:text-body text-sky-50 leading-relaxed">
                         Masuk dengan akun e-Rapor untuk mulai ujian.
                     </p>
                 </div>
@@ -192,8 +201,8 @@ export default function Masuk() {
                             <h2 className="text-base font-bold text-ink">
                                 Masuk Akun Murid
                             </h2>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                                Gunakan NIS dan kata sandi yang terdaftar di e-Rapor
+                            <p className="mt-0.5 text-sm text-slate-600">
+                                Pakai NIS dan kata sandi akun e-Rapor-mu
                             </p>
                         </div>
 
@@ -201,14 +210,14 @@ export default function Masuk() {
                         {!online && (
                             <div
                                 role="status"
-                                className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 animate-in fade-in"
+                                className="flex items-start gap-3 rounded-lg bg-amber-100 p-3.5 text-sm text-amber-900"
                             >
-                                <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-700" />
                                 <div className="space-y-0.5">
-                                    <p className="font-bold text-amber-950">
+                                    <p className="font-bold">
                                         Perangkat sedang offline
                                     </p>
-                                    <p className="text-amber-800 leading-normal">
+                                    <p className="leading-normal">
                                         Sambungkan perangkat ke Wi-Fi atau data seluler untuk masuk ke akun CBT.
                                     </p>
                                 </div>
@@ -225,7 +234,7 @@ export default function Masuk() {
                                 inputMode="text"
                                 autoCapitalize="none"
                                 value={nis}
-                                onChange={(e) => setNis(e.target.value)}
+                                onChange={ubahIsian(setNis)}
                                 required
                             />
 
@@ -236,13 +245,13 @@ export default function Masuk() {
                                 ikonKiri={<LockKeyhole className="size-5 text-slate-400" />}
                                 autoComplete="current-password"
                                 value={sandi}
-                                onChange={(e) => setSandi(e.target.value)}
+                                onChange={ubahIsian(setSandi)}
                                 required
                                 akhiran={
                                     <button
                                         type="button"
                                         onClick={() => setLihat((v) => !v)}
-                                        className="-mr-1 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-95"
+                                        className="-mr-2 inline-flex size-11 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
                                         aria-label={
                                             lihat
                                                 ? "Sembunyikan kata sandi"
@@ -263,7 +272,7 @@ export default function Masuk() {
                         {galat && (
                             <div
                                 role="alert"
-                                className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-xs text-coral-700 animate-in fade-in"
+                                className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-sm text-coral-700"
                             >
                                 <AlertCircle className="mt-0.5 size-4 shrink-0 text-coral-500" />
                                 <span className="font-medium leading-normal">{galat}</span>
@@ -279,9 +288,9 @@ export default function Masuk() {
                             className="h-12 shadow-md transition-all active:scale-[0.98]"
                         >
                             {masuk.isPending ? (
-                                "Memeriksa kredensial…"
+                                "Memeriksa akun…"
                             ) : !online ? (
-                                "Offline — Butuh Internet"
+                                "Butuh internet untuk masuk"
                             ) : (
                                 <span className="flex items-center justify-center gap-2">
                                     <span>Masuk Ujian</span>
@@ -292,9 +301,9 @@ export default function Masuk() {
 
                         {/* Helper Notes */}
                         <div className="pt-1 text-center">
-                            <p className="text-xs text-slate-500 flex items-center justify-center gap-1.5">
-                                <HelpCircle className="size-3.5 text-slate-400 shrink-0" />
-                                <span>Lupa kata sandi? Hubungi wali kelas atau proktor sekolah.</span>
+                            <p className="text-sm text-slate-600 flex items-center justify-center gap-1.5">
+                                <HelpCircle className="size-4 text-slate-500 shrink-0" />
+                                <span>Lupa kata sandi? Minta bantuan wali kelas.</span>
                             </p>
                         </div>
 
@@ -303,11 +312,11 @@ export default function Masuk() {
                             <div className="border-t border-slate-100 pt-4">
                                 <Link
                                     to="/panduan"
-                                    className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
+                                    className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary-50/40"
                                 >
                                     <span className="flex items-center gap-2">
                                         <BookOpen className="size-4 text-primary" />
-                                        <span>Petunjuk &amp; Cara Memasang Aplikasi</span>
+                                        <span>Cara memasang aplikasi ujian</span>
                                     </span>
                                     <ArrowRight className="size-3.5 opacity-60" />
                                 </Link>
@@ -334,16 +343,16 @@ export default function Masuk() {
                     </form>
 
                     {/* Modern Security & School Trust Footer */}
-                    <footer className="mt-8 space-y-2 text-center text-xs text-slate-500">
-                        <div className="flex items-center justify-center gap-1.5 text-slate-400 text-[11px]">
-                            <ShieldCheck className="size-3.5 text-emerald-600" />
+                    <footer className="mt-8 space-y-2 text-center text-xs text-slate-600">
+                        <div className="flex items-center justify-center gap-1.5">
+                            <ShieldCheck className="size-3.5 text-green-600" />
                             <span>Koneksi aman e-Rapor &bull; Platform Ujian Resmi</span>
                         </div>
-                        <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+                        <div className="flex items-center justify-center gap-1.5">
                             <button
                                 type="button"
                                 onClick={tanganiKlikRahasiaAdmin}
-                                className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600 transition hover:bg-slate-200 select-none cursor-pointer"
+                                className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-700 transition hover:bg-slate-200 select-none cursor-pointer"
                                 title="Versi Aplikasi"
                             >
                                 v{__VERSI_APP__}
@@ -360,7 +369,7 @@ export default function Masuk() {
                                       : 'Web PWA'}
                             </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">
+                        <p>
                             Yayasan Pendidikan Islam Al Akhyar &bull;{" "}
                             <span className="font-semibold text-primary">
                                 Unggul &amp; Berakhlak
@@ -381,13 +390,13 @@ export default function Masuk() {
                             <Power className="size-5" />
                         </div>
                         <div>
-                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-900">
                                 Khusus Pengawas / Proktor
                             </span>
-                            <h3 className="mt-1 text-base sm:text-lg font-bold text-ink">
+                            <h2 className="mt-1 text-base sm:text-lg font-bold text-ink">
                                 Tutup Aplikasi CBT
-                            </h3>
-                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                            </h2>
+                            <p className="mt-1 text-sm text-slate-600 leading-relaxed">
                                 Masukkan PIN Pengawas untuk menutup aplikasi dan membuka kembali akses desktop/perangkat.
                             </p>
                             <div className="mt-3 space-y-1.5 text-left">
@@ -407,7 +416,7 @@ export default function Masuk() {
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 />
                                 {galatPin && (
-                                    <p className="text-xs font-medium text-rose-600">{galatPin}</p>
+                                    <p className="text-xs font-medium text-coral-700">{galatPin}</p>
                                 )}
                             </div>
                         </div>
