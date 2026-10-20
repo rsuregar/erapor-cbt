@@ -141,6 +141,32 @@ export async function keluarAplikasi(): Promise<void> {
     }
 }
 
+/** Progres dari perintah Rust `pasang_pembaruan` (src-tauri/src/pembaruan.rs). */
+export type ProgresPembaruan = { jenis: 'mulai'; total: number | null } | { jenis: 'progres'; diterima: number } | { jenis: 'memasang' }
+
+/** True bila build desktop ini bisa memasang pembaruan sendiri (CI menyertakan pubkey updater). */
+export async function bisaPasangPembaruan(): Promise<boolean> {
+    if (!isTauri()) return false
+    try {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        return await invoke<boolean>('pembaruan_tersedia')
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Unduh, verifikasi tanda tangan, dan pasang pembaruan desktop, lalu app dimulai ulang.
+ * Melempar galat (pesan dari Rust) bila gagal; pemanggil kembali ke unduh manual.
+ */
+export async function pasangPembaruanDesktop(manifes: string, onProgres: (p: ProgresPembaruan) => void): Promise<void> {
+    const { Channel, invoke } = await import('@tauri-apps/api/core')
+    const progres = new Channel<ProgresPembaruan>()
+    progres.onmessage = onProgres
+    await invoke('pasang_pembaruan', { manifes, progres })
+}
+
 /** Keluar / tutup aplikasi desktop Tauri (alias untuk kompatibilitas) */
 export const keluarAplikasiTauri = keluarAplikasi
 

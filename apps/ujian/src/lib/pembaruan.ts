@@ -26,6 +26,8 @@ export type InfoPembaruan = {
     unduh: string
     /** Halaman rilis di GitHub (catatan rilis). */
     halaman: string
+    /** Manifes updater Tauri (`*-updater.json`) untuk pasang di dalam app; hanya desktop & bila CI menandatangani build. */
+    manifes?: string
 }
 
 export type RilisGithub = {
@@ -61,6 +63,12 @@ const BERKAS: Record<PlatformRilis, RegExp[]> = {
     ios: [/\.xcarchive\.zip$/i],
 }
 
+/** Manifes updater Tauri per platform, diunggah CI bila kunci tanda tangan updater tersedia. */
+const MANIFES: Partial<Record<PlatformRilis, RegExp>> = {
+    windows: /windows.*-updater\.json$/i,
+    macos: /macos.*-updater\.json$/i,
+}
+
 const POLA_TAG = /^release-(desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(?:-.+)?$/
 /** Satu tag staging memuat berkas semua platform yang dibuild pada nomor build itu. */
 const POLA_STAGING = /^staging-(\d+\.\d+\.\d+)-b(\d+)$/
@@ -74,6 +82,14 @@ function asetPlatform(r: RilisGithub, platform: PlatformRilis) {
     }
 
     return undefined
+}
+
+/** Info pembaruan dari satu rilis; `manifes` hanya diisi bila rilis memuatnya. */
+function infoRilis(r: RilisGithub, platform: PlatformRilis, versi: string, unduh: string): InfoPembaruan {
+    const pola = MANIFES[platform]
+    const manifes = pola && r.assets.find((a) => pola.test(a.name))?.browser_download_url
+
+    return { versi, tag: r.tag_name, unduh, halaman: r.html_url, ...(manifes ? { manifes } : {}) }
 }
 
 /** Saluran staging: tag staging-X.Y.Z-bN terbaru yang memuat berkas platform ini, bila lebih baru dari app. */
@@ -93,12 +109,12 @@ function pilihPembaruanStaging(rilis: RilisGithub[], platform: PlatformRilis, ve
         if (terbaik && !lebihBaru(dasar, build, terbaik.dasar, terbaik.build)) continue
         const aset = asetPlatform(r, platform)
         if (!aset) continue
-        terbaik = { versi: `${dasar}-b${build}`, tag: r.tag_name, unduh: aset.browser_download_url, halaman: r.html_url, build, dasar }
+        terbaik = { ...infoRilis(r, platform, `${dasar}-b${build}`, aset.browser_download_url), build, dasar }
     }
     if (!terbaik || !lebihBaru(terbaik.dasar, terbaik.build, versiApp.replace(/-.*$/, ''), buildApp)) return null
-    const { versi, tag, unduh, halaman } = terbaik
+    const { build: _build, dasar: _dasar, ...info } = terbaik
 
-    return { versi, tag, unduh, halaman }
+    return info
 }
 
 /** Platform pemasang untuk app ini; null = PWA/Linux (tidak ada pembaruan lewat rilis). */
@@ -147,7 +163,7 @@ export function pilihPembaruan(
         const aset = asetPlatform(r, platform)
         if (!aset) continue
 
-        terbaik = { versi, tag: r.tag_name, unduh: aset.browser_download_url, halaman: r.html_url }
+        terbaik = infoRilis(r, platform, versi, aset.browser_download_url)
     }
 
     return terbaik && (bandingkanVersi(terbaik.versi, versiApp) ?? 0) > 0 ? terbaik : null
