@@ -5,25 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 type Baterai = EventTarget & { level: number; charging: boolean }
 
-/** Pembaruan PWA yang menunggu (service worker baru sudah terpasang). */
-async function registrasiMenunggu(): Promise<ServiceWorkerRegistration | null> {
-    const reg = await navigator.serviceWorker?.getRegistration().catch(() => undefined)
-    await reg?.update().catch(() => undefined)
-
-    return reg?.waiting ? reg : null
-}
-
-/** Pasang versi baru lalu muat ulang — hanya dari halaman persiapan, tidak pernah saat mengerjakan. */
-export async function terapkanPembaruan(): Promise<void> {
-    const reg = await registrasiMenunggu()
-    if (!reg?.waiting) {
-        location.reload()
-
-        return
-    }
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true })
-    reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-}
+// Dipakai juga oleh halaman Persiapan (aksi "Perbarui" di cek versi).
+export { terapkanPembaruan } from '@/lib/pembaruanPwa'
 
 /** Cek kesiapan yang diperbarui saat layar, orientasi, layar penuh, pembaruan, atau baterai berubah. */
 export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined, aplikasi?: InfoAplikasi) {
