@@ -121,21 +121,36 @@ jobs:
           node scripts/set-version.mjs "${{ steps.version.outputs.version_name }}" "${{ steps.version.outputs.build_number }}"
 
       - name: Build Web App & Desktop macOS App
+        id: build
         env:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
           VITE_APP_BUILD: ${{ steps.version.outputs.build_number }}
           VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
           VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
+          # Updater di dalam app (opsional): tanpa keduanya, build tetap jalan dan app memakai unduh manual.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
+          ARGS=()
           # Staging: nama, identifier, & ikon terpisah (bisa dipasang berdampingan dengan produksi).
-          if [ "${VITE_LINGKUNGAN}" = staging ]; then npx @tauri-apps/cli build --config src-tauri/tauri.staging.conf.json; else npx @tauri-apps/cli build; fi
+          if [ "${VITE_LINGKUNGAN}" = staging ]; then ARGS+=(--config src-tauri/tauri.staging.conf.json); fi
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_UPDATER_PUBKEY" ]; then
+            ARGS+=(--config "$(node -e 'console.log(JSON.stringify({bundle:{createUpdaterArtifacts:true},plugins:{updater:{pubkey:process.env.TAURI_UPDATER_PUBKEY}}}))')")
+            echo "updater=true" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::Updater di dalam app nonaktif: isi secret TAURI_SIGNING_PRIVATE_KEY dan variable TAURI_UPDATER_PUBKEY."
+          fi
+          npx @tauri-apps/cli build "${ARGS[@]}"
 
       # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installer
         id: installer
+        env:
+          RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
           DMG=$(ls apps/ujian/src-tauri/target/release/bundle/dmg/*.dmg)
           # Tauri: "<Produk>_<versi>_<arch>.dmg"
@@ -144,6 +159,22 @@ jobs:
           OUT="$RUNNER_TEMP/installer"
           mkdir -p "$OUT"
           cp "$DMG" "$OUT/$BASE-$ARCH.dmg"
+          # Manifes updater: hanya bila build ditandatangani dan berkas akan diterbitkan ke rilis (tag-nya pasti).
+          TAG=""
+          if [[ "${{ github.ref }}" == refs/tags/release-* ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [ "${{ inputs.terbitkan_staging }}" = true ] && [ "${{ steps.env.outputs.target }}" = staging ]; then
+            TAG="staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
+          fi
+          if [ "${{ steps.build.outputs.updater }}" = true ] && [ -n "$TAG" ]; then
+            TARBALL=$(ls apps/ujian/src-tauri/target/release/bundle/macos/*.app.tar.gz)
+            SIG="$TARBALL.sig"
+            TARGET_ARCH="darwin-$(echo "$ARCH" | sed -E 's/^x64$/x86_64/; s/^arm64$/aarch64/')"
+            ASET="$BASE-$ARCH.app.tar.gz"
+            cp "$TARBALL" "$OUT/$ASET"
+            node scripts/buat-manifes-updater.mjs "$OUT/$BASE-updater.json" "${{ steps.version.outputs.version_name }}" "$TARGET_ARCH" \
+              "https://github.com/$RELEASE_REPO/releases/download/$TAG/$ASET" "$SIG"
+          fi
           ls -la "$OUT"
           echo "name=$BASE" >> $GITHUB_OUTPUT
           echo "dir=$OUT" >> $GITHUB_OUTPUT

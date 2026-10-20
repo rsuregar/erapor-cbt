@@ -148,6 +148,19 @@ Saat dibuka (Windows, macOS, Android, iOS; bukan PWA), halaman **Masuk** dan **B
 * Web PWA tidak memakai cek ini; PWA diperbarui lewat service worker setiap deploy.
 * **macOS**: app ditandatangani ad-hoc (`bundle.macOS.signingIdentity: "-"` di `tauri.conf.json`) karena belum ada sertifikat Apple Developer ID. Saat pertama dibuka, macOS menolak dengan pesan "Apple tidak dapat memeriksa…"; buka **Pengaturan Sistem → Privasi & Keamanan → Tetap Buka** (atau `xattr -dr com.apple.quarantine "/Applications/CBT Al Akhyar.app"`). Tanpa tanda tangan ad-hoc seluruh bundle, macOS menyebut app "rusak" (*damaged*) dan tidak bisa dibuka sama sekali — ini terjadi pada rilis macOS sebelum 0.2.1. Untuk menghapus langkah manual ini perlu Developer ID + notarisasi (akun Apple Developer).
 * Tombol **Unduh pembaruan** membuka tautan installer di browser sistem; pemasangan dilakukan manual. Di Exam Browser desktop, mode kios dilepas sementara agar browser terlihat dan dipulihkan saat jendela app difokuskan lagi. Spanduk tidak muncul di layar ujian.
+* **Desktop (Windows/macOS) dengan updater aktif**: spanduk menampilkan **Perbarui sekarang**. App mengunduh pembaruan dengan bilah progres, memverifikasi tanda tangannya, memasang, lalu terbuka kembali otomatis. **Unduh manual** tetap tersedia sebagai cadangan (juga dipakai otomatis bila pembaruan di dalam app gagal). Lihat prasyarat di bawah.
+
+#### Prasyarat updater desktop di dalam app (sekali jalan)
+Tanpa langkah ini build tetap berjalan normal, hanya saja app desktop memakai unduh manual.
+1. Buat pasangan kunci di komputer pengelola (bukan di CI): `npx @tauri-apps/cli signer generate -w ~/.tauri/cbt-updater.key`. Simpan kunci privat & kata sandinya di tempat aman. **Kunci hilang = app terpasang tidak bisa menerima pembaruan otomatis lagi** (harus pasang ulang manual).
+2. Di repo kode (`Settings → Secrets and variables → Actions`, pada environment `production` dan `staging`):
+   * secret **`TAURI_SIGNING_PRIVATE_KEY`** = isi berkas `~/.tauri/cbt-updater.key`
+   * secret **`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`** = kata sandinya (kosongkan bila tanpa sandi)
+   * variable **`TAURI_UPDATER_PUBKEY`** = isi berkas `~/.tauri/cbt-updater.key.pub`
+3. Rilis berikutnya memuat berkas tambahan: `*-updater.json` (manifes) per platform dan, untuk macOS, `*.app.tar.gz`. Windows memakai pemasang `*-setup.exe` yang sama.
+4. **Rilis pertama yang membawa pubkey tetap harus dipasang manual**; mulai rilis sesudahnya pembaruan bisa dari dalam app. App dari build tanpa pubkey tidak pernah menampilkan tombol **Perbarui sekarang**.
+
+Rincian teknis: web memilih rilis (logika di atas) lalu mengirim URL manifes ke perintah Rust `pasang_pembaruan` (`src-tauri/src/pembaruan.rs`). Manifes hanya diterima dari `https://github.com/`, dan berkas pembaruan ditolak bila tanda tangannya tidak cocok dengan pubkey yang tertanam di app.
 * iOS: berkas rilis adalah arsip tanpa tanda tangan, bukan IPA yang bisa dipasang langsung; distribusi iOS ke murid tetap lewat jalur Apple (TestFlight/App Store).
 * Jaringan/GitHub gagal → spanduk tidak tampil (tanpa galat).
 

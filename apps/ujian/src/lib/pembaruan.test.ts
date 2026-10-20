@@ -99,4 +99,30 @@ describe('pilihPembaruan', () => {
             expect(pilihPembaruan(r, 'windows', '0.3.0', st)?.tag).toBe('staging-0.3.0-b20')
         })
     })
+
+    describe('manifes updater desktop', () => {
+        const berkas = [
+            'cbt-al-akhyar-windows-v1.1.0-b5-x64-setup.exe',
+            'cbt-al-akhyar-windows-v1.1.0-b5-updater.json',
+            'cbt-al-akhyar-macos-v1.1.0-b5-arm64.dmg',
+            'cbt-al-akhyar-macos-v1.1.0-b5-updater.json',
+        ]
+
+        it('memilih manifes milik platform sendiri', () => {
+            const r = [rilis('release-desktop-1.1.0', berkas)]
+            expect(pilihPembaruan(r, 'windows', '1.0.0')?.manifes).toBe('https://dl/release-desktop-1.1.0/cbt-al-akhyar-windows-v1.1.0-b5-updater.json')
+            expect(pilihPembaruan(r, 'macos', '1.0.0')?.manifes).toBe('https://dl/release-desktop-1.1.0/cbt-al-akhyar-macos-v1.1.0-b5-updater.json')
+        })
+
+        it('tanpa manifes (build tanpa kunci updater) tetap menawarkan unduh manual', () => {
+            const hasil = pilihPembaruan([rilis('release-desktop-1.1.0', ['x.exe'])], 'windows', '1.0.0')
+            expect(hasil?.unduh).toBe('https://dl/release-desktop-1.1.0/x.exe')
+            expect(hasil).not.toHaveProperty('manifes')
+        })
+
+        it('saluran staging juga membawa manifes', () => {
+            const r = [rilis('staging-1.1.0-b7', berkas, { prerelease: true })]
+            expect(pilihPembaruan(r, 'macos', '1.1.0', { staging: true, buildApp: 6 })?.manifes).toMatch(/macos.*-updater\.json$/)
+        })
+    })
 })
