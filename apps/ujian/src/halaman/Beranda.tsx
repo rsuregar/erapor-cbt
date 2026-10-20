@@ -5,7 +5,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
-import { isNative, isTauri, keluarAplikasi } from '@/lib/native'
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian } from '@/lib/ujian'
@@ -106,8 +106,7 @@ export default function Beranda() {
     // Cheatsheet Pengawas: Shortcut keyboard khusus proktor untuk membuka dialog tutup aplikasi
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
-            const isModifier = e.ctrlKey || e.metaKey || e.altKey
-            if (isModifier && e.shiftKey && (e.key === 'Q' || e.key === 'q' || e.key === 'X' || e.key === 'x')) {
+            if (isShortcutPengawas(e)) {
                 e.preventDefault()
                 setModalPengawasKeluar(true)
             }
