@@ -24,6 +24,7 @@ import {
     CloudOff,
     Eye,
     EyeOff,
+    Keyboard,
     Layers,
     Loader2,
     Lock,
@@ -234,6 +235,72 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     const ringkas = useMemo(() => hitung(soal, u.jawaban), [soal, u.jawaban])
 
+    // Pintasan keyboard (laptop / Exam Browser). Keadaan terbaru dibaca lewat ref supaya
+    // pendengar dipasang sekali; mati saat mengetik di kolom jawaban atau ada lapisan terbuka.
+    const [bantuanPintasan, setBantuanPintasan] = useState(false)
+    const pintasan = useRef({
+        aktif: false,
+        terhalang: false,
+        soal: undefined as SoalPaket | undefined,
+        jawaban: undefined as IsiJawaban[string] | undefined,
+        indeks: 0,
+        total: 0,
+    })
+    pintasan.current = {
+        aktif: u.status === 'mengerjakan' && !tinjau,
+        terhalang: bantuanPintasan || panel || konfirmasi || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh),
+        soal: aktif,
+        jawaban: aktif ? u.jawaban[aktif.id] : undefined,
+        indeks,
+        total: soal.length,
+    }
+    const jawabRef = useRef(u.jawab)
+    jawabRef.current = u.jawab
+    useEffect(() => {
+        const tekan = (e: KeyboardEvent) => {
+            if (e.ctrlKey || e.metaKey || e.altKey) return
+            const target = e.target as HTMLElement | null
+            if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+            const k = pintasan.current
+            if (!k.aktif) return
+            if (e.key === '?') {
+                e.preventDefault()
+                setBantuanPintasan((v) => !v)
+
+                return
+            }
+            if (k.terhalang || !k.soal) return
+            const s = k.soal
+            const j = k.jawaban
+            if (e.key === 'ArrowRight') {
+                e.preventDefault()
+                if (k.indeks < k.total - 1) setIndeks(k.indeks + 1)
+                else setTinjau(true)
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault()
+                if (k.indeks > 0) setIndeks(k.indeks - 1)
+            } else if (e.key.toLowerCase() === 'r') {
+                e.preventDefault()
+                jawabRef.current(s.id, j?.jawaban ?? null, !j?.ragu)
+            } else if (['pilihan_ganda', 'pg_stimulus', 'pg_kompleks'].includes(s.jenis)) {
+                const i = 'abcdef'.indexOf(e.key.toLowerCase())
+                const opsi = (s.opsi as { id: string }[] | null) ?? []
+                if (i < 0 || !opsi[i]) return
+                e.preventDefault()
+                const id = opsi[i].id
+                if (s.jenis === 'pg_kompleks') {
+                    const dipilih = (j?.jawaban as string[] | null) ?? []
+                    jawabRef.current(s.id, dipilih.includes(id) ? dipilih.filter((x) => x !== id) : [...dipilih, id], j?.ragu ?? false)
+                } else {
+                    jawabRef.current(s.id, id, j?.ragu ?? false)
+                }
+            }
+        }
+        document.addEventListener('keydown', tekan)
+
+        return () => document.removeEventListener('keydown', tekan)
+    }, [])
+
     if (u.status === 'memuat') return <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Membuka ujian…" />
     if (u.status === 'tidak_ada') {
         return (
@@ -440,6 +507,14 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             {nama ? nama.charAt(0).toUpperCase() : 'P'}
                         </span>
                         <p className="truncate text-xs font-semibold text-slate-700">{nama}</p>
+                        <button
+                            type="button"
+                            onClick={() => setBantuanPintasan(true)}
+                            className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 lg:inline-flex"
+                            aria-label="Lihat pintasan keyboard"
+                        >
+                            <Keyboard className="size-4" /> Pintasan
+                        </button>
                     </div>
 
                     {/* HP: ragu-ragu & ukuran teks di zona jempol (renderer menyembunyikannya di atas). */}
@@ -607,6 +682,39 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         {pesanProteksi}
                     </p>
                 </div>
+            )}
+
+            {bantuanPintasan && (
+                <Dialog onTutup={() => setBantuanPintasan(false)}>
+                    <h2 id="judul-dialog" className="flex items-center gap-2 text-title">
+                        <Keyboard className="size-5 text-primary" /> Pintasan keyboard
+                    </h2>
+                    <dl className="mt-4 space-y-2.5 text-sm">
+                        {[
+                            ['A – E', 'Pilih jawaban (pilihan ganda)'],
+                            ['→', 'Soal berikutnya'],
+                            ['←', 'Soal sebelumnya'],
+                            ['R', 'Tandai / batalkan ragu-ragu'],
+                            ['?', 'Buka / tutup daftar ini'],
+                            ['Esc', 'Tutup jendela yang terbuka'],
+                        ].map(([tombol, arti]) => (
+                            <div key={tombol} className="flex items-center gap-3">
+                                <dt className="w-16 shrink-0">
+                                    <kbd className="inline-flex min-w-9 items-center justify-center rounded-md border border-slate-300 border-b-2 bg-slate-50 px-2 py-0.5 font-sans text-xs font-bold text-ink">
+                                        {tombol}
+                                    </kbd>
+                                </dt>
+                                <dd className="text-slate-700">{arti}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                    <p className="mt-4 text-xs text-slate-500">Pintasan tidak aktif saat kamu mengetik di kolom jawaban.</p>
+                    <div className="mt-5 flex justify-end">
+                        <Tombol onClick={() => setBantuanPintasan(false)} data-fokus-awal>
+                            Mengerti
+                        </Tombol>
+                    </div>
+                </Dialog>
             )}
 
             {blokir.status === 'blocked' && (

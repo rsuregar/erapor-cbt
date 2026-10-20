@@ -14,6 +14,21 @@ import type {
 const HURUF = 'ABCDEF'
 
 /**
+ * Petunjuk cara menjawab per jenis soal — satu baris di atas area jawaban, terutama
+ * untuk jenis yang jarang ditemui murid (benar/salah, menjodohkan, uraian).
+ */
+const PETUNJUK: Partial<Record<SoalTampil['jenis'], string>> = {
+    pilihan_ganda: 'Pilih satu jawaban yang paling tepat.',
+    pg_stimulus: 'Baca bacaannya, lalu pilih satu jawaban yang paling tepat.',
+    pg_kompleks: 'Boleh pilih lebih dari satu. Pilih semua jawaban yang benar.',
+    benar_salah: 'Tentukan Benar atau Salah untuk setiap pernyataan.',
+    menjodohkan: 'Pilih pasangan yang tepat untuk setiap nomor. Daftar pasangan ada di bawah.',
+    isian: 'Tulis jawaban singkat, berupa kata atau angka.',
+    uraian: 'Tulis jawabanmu dengan kalimat sendiri. Tersimpan otomatis saat kamu mengetik.',
+    studi_kasus: 'Baca kasusnya, lalu tulis jawabanmu. Tersimpan otomatis saat kamu mengetik.',
+}
+
+/**
  * Tata letak:
  *  - 'otomatis'  : dua kolom mulai lebar lg (web / tablet lanskap), satu
  *                  kolom di bawahnya. Dipakai app murid.
@@ -203,6 +218,15 @@ export default function TampilanSoal({
 
                 <div className="space-y-4" style={{ fontSize: `${skala * 100}%` }}>
                     <RenderKonten doc={soal.pertanyaan} />
+                    {PETUNJUK[soal.jenis] && (
+                        <p className="flex items-start gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                            <svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0 text-sky-700 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 16v-4M12 8h.01" />
+                            </svg>
+                            <span>{PETUNJUK[soal.jenis]}</span>
+                        </p>
+                    )}
                     <IsianJawaban soal={soal} jawaban={jawaban} ubah={ubah} kunci={kunci} nonaktif={nonaktif} />
                 </div>
             </div>
@@ -237,11 +261,6 @@ function IsianJawaban({
             )
             return (
                 <div className="space-y-2">
-                    {kompleks && (
-                        <p className="text-sm font-semibold text-sky-800 dark:text-sky-300">
-                            Boleh pilih lebih dari satu. Pilih semua jawaban yang benar.
-                        </p>
-                    )}
                     {opsi.map((o, i) => {
                         const aktif = dipilih.includes(o.id)
                         return (
