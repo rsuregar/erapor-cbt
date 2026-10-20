@@ -46,7 +46,10 @@ type Props = {
     section?: string | null
     jawaban?: Jawaban
     onJawab?: (jawaban: Jawaban) => void
-    /** Pratinjau guru: tandai kunci. Jangan pernah diisi di app murid. */
+    /**
+     * Tandai kunci: pratinjau/tinjau guru, dan halaman Hasil murid setelah pembahasan
+     * dibuka server. Jangan pernah diisi di layar mengerjakan.
+     */
     kunci?: Kunci
     nonaktif?: boolean
     tata?: TataLetak
@@ -59,6 +62,8 @@ type Props = {
      * (zona jempol) oleh pemanggil — di bawah lebar sm keduanya disembunyikan di sini.
      */
     kontrolDiKaki?: boolean
+    /** Tanpa padding & lebar maksimum luar — untuk ditanam di kartu (halaman Hasil, tinjau guru). */
+    rapat?: boolean
 }
 
 /**
@@ -85,6 +90,7 @@ export default function TampilanSoal({
     skalaFont,
     onUbahSkalaFont,
     kontrolDiKaki = false,
+    rapat = false,
 }: Props) {
     const [skalaInternal, setSkalaInternal] = useState(1)
     const skala = skalaFont ?? skalaInternal
@@ -102,7 +108,9 @@ export default function TampilanSoal({
     // Mulai lg (atau 'dua-kolom' dipaksa) bacaan & soal masing-masing punya panel gulir.
     // Jangan campur pl-0/pr-0 dengan px-*: di CSS Tailwind pl/pr ditulis setelah px.
     const kelasGrid = !duaKolom
-        ? 'mx-auto max-w-3xl w-full pt-5 sm:pt-7 pb-10 px-4'
+        ? rapat
+            ? 'w-full'
+            : 'mx-auto max-w-3xl w-full pt-5 sm:pt-7 pb-10 px-4'
         : tata === 'dua-kolom'
           ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700 h-full min-h-full w-full'
           : 'grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-700 w-full lg:h-full'
@@ -229,7 +237,8 @@ export default function TampilanSoal({
 
                 <div className="space-y-4" style={{ fontSize: `${skala * 100}%` }}>
                     <RenderKonten doc={soal.pertanyaan} />
-                    {PETUNJUK[soal.jenis] && (
+                    {/* Tinjau (kunci + nonaktif): petunjuk cara menjawab tidak relevan lagi. */}
+                    {PETUNJUK[soal.jenis] && !(kunci && nonaktif) && (
                         <p className="flex items-start gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
                             <svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0 text-sky-700 dark:text-sky-400" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                                 <circle cx="12" cy="12" r="10" />
@@ -274,14 +283,19 @@ function IsianJawaban({
                 <div className="space-y-2">
                     {opsi.map((o, i) => {
                         const aktif = dipilih.includes(o.id)
+                        const kunciIni = benar.has(o.id)
+                        // Tinjau (ada kunci): pilihan yang bukan kunci ditandai salah.
+                        const salah = !!kunci && aktif && !kunciIni
                         return (
                             <label
                                 key={o.id}
                                 className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 px-3.5 py-3 transition-all duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
-                                    aktif
-                                        ? 'border-sky-600 bg-sky-50/70 shadow-2xs dark:border-sky-500 dark:bg-sky-950/40'
-                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600'
-                                } ${benar.has(o.id) ? 'outline outline-2 outline-offset-2 outline-emerald-500' : ''}`}
+                                    salah
+                                        ? 'border-rose-500 bg-rose-50/70 dark:border-rose-400 dark:bg-rose-950/40'
+                                        : aktif
+                                          ? 'border-sky-600 bg-sky-50/70 shadow-2xs dark:border-sky-500 dark:bg-sky-950/40'
+                                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600'
+                                } ${kunciIni ? 'outline outline-2 outline-offset-2 outline-emerald-500' : ''}`}
                             >
                                 <input
                                     type={kompleks ? 'checkbox' : 'radio'}
@@ -303,11 +317,20 @@ function IsianJawaban({
                                     aria-hidden
                                     className={`grid size-7 sm:size-8 shrink-0 place-items-center text-xs sm:text-sm font-bold transition-colors ${
                                         kompleks ? 'rounded-md' : 'rounded-full'
-                                    } ${aktif ? 'bg-sky-800 text-white shadow-2xs dark:bg-sky-500' : 'border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}
+                                    } ${salah ? 'bg-rose-600 text-white' : aktif ? 'bg-sky-800 text-white shadow-2xs dark:bg-sky-500' : 'border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}
                                 >
                                     {HURUF[i]}
                                 </span>
                                 <RenderKonten doc={o.konten} className="flex-1 pt-0.5" />
+                                {/* Warna saja tidak cukup (buta warna): sebut juga dengan teks. */}
+                                {(kunciIni || (kunci && aktif)) && (
+                                    <span className="mt-0.5 flex shrink-0 flex-col items-end gap-1 text-xs font-bold">
+                                        {kunciIni && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">Kunci</span>}
+                                        {kunci && aktif && (
+                                            <span className={`rounded-full px-2 py-0.5 ${salah ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200' : 'bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200'}`}>Dipilih</span>
+                                        )}
+                                    </span>
+                                )}
                             </label>
                         )
                     })}
@@ -334,11 +357,14 @@ function IsianJawaban({
                                 {[true, false].map((nilai) => {
                                     const aktif = isi[p.id] === nilai
                                     const label = nilai ? opsi.label_benar : opsi.label_salah
+                                    const salah = p.id in k && aktif && k[p.id] !== nilai
                                     return (
                                         <label
                                             key={String(nilai)}
                                             className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-3 text-sm font-bold transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
-                                                aktif
+                                                salah
+                                                    ? 'border-rose-600 bg-rose-600 text-white'
+                                                    : aktif
                                                     ? nilai
                                                         ? 'border-sky-800 bg-sky-800 text-white'
                                                         : 'border-slate-700 bg-slate-700 text-white dark:border-slate-300 dark:bg-slate-300 dark:text-slate-900'
@@ -354,6 +380,7 @@ function IsianJawaban({
                                                 onChange={() => ubah({ ...isi, [p.id]: nilai })}
                                             />
                                             {label}
+                                            {k[p.id] === nilai && <span className="text-xs font-semibold opacity-90">· Kunci</span>}
                                         </label>
                                     )
                                 })}

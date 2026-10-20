@@ -4,7 +4,7 @@ import { sesi } from "@/lib/sesi";
 import { hariTanggal, jamMenit } from "@/lib/tanggal";
 import { cn } from "@/lib/utils";
 import { GalatApi } from "@erapor-cbt/exam-core";
-import { RenderKonten, type TiptapNode } from "@erapor-cbt/question-renderer";
+import { RenderKonten, TampilanSoal, type DokumenTiptap, type Jawaban, type Kunci, type Opsi, type TiptapNode } from "@erapor-cbt/question-renderer";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -534,12 +534,15 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                                             </div>
                                         )}
 
-                                    {/* Teks Pertanyaan */}
-                                    <div className="text-sm sm:text-base text-slate-800 leading-relaxed font-medium">
-                                        <RenderKonten
-                                            doc={s.pertanyaan as TiptapNode}
-                                        />
-                                    </div>
+                                    {/* Soal + jawabanmu, dan kunci bila pembahasan sudah dibuka (renderer yang sama dengan layar ujian). */}
+                                    <TampilanSoal
+                                        soal={{ jenis: s.jenis, pertanyaan: s.pertanyaan as DokumenTiptap, opsi: s.opsi as Opsi }}
+                                        jawaban={(s.jawaban ?? null) as Jawaban}
+                                        kunci={(s.kunci ?? undefined) as Kunci | undefined}
+                                        tata="satu-kolom"
+                                        nonaktif
+                                        rapat
+                                    />
 
                                     {/* Catatan / Komentar Guru (Bila ada) */}
                                     {s.komentar.length > 0 && (
