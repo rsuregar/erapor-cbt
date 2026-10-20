@@ -1,14 +1,13 @@
 import { useId, useState } from 'react'
+import Menjodohkan from './Menjodohkan'
 import RenderKonten from './RenderKonten'
 import type {
-    DokumenTiptap,
     ItemKonten,
     Jawaban,
     Kunci,
     OpsiBenarSalah,
     OpsiMenjodohkan,
     SoalTampil,
-    TiptapNode,
 } from './types'
 
 const HURUF = 'ABCDEF'
@@ -22,7 +21,7 @@ const PETUNJUK: Partial<Record<SoalTampil['jenis'], string>> = {
     pg_stimulus: 'Baca bacaannya, lalu pilih satu jawaban yang paling tepat.',
     pg_kompleks: 'Boleh pilih lebih dari satu. Pilih semua jawaban yang benar.',
     benar_salah: 'Tentukan Benar atau Salah untuk setiap pernyataan.',
-    menjodohkan: 'Pilih pasangan yang tepat untuk setiap nomor. Daftar pasangan ada di bawah.',
+    menjodohkan: 'Ketuk nomor di kiri, lalu ketuk pasangannya di kanan. Di laptop, garis bisa juga ditarik dengan mouse.',
     isian: 'Tulis jawaban singkat, berupa kata atau angka.',
     uraian: 'Tulis jawabanmu dengan kalimat sendiri. Tersimpan otomatis saat kamu mengetik.',
     studi_kasus: 'Baca kasusnya, lalu tulis jawabanmu. Tersimpan otomatis saat kamu mengetik.',
@@ -354,56 +353,16 @@ function IsianJawaban({
         }
 
         case 'menjodohkan': {
-            // Dropdown per item kiri: berfungsi sama baiknya di HP dan desktop.
-            // Tarik-garis di desktop bisa menyusul tanpa mengubah format jawaban.
             const opsi = soal.opsi as OpsiMenjodohkan | null
-            const isi = (jawaban as Record<string, string>) ?? {}
-            const k = (kunci as Record<string, string> | undefined) ?? {}
             if (!opsi) return null
             return (
-                <div className="space-y-3">
-                    <div className="space-y-2">
-                        {opsi.kiri.map((kiri, i) => (
-                            <div
-                                key={kiri.id}
-                                className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_minmax(10rem,40%)] dark:border-slate-700"
-                            >
-                                <div className="flex gap-2">
-                                    <span className="font-semibold">{i + 1}.</span>
-                                    <RenderKonten doc={kiri.konten} className="flex-1" />
-                                </div>
-                                <select
-                                    data-isian-jawaban
-                                    aria-label={`Pasangan untuk nomor ${i + 1}`}
-                                    className="h-11 rounded-lg border-2 border-slate-300 bg-white px-2.5 text-base outline-none transition focus:border-sky-600 focus:ring-4 focus:ring-sky-600/15 dark:border-slate-600 dark:bg-slate-900"
-                                    value={isi[kiri.id] ?? ''}
-                                    disabled={nonaktif}
-                                    onChange={(e) => ubah({ ...isi, [kiri.id]: e.target.value })}
-                                >
-                                    <option value="">— pilih pasangan —</option>
-                                    {opsi.kanan.map((kanan, j) => (
-                                        <option key={kanan.id} value={kanan.id}>
-                                            {/* Huruf + cuplikan teks: murid tak perlu menghafal daftar di bawah. */}
-                                            {HURUF_PASANGAN(j)}. {teksRingkas(kanan.konten)}
-                                            {k[kiri.id] === kanan.id ? ' ✓' : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Pilihan pasangan</p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            {opsi.kanan.map((kanan, j) => (
-                                <div key={kanan.id} className="flex gap-2">
-                                    <span className="font-semibold">{HURUF_PASANGAN(j)}.</span>
-                                    <RenderKonten doc={kanan.konten} className="flex-1" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                <Menjodohkan
+                    opsi={opsi}
+                    isi={(jawaban as Record<string, string>) ?? {}}
+                    ubah={ubah}
+                    kunci={kunci as Record<string, string> | undefined}
+                    nonaktif={nonaktif}
+                />
             )
         }
 
@@ -450,18 +409,4 @@ function IsianJawaban({
             )
         }
     }
-}
-
-/** Teks polos singkat dari konten Tiptap (rumus: latex mentah) untuk label <option>. */
-function teksRingkas(doc: DokumenTiptap, batas = 48): string {
-    const kumpul = (n: TiptapNode): string =>
-        n.type === 'text' ? (n.text ?? '') : n.attrs?.latex ? String(n.attrs.latex) : (n.content ?? []).map(kumpul).join(' ')
-    const teks = kumpul(doc).replace(/\s+/g, ' ').trim()
-    return teks.length > batas ? `${teks.slice(0, batas - 1)}…` : teks
-}
-
-/** Label pasangan kanan: A, B, C, … lalu AA bila lebih dari 26. */
-function HURUF_PASANGAN(i: number): string {
-    const abjad = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    return i < 26 ? abjad[i] : abjad[Math.floor(i / 26) - 1] + abjad[i % 26]
 }
