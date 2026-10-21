@@ -7,10 +7,11 @@ import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangk
 import { useOnline } from '@/lib/useOnline'
 import { usePelanggaran } from '@/lib/usePelanggaran'
 import { useProteksiKonten } from '@/lib/useProteksiKonten'
+import { srcLokal } from '@/lib/ujian'
 import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
 import { cn } from '@/lib/utils'
 import type { Jawaban as JawabanInti, SoalPaket } from '@erapor-cbt/exam-core'
-import { TampilanSoal, type DokumenTiptap, type Jawaban, type Opsi, type SoalTampil } from '@erapor-cbt/question-renderer'
+import { PenyediaMedia, TampilanSoal, type DokumenTiptap, type Jawaban, type Opsi, type SoalTampil } from '@erapor-cbt/question-renderer'
 import { Link, useBlocker, useNavigate } from '@tanstack/react-router'
 import {
     AlertTriangle,
@@ -33,7 +34,7 @@ import {
     Unlock,
     X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const TEKS = new Set(['isian', 'uraian', 'studi_kasus'])
 
@@ -91,6 +92,9 @@ function keTampil(s: SoalPaket, stimulus: Record<string, { judul: string | null;
 export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const navigate = useNavigate()
     const u = useSesiUjian(attemptId)
+    // Gambar soal dari berkas lokal hasil pra-unduh (app native) agar tetap tampil saat offline.
+    const petaMedia = u.data?.media
+    const ubahSrcMedia = useCallback((src: string) => srcLokal(petaMedia, src), [petaMedia])
     const level = u.data?.sesi.ujian.level_keamanan
     const wajibLp = !!level && wajibLayarPenuh(level)
     const [layarPenuh, setLayarPenuh] = useState(layarPenuhAktif)
@@ -519,19 +523,21 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                     u.data && (
                         // Satu-satunya area gulir soal (HP: bacaan + soal mengalir; lg: panel per kolom).
                         <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 min-h-0 overflow-y-auto overscroll-contain">
-                            <TampilanSoal
-                                key={aktif.id}
-                                soal={keTampil(aktif, u.data.isi.stimulus)}
-                                nomor={aktif.nomor}
-                                section={aktif.section}
-                                jawaban={(j?.jawaban ?? null) as Jawaban}
-                                ragu={j?.ragu ?? false}
-                                onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
-                                onRagu={(r) => u.jawab(aktif.id, j?.jawaban ?? null, r)}
-                                skalaFont={skalaFont}
-                                onUbahSkalaFont={ubahSkalaFont}
-                                kontrolDiKaki
-                            />
+                            <PenyediaMedia ubahSrc={ubahSrcMedia}>
+                                <TampilanSoal
+                                    key={aktif.id}
+                                    soal={keTampil(aktif, u.data.isi.stimulus)}
+                                    nomor={aktif.nomor}
+                                    section={aktif.section}
+                                    jawaban={(j?.jawaban ?? null) as Jawaban}
+                                    ragu={j?.ragu ?? false}
+                                    onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
+                                    onRagu={(r) => u.jawab(aktif.id, j?.jawaban ?? null, r)}
+                                    skalaFont={skalaFont}
+                                    onUbahSkalaFont={ubahSkalaFont}
+                                    kontrolDiKaki
+                                />
+                            </PenyediaMedia>
                         </div>
                     )
                 )}

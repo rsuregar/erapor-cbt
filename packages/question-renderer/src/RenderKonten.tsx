@@ -1,6 +1,6 @@
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import { Fragment, ReactNode } from 'react'
+import { createContext, Fragment, ReactNode, useContext } from 'react'
 import { arahTeks, teksNode } from './arahTeks'
 import type { TiptapMark, TiptapNode } from './types'
 
@@ -11,6 +11,18 @@ import type { TiptapMark, TiptapNode } from './types'
  *
  * Teks Arab: arah tiap paragraf ditentukan dari isinya (lihat arahTeks).
  */
+
+/** Pengganti src media; default: src apa adanya (pratinjau guru e-Rapor tidak memasang penyedia). */
+const KonteksMedia = createContext<(src: string) => string>((src) => src)
+
+/**
+ * Arahkan src media soal ke salinan lain, mis. berkas lokal hasil pra-unduh
+ * di app ujian native agar gambar tetap tampil saat offline.
+ */
+export function PenyediaMedia({ ubahSrc, children }: { ubahSrc: (src: string) => string; children: ReactNode }) {
+    return <KonteksMedia.Provider value={ubahSrc}>{children}</KonteksMedia.Provider>
+}
+
 export default function RenderKonten({
     doc,
     className = '',
@@ -82,14 +94,7 @@ function renderNode(node: TiptapNode): ReactNode {
         case 'horizontalRule':
             return <hr className="my-2 border-slate-200" />
         case 'image':
-            return node.attrs?.src ? (
-                <img
-                    src={node.attrs.src}
-                    alt={node.attrs.alt ?? ''}
-                    loading="lazy"
-                    className="my-1 inline-block max-h-80 max-w-full rounded align-middle"
-                />
-            ) : null
+            return node.attrs?.src ? <Gambar src={node.attrs.src} alt={node.attrs.alt ?? ''} /> : null
         case 'table':
             return (
                 <div className="overflow-x-auto">
@@ -151,6 +156,11 @@ function renderTeks(teks: string, marks?: TiptapMark[]): ReactNode {
         }
     }
     return hasil
+}
+
+function Gambar({ src, alt }: { src: string; alt: string }) {
+    const ubahSrc = useContext(KonteksMedia)
+    return <img src={ubahSrc(src)} alt={alt} loading="lazy" className="my-1 inline-block max-h-80 max-w-full rounded align-middle" />
 }
 
 function Rumus({ latex, blok }: { latex: string; blok: boolean }) {

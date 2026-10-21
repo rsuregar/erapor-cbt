@@ -101,6 +101,21 @@ dan jembatan JS tidak lagi mengubah galat baca menjadi "data tidak ada".
 
 ---
 
+### D. Media Soal (Gambar) Offline
+Paket soal di SQLite hanya berisi teks (JSON terenkripsi); gambar soal disimpan terpisah sebagai **berkas di penyimpanan perangkat**, bukan di SQLite/IndexedDB:
+
+| Platform | Lokasi berkas | Diunduh oleh | Ditampilkan lewat |
+| :--- | :--- | :--- | :--- |
+| **Desktop (Tauri)** | `<app data>/media/<sha256 url>.<ext>` | `media::unduh_media` (Rust, `src-tauri/src/media.rs`) | `convertFileSrc()` → protokol asset (cakupan `$APPDATA/media/**` di `tauri.conf.json`) |
+| **Android** | `files/media/<sha256 url>.<ext>` (penyimpanan internal app) | `UjianNativePlugin.unduhMedia` (Java) | `Capacitor.convertFileSrc()` |
+| **PWA** | Cache Storage `cbt-media` | `fetch` (no-cors) | Service worker (`CacheFirst`, `vite.config.ts`) |
+
+* **Kenapa berkas, bukan SQLite/base64:** media diunduh kode native, jadi tidak terhalang CORS server `/storage` (di JavaScript, respons `no-cors` "opaque" tidak bisa dibaca isinya); tanpa tambahan ±33% base64; SQLite tetap ramping.
+* **Kenapa bukan Cache Storage di desktop:** WKWebView (macOS, skema `tauri://`) tidak mendukung service worker, dan WebView2 (Windows) tidak bisa diandalkan untuk itu; tanpa service worker, `<img>` tidak pernah membaca Cache Storage.
+* **Indeks:** SQLite menyimpan `media:<ujianId>` = { URL soal → path berkas }. Layar mengerjakan memetakan `src` gambar lewat `PenyediaMedia` (`question-renderer`); tanpa penyedia (pratinjau guru e-Rapor) `src` asli dipakai.
+* **Kesiapan:** tombol Mulai baru aktif setelah semua media tersimpan. Saat paket sudah ada di perangkat, media diperiksa ulang; berkas yang sudah ada tidak diunduh lagi, jadi pemeriksaan ini tetap jalan offline.
+* **Pembersihan:** setelah dikumpulkan, berkas media ujian itu dihapus, kecuali yang juga dipakai ujian lain yang sudah diunduh (nama berkas = hash URL, jadi dipakai bersama).
+
 ## 4. Rangkuman Bukti Pengujian (Test & Verification)
 
 - **Unit Test Kontrak Penyimpanan (`packages/exam-core/test/penyimpanan.test.ts`)**:

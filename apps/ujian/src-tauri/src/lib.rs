@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
 
+mod media;
 mod pembaruan;
 
 struct DbState(Mutex<Connection>);
@@ -154,6 +155,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
+            media::unduh_media,
+            media::hapus_media,
             pembaruan::pembaruan_tersedia,
             pembaruan::pasang_pembaruan,
             sqlite_ambil,
