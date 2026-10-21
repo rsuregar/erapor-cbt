@@ -159,8 +159,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab).
     const blokir = useBlocker({
-        shouldBlockFn: () => u.status === 'mengerjakan',
-        enableBeforeUnload: () => u.status === 'mengerjakan',
+        shouldBlockFn: () => u.status === 'mengerjakan' && !u.perangkatLain,
+        enableBeforeUnload: () => u.status === 'mengerjakan' && !u.perangkatLain,
         withResolver: true,
     })
 
@@ -822,6 +822,23 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         </span>
                         <h2 className="mt-3 text-title">Ujian dikunci</h2>
                         <p className="mt-1 text-sm">{alasanKunci(p)}</p>
+                    </div>
+                </div>
+            )}
+
+            {u.perangkatLain && (
+                <div role="alertdialog" aria-labelledby="judul-perangkat-lain" className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/80 p-6 backdrop-blur-sm">
+                    <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
+                        <span className="mx-auto inline-flex size-14 items-center justify-center rounded-full bg-coral-100">
+                            <Lock className="size-7 text-coral-600" />
+                        </span>
+                        <h2 id="judul-perangkat-lain" className="mt-3 text-title">
+                            Ujian dibuka di perangkat lain
+                        </h2>
+                        <p className="mt-1 text-sm">Satu akun hanya boleh mengerjakan di satu perangkat. Jawaban di layar ini tidak lagi dikirim. Panggil pengawas.</p>
+                        <Link to="/" className={`${kelasTombol('outline')} mt-4`}>
+                            Ke daftar ujian
+                        </Link>
                     </div>
                 </div>
             )}

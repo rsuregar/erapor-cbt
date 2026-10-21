@@ -41,6 +41,8 @@ export function useSesiUjian(attemptId: number) {
     const [ditolak, setDitolak] = useState<Record<string, AlasanDitolak | string>>({})
     /** null = dikumpulkan murid / waktu habis; selain itu diakhiri pengawas. */
     const [alasanSelesai, setAlasanSelesai] = useState<AlasanSelesai | null>(null)
+    /** Server menolak karena attempt ini sudah dipegang perangkat lain (akun dipakai bersama / pindah perangkat). */
+    const [perangkatLain, setPerangkatLain] = useState(false)
 
     const outbox = useRef<Outbox>()
     const jam = useRef<JamServer>()
@@ -126,6 +128,13 @@ export function useSesiUjian(attemptId: number) {
                 saatGalat: (g) => {
                     const pesan = (g.message || '').toLowerCase()
                     const kode = (g.kode || '').toUpperCase()
+                    if (kode === 'PERANGKAT_LAIN') {
+                        // Ujian sudah dibuka di perangkat lain: hentikan kirim, jangan dianggap selesai (409).
+                        setPerangkatLain(true)
+                        p.henti()
+
+                        return
+                    }
                     if (kode === 'TERKUNCI') {
                         setStatus('terkunci')
                     } else if (
@@ -262,6 +271,13 @@ export function useSesiUjian(attemptId: number) {
                         const g = e instanceof GalatApi ? e : null
                         const pesan = (g?.message || '').toLowerCase()
                         const kode = (g?.kode || '').toUpperCase()
+                        if (kode === 'PERANGKAT_LAIN') {
+                            await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
+                            setPerangkatLain(true)
+                            setStatus('mengerjakan')
+
+                            return
+                        }
                         if (
                             kode === 'SUDAH_SELESAI' ||
                             kode === 'SELESAI' ||
@@ -312,6 +328,7 @@ export function useSesiUjian(attemptId: number) {
         gagalSimpan,
         ditolak,
         alasanSelesai,
+        perangkatLain,
         jam: jam.current,
         msSejakMulai,
         jawab,

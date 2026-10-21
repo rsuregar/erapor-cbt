@@ -25,6 +25,7 @@ export const api = new KlienApi({
     ambilToken: () => sesi.token(),
     ambilPerangkatId: () => sesi.perangkatId(),
     saatTidakSah: () => {
+        sesi.catatKeluarPaksa()
         void sesi.keluar().then(() => window.location.assign('/masuk'))
     },
     fetch: (url, init) => {
