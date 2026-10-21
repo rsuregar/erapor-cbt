@@ -42,6 +42,8 @@ const TEKS = new Set(['isian', 'uraian', 'studi_kasus'])
 const JEDA_PESAN_PENGAWAS_MS = 10_000
 /** Layar "selesai" cukup lama untuk dibaca anak — penutup yang paling diingat. */
 const JEDA_SELESAI_MS = 6000
+/** Jeda coba ulang kumpul otomatis bila percobaan saat waktu habis gagal / ditahan. */
+const JEDA_COBA_KUMPUL_MS = 5000
 
 function terisi(j: JawabanInti | undefined): boolean {
     if (j === null || j === undefined) return false
@@ -134,6 +136,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const [pesanDitutup, setPesanDitutup] = useState<string | null>(null)
     const [sisaMs, setSisaMs] = useState<number | null>(null)
     const habisDikirim = useRef(false)
+    const [cobaKumpulLagi, setCobaKumpulLagi] = useState(0)
     const [skalaFont, setSkalaFont] = useState<number>(() => {
         try {
             const s = localStorage.getItem('cbt_skala_font')
@@ -194,13 +197,21 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
         return () => clearInterval(t)
     }, [u.berakhir, u.jam])
+    // Gagal / ditahan (mis. ada jawaban belum tersimpan, sempat terkunci): coba lagi
+    // berkala selama waktu sudah habis dan ujian kembali "mengerjakan".
     useEffect(() => {
-        if (sisaMs === 0 && u.status === 'mengerjakan' && !habisDikirim.current) {
-            habisDikirim.current = true
-            void kumpul()
-        }
+        if (sisaMs !== 0 || u.status !== 'mengerjakan' || habisDikirim.current) return
+        habisDikirim.current = true
+        void kumpul().finally(() => {
+            setTimeout(() => {
+                habisDikirim.current = false
+                setCobaKumpulLagi((n) => n + 1)
+            }, JEDA_COBA_KUMPUL_MS)
+        })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sisaMs, u.status])
+    }, [sisaMs, u.status, cobaKumpulLagi])
+    /** Waktu habis: soal hanya-baca; server pun menolak jawaban yang dibuat sesudahnya. */
+    const waktuHabis = sisaMs === 0
 
     // Terkunci: kabar pelanggaran yang tertinggal tidak relevan lagi. Dibuka pengawas: beri tahu, sekali.
     const [dibukaPengawas, setDibukaPengawas] = useState(false)
@@ -437,6 +448,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             )}
 
+            {waktuHabis && u.status === 'mengerjakan' && (
+                <div role="status" className="border-b border-coral-200 bg-coral-50">
+                    <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 text-sm text-coral-700">
+                        <Clock className="size-4 shrink-0" />
+                        <p>
+                            <b>Waktu habis.</b> Jawaban dikunci dan sedang dikumpulkan otomatis — jangan tutup aplikasi.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {ditolak.length > 0 && (
                 <div role="alert" className="border-b border-coral-200 bg-coral-50">
                     <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-coral-700">
@@ -532,7 +554,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     jawaban={(j?.jawaban ?? null) as Jawaban}
                                     ragu={j?.ragu ?? false}
                                     onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
-                                    onRagu={(r) => u.jawab(aktif.id, j?.jawaban ?? null, r)}
+                                    onRagu={(r) => !waktuHabis && u.jawab(aktif.id, j?.jawaban ?? null, r)}
+                                    nonaktif={waktuHabis}
                                     skalaFont={skalaFont}
                                     onUbahSkalaFont={ubahSkalaFont}
                                     kontrolDiKaki
