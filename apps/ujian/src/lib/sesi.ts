@@ -12,6 +12,35 @@ let nis: string | null = null
 let perangkatIdCache: string | null = null
 
 export const sesi = {
+    /**
+     * Token ditolak server (dicabut, mis. pengawas mereset sesi akun, atau kedaluwarsa): layar
+     * Masuk menjelaskan kenapa murid terlempar. sessionStorage: hilang bila app ditutup.
+     */
+    catatKeluarPaksa(): void {
+        try {
+            sessionStorage.setItem('keluar_paksa', '1')
+        } catch {
+            // sessionStorage tidak tersedia: murid tetap diarahkan ke layar Masuk tanpa penjelasan.
+        }
+    },
+
+    /** Hanya membaca (aman dipanggil dua kali oleh render ganda); hapus lewat `hapusKeluarPaksa`. */
+    lihatKeluarPaksa(): boolean {
+        try {
+            return sessionStorage.getItem('keluar_paksa') === '1'
+        } catch {
+            return false
+        }
+    },
+
+    hapusKeluarPaksa(): void {
+        try {
+            sessionStorage.removeItem('keluar_paksa')
+        } catch {
+            // abaikan
+        }
+    },
+
     async muat(): Promise<void> {
         if (token !== undefined) return
         token = (await Preferences.get({ key: 'token' })).value

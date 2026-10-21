@@ -209,6 +209,8 @@ export type KodeGalat =
     | 'BELUM_DIBUKA'
     | 'SUDAH_DITUTUP'
     | 'PERANGKAT_LAIN'
+    // Login ditolak (409): akun masih aktif di perangkat lain
+    | 'SESI_LAIN'
     | 'TERKUNCI'
     | 'SUDAH_SELESAI'
     | 'BELUM_MINIMAL'

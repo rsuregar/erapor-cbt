@@ -175,6 +175,30 @@ describe('KlienApi', () => {
         expect(saatTidakSah).not.toHaveBeenCalled()
     })
 
+    it('login mengirim perangkat_id dan info perangkat agar server bisa mengikat sesi', async () => {
+        const fetch = vi.fn(async () => new Response(JSON.stringify({ data: { access_token: 't', uuid: 'u', user: {} } }), { status: 200 }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => null, ambilPerangkatId: () => 'device-uuid-123', fetch })
+        await api.masuk('514450087', 'rahasia', { platform: 'android' })
+        const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+        expect(JSON.parse(String(init.body))).toEqual({ email: '514450087', password: 'rahasia', perangkat_id: 'device-uuid-123', perangkat: { platform: 'android' } })
+    })
+
+    it('login ditolak SESI_LAIN: galat membawa kode, sesi lokal tidak dihapus', async () => {
+        const saatTidakSah = vi.fn()
+        const fetch = vi.fn(async () => new Response(JSON.stringify({ message: 'Akun aktif di perangkat lain.', kode: 'SESI_LAIN' }), { status: 409 }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => null, saatTidakSah, fetch })
+        await expect(api.masuk('514450087', 'rahasia')).rejects.toMatchObject({ kode: 'SESI_LAIN', status: 409 })
+        expect(saatTidakSah).not.toHaveBeenCalled()
+    })
+
+    it('401 pada endpoint bertoken (token dicabut, mis. reset sesi pengawas) memanggil saatTidakSah', async () => {
+        const saatTidakSah = vi.fn()
+        const fetch = vi.fn(async () => new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401 }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', saatTidakSah, fetch })
+        await expect(api.daftarUjian()).rejects.toMatchObject({ kode: 'TIDAK_SAH', status: 401 })
+        expect(saatTidakSah).toHaveBeenCalledTimes(1)
+    })
+
     it('melaporkan progres unduh paket', async () => {
         const badan = JSON.stringify({ versi: 'v', algoritma: 'AES-256-GCM', iv: 'a', aad: 'b', isi: 'c', media: [] })
         const fetch = vi.fn(async () => new Response(badan, { status: 200, headers: { 'Content-Length': String(badan.length) } }))

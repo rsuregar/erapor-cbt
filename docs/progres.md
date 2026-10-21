@@ -13,7 +13,7 @@ disebut.
 
 | ID | Story | Status | Sprint |
 | --- | --- | --- | --- |
-| 2.5 | Sesi login bertahan, satu perangkat | Selesai (perangkat terikat per attempt) | S3 |
+| 2.5 | Sesi login bertahan, satu perangkat | Selesai: login mengirim `perangkat_id` + `perangkat`; BE menolak login perangkat kedua (`SESI_LAIN`, 409) dan pengawas bisa reset sesi akun; `PERANGKAT_LAIN` saat sinkron/kumpul mengunci layar ujian; 401 bertoken keluar paksa dengan banner. Kontrak: [kontrak-satu-sesi-per-akun.md](kontrak-satu-sesi-per-akun.md) | S3 |
 | 6.1 | Daftar ujian hari ini / mendatang / riwayat | Kode jadi — beranda & persiapan ditinjau ulang 20 Okt: target sentuh 44 px, tab ARIA, ringkasan "Sebelum mulai" (paket/lokasi/perangkat), token + tombol Mulai menempel di bawah, keadaan "Belum dibuka", tata tertib terbuka di ujian pertama | S3 |
 | 6.2 | Pra-unduh paket terenkripsi + indikator siap | Kode jadi | S3 |
 | 6.3 | Mengerjakan semua jenis soal di HP & laptop | Kode jadi — UX ditinjau ulang 20 Okt (PR #5): soal panjang bisa digulir, HP satu aliran gulir, status "belum lengkap", benar/salah pil 44 px, petunjuk per jenis soal, pintasan keyboard laptop | S3 |

@@ -142,6 +142,10 @@ function sinkron(entri: EntriJawaban[]) {
     }
 }
 
+/** Skenario galat sesi untuk uji manual UI; tidak disimpan ke localStorage. */
+let perangkatLainDemo = false
+let tokenDicabutDemo = false
+
 /** fetch tiruan untuk KlienApi. */
 export async function fetchDemo(url: string | URL | Request, init?: RequestInit): Promise<Response> {
     // Seperti fetch asli: tanpa jaringan → TypeError (KlienApi menjadikannya galat JARINGAN).
@@ -150,7 +154,16 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
     const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
     await new Promise((r) => setTimeout(r, 300))
 
-    if (jalur.endsWith('/auth/login')) return json({ data: { access_token: TOKEN_DEMO, uuid: 'demo', user: { name: 'Ahmad Fauzan Hidayat' } } })
+    const isiLogin = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+    if (jalur.endsWith('/auth/login')) {
+        // Kata sandi "sesi-lain" = pura-pura akun masih aktif di perangkat lain.
+        if (isiLogin?.password === 'sesi-lain') return json({ message: 'Akun sedang aktif di perangkat lain.', kode: 'SESI_LAIN' }, 409)
+        perangkatLainDemo = false
+        tokenDicabutDemo = false
+
+        return json({ data: { access_token: TOKEN_DEMO, uuid: 'demo', user: { name: 'Ahmad Fauzan Hidayat' } } })
+    }
+    if (tokenDicabutDemo && !jalur.endsWith('/auth/logout')) return json({ message: 'Unauthenticated.' }, 401)
     if (jalur.endsWith('/auth/logout')) return json({ message: 'ok' })
     if (jalur.endsWith('/cbt/ujian')) return json({ data: ujian(), aplikasi: { versi_minimum: { android: null, ios: null }, tautan_pembaruan: { android: null, ios: null } } })
     if (/\/cbt\/attempt\/\d+\/hasil$/.test(jalur)) return json(hasil())
@@ -171,6 +184,10 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
         st.mulai ??= new Date().toISOString()
         st.status ??= 'mengerjakan'
         simpan()
+        // Token 000002 = pura-pura attempt dipegang perangkat lain (sinkron berikutnya ditolak 409).
+        // Token 000003 = pura-pura pengawas mereset sesi akun (panggilan bertoken berikutnya 401 tanpa kode).
+        perangkatLainDemo = isi?.token === '000002'
+        tokenDicabutDemo = isi?.token === '000003'
         await paketTerenkripsi()
         const mulai = Date.parse(st.mulai)
 
@@ -180,6 +197,7 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
         })
     }
     if (jalur.endsWith(`/cbt/attempt/${ATTEMPT}/sinkron`)) {
+        if (perangkatLainDemo) return json({ message: 'Ujian ini dikerjakan di perangkat lain.', kode: 'PERANGKAT_LAIN' }, 409)
         if (st.status === 'selesai') return json({ message: 'Sudah selesai.', kode: 'SUDAH_SELESAI' }, 409)
 
         st.detakLokasi = isi?.detak?.lokasi ?? null

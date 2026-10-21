@@ -38,7 +38,7 @@ export type OpsiKlien = {
     ambilToken: () => string | null | Promise<string | null>
     /** Id acak per instalasi perangkat (wajib pada mulai, sinkron, pelanggaran, kumpul) */
     ambilPerangkatId?: () => string | null | Promise<string | null>
-    /** dipanggil saat 401 — token kedaluwarsa/dicabut */
+    /** dipanggil saat 401 pada endpoint bertoken — token kedaluwarsa/dicabut (mis. pengawas mereset sesi akun) */
     saatTidakSah?: () => void
     fetch?: typeof fetch
 }
@@ -62,8 +62,10 @@ export class KlienApi {
         return pilihan ?? (await this.opsi.ambilPerangkatId?.()) ?? undefined
     }
 
-    masuk(email: string, password: string): Promise<MasukRespons> {
-        return this.minta('POST', '/auth/login', { email, password }, false)
+    /** Kirim `perangkat_id` + `perangkat` supaya server mengikat token ke satu perangkat (satu akun, satu sesi aktif). */
+    async masuk(email: string, password: string, perangkat?: PerangkatInfo): Promise<MasukRespons> {
+        const id = await this.idPerangkat()
+        return this.minta('POST', '/auth/login', { email, password, ...(id ? { perangkat_id: id } : {}), ...(perangkat ? { perangkat } : {}) }, false)
     }
 
     keluar(): Promise<unknown> {

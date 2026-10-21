@@ -13,6 +13,7 @@ Direktori ini berisi dokumentasi teknis, operasional, dan panduan rilis untuk ap
 
 2. **[Progres & Status Implementasi](progres.md)**
    - Status pengerjaan backlog MVP dan story fitur ujian murid.
+   - **[Kontrak BE: satu akun, satu perangkat](kontrak-satu-sesi-per-akun.md)** — kode galat dan aturan yang perlu diterapkan di server e-Rapor.
 
 3. **[Cheatsheet Admin & Pintasan Keluar](cheatsheet-admin.md)**
    - Kombinasi tombol dan gestur rahasia admin untuk keluar aplikasi tanpa login.

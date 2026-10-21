@@ -2,7 +2,7 @@ import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { Tombol } from "@/komponen/Tombol";
-import { api, aturDemo } from "@/lib/api";
+import { api, aturDemo, platform } from "@/lib/api";
 import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
@@ -89,7 +89,7 @@ export default function Masuk() {
     const masuk = useMutation({
         mutationFn: () => {
             aturDemo(nis.trim() === "demo");
-            return api.masuk(nis.trim(), sandi);
+            return api.masuk(nis.trim(), sandi, { platform: platform(), versi_app: __VERSI_APP__ });
         },
         onSuccess: async ({ data }) => {
             await sesi.masuk(
@@ -102,19 +102,27 @@ export default function Masuk() {
         },
     });
 
+    // Token ditolak server: jelaskan kenapa murid kembali ke layar ini.
+    const [keluarPaksa] = useState(() => sesi.lihatKeluarPaksa());
+    useEffect(() => {
+        sesi.hapusKeluarPaksa();
+    }, []);
+
     // Setiap kegagalan harus terlihat: galat di luar GalatApi pun diberi pesan, bukan diam.
     const galat = !masuk.error
         ? null
         : masuk.error instanceof GalatApi
-          ? masuk.error.status === 401
+          ? masuk.error.status === 401 && masuk.error.kode !== "SESI_LAIN"
               ? "NIS atau kata sandi tidak cocok. Periksa lagi penulisannya, termasuk huruf besar dan kecil."
               : masuk.error.status === 429
                 ? "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi."
-                : masuk.error.kode === "JARINGAN"
-                  ? "Tidak tersambung ke server e-Rapor. Periksa internetmu lalu coba lagi."
-                  : masuk.error.status >= 500
-                    ? "Server sedang sibuk. Tunggu sebentar lalu coba lagi."
-                    : masuk.error.message || "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas."
+                : masuk.error.kode === "SESI_LAIN"
+                  ? "Akun ini sedang dipakai di perangkat lain. Satu akun hanya boleh masuk di satu perangkat. Minta pengawas mereset sesi akunmu bila itu bukan kamu."
+                  : masuk.error.kode === "JARINGAN"
+                    ? "Tidak tersambung ke server e-Rapor. Periksa internetmu lalu coba lagi."
+                    : masuk.error.status >= 500
+                      ? "Server sedang sibuk. Tunggu sebentar lalu coba lagi."
+                      : masuk.error.message || "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas."
           : "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas.";
     // Pesan galat lama hilang begitu murid memperbaiki isiannya.
     const ubahIsian = (atur: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,6 +283,18 @@ export default function Masuk() {
                             >
                                 <AlertCircle className="mt-0.5 size-4 shrink-0 text-coral-500" />
                                 <span className="font-medium leading-normal">{galat}</span>
+                            </div>
+                        )}
+
+                        {keluarPaksa && !galat && (
+                            <div
+                                role="alert"
+                                className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900"
+                            >
+                                <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                <span className="font-medium leading-normal">
+                                    Sesimu di perangkat ini sudah berakhir (mis. pengawas mereset sesi akunmu, atau sudah terlalu lama). Masuk lagi untuk melanjutkan.
+                                </span>
                             </div>
                         )}
 
