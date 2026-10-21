@@ -221,6 +221,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     // Koneksi: event browser (seketika) + hasil sinkron (server tak terjangkau walau "online").
     const online = useOnline()
     const offline = !online || !u.koneksi.online
+    // Jawaban yang tidak disimpan server, dikelompokkan per alasan dengan nomor soalnya.
+    const ditolak = useMemo(() => {
+        const nomor = new Map(soal.map((s) => [String(s.id), s.nomor]))
+        const kelompok = new Map<string, number[]>()
+        for (const [id, alasan] of Object.entries(u.ditolak)) {
+            const n = nomor.get(id)
+            if (n !== undefined) kelompok.set(alasan, [...(kelompok.get(alasan) ?? []), n])
+        }
+
+        return [...kelompok].map(([alasan, daftar]) => ({ alasan, nomor: daftar.sort((a, b) => a - b) }))
+    }, [u.ditolak, soal])
     const [sempatOffline, setSempatOffline] = useState(false)
     useEffect(() => {
         if (offline) setSempatOffline(true)
@@ -415,13 +426,40 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             </header>
 
+            {u.gagalSimpan > 0 && (
+                <div role="alert" className="border-b border-coral-200 bg-coral-50">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-coral-700">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <p>
+                            <b>{u.gagalSimpan} jawaban belum tersimpan di perangkat.</b> Aplikasi terus mencoba menyimpannya. Jangan tutup aplikasi — panggil pengawas.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {ditolak.length > 0 && (
+                <div role="alert" className="border-b border-coral-200 bg-coral-50">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-coral-700">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <div>
+                            <b>Ada jawaban yang tidak diterima server.</b> Panggil pengawas.
+                            {ditolak.map((d) => (
+                                <p key={d.alasan}>
+                                    Nomor {d.nomor.join(', ')}: {ALASAN_DITOLAK[d.alasan] ?? d.alasan}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {offline ? (
                 <div role="status" className="border-b border-amber-100 bg-amber-100">
                     <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
                         <CloudOff className="mt-0.5 size-4 shrink-0" />
                         <p>
                             <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
-                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung. Tidak perlu memuat ulang halaman.
+                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung — paling lambat 15 menit setelah waktu ujian habis. Tidak perlu memuat ulang halaman.
                         </p>
                     </div>
                 </div>
@@ -782,6 +820,13 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
         return { dijawab, ragu, kosong: nomorKosong.length, sebagian: nomorSebagian.length, nomorKosong, nomorSebagian }
     }
+}
+
+/** Teks untuk murid per alasan penolakan server (SinkronRespons.ditolak). */
+const ALASAN_DITOLAK: Record<string, string> = {
+    LEWAT_WAKTU: 'terkirim setelah batas waktu, tidak dinilai.',
+    FORMAT_JAWABAN: 'bentuk jawaban tidak sah, jawab ulang.',
+    SOAL_TIDAK_DIKENAL: 'soal tidak dikenali server (paket berubah).',
 }
 
 function StatusSimpan({ online, tertunda }: { online: boolean; tertunda: number }) {

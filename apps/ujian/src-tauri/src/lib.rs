@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 mod media;
+mod pembaruan;
 
 struct DbState(Mutex<Connection>);
 
@@ -109,7 +110,14 @@ fn sqlite_daftar_kunci(state: tauri::State<'_, DbState>, awalan: Option<String>)
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let context = tauri::generate_context!();
+    let mut builder = tauri::Builder::default();
+    // Updater hanya didaftarkan bila build membawa pubkey (plugins.updater dari --config CI).
+    if pembaruan::aktif(context.config()) {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    builder
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -149,6 +157,8 @@ pub fn run() {
             keluar_aplikasi,
             media::unduh_media,
             media::hapus_media,
+            pembaruan::pembaruan_tersedia,
+            pembaruan::pasang_pembaruan,
             sqlite_ambil,
             sqlite_simpan,
             sqlite_hapus,
@@ -163,7 +173,7 @@ pub fn run() {
                 let _ = api;
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|_app, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
