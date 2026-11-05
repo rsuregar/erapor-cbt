@@ -1,5 +1,6 @@
 import { isNative } from '@/lib/native'
 import { cariUnduhan, type DaftarUnduhan, type PlatformRilis, type UnduhanPlatform } from '@/lib/pembaruan'
+import { UNDUHAN_TERBARU } from '@/lib/dataUnduhan'
 import { jenisPerangkat, standalone } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
@@ -104,6 +105,7 @@ export function TautanUnduhApp() {
     const { data, isLoading, isError } = useQuery({
         queryKey: ['unduhan-app'],
         queryFn: cariUnduhan,
+        initialData: UNDUHAN_TERBARU,
         enabled: online && !isNative(),
         staleTime: 60 * 60 * 1000,
         retry: false,
@@ -306,6 +308,7 @@ export function UnduhDesktop() {
     const { data, isLoading, isError } = useQuery({
         queryKey: ['unduhan-app'],
         queryFn: cariUnduhan,
+        initialData: UNDUHAN_TERBARU,
         enabled: online && !isNative(),
         staleTime: 60 * 60 * 1000,
         retry: false,

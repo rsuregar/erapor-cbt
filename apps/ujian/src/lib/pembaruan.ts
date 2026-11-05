@@ -1,5 +1,6 @@
 import { STAGING } from '@/lib/lingkungan'
 import { bandingkanVersi } from '@/lib/versi'
+import { UNDUHAN_TERBARU } from '@/lib/dataUnduhan'
 import { Capacitor } from '@capacitor/core'
 
 /**
@@ -226,28 +227,53 @@ export function pilihUnduhan(rilis: RilisGithub[], saluran: Saluran = { staging:
     return hasil
 }
 
+/**
+ * Gabungkan data unduhan dengan prioritas versi tertinggi per platform.
+ * Mencegah data platform hilang saat ada rilis parsial (misal hanya rilis Android).
+ */
+export function gabungUnduhan(dasar: DaftarUnduhan, baru?: DaftarUnduhan | null): DaftarUnduhan {
+    const hasil: DaftarUnduhan = { ...dasar }
+    if (!baru) return hasil
+    for (const p of ['windows', 'macos', 'android'] as const) {
+        const itemBaru = baru[p]
+        if (!itemBaru) continue
+        const itemDasar = hasil[p]
+        if (!itemDasar || (bandingkanVersi(itemBaru.versi, itemDasar.versi) ?? 0) >= 0) {
+            hasil[p] = itemBaru
+        }
+    }
+    return hasil
+}
+
 const KUNCI_CACHE_UNDUHAN = STAGING ? 'cbt:unduhan-app:staging' : 'cbt:unduhan-app'
 
 /** Daftar unduhan terbaru, di-cache 1 jam (batas API GitHub tanpa token 60/jam per IP). */
 export async function cariUnduhan(): Promise<DaftarUnduhan> {
     try {
         const c = JSON.parse(localStorage.getItem(KUNCI_CACHE_UNDUHAN) ?? 'null') as { pada: number; data: DaftarUnduhan } | null
-        if (c && Date.now() - c.pada < TTL_CEK_PEMBARUAN_MS) return c.data
+        if (c && Date.now() - c.pada < TTL_CEK_PEMBARUAN_MS) {
+            return gabungUnduhan(UNDUHAN_TERBARU, c.data)
+        }
     } catch {
         // cache rusak / localStorage tidak tersedia
     }
 
-    const res = await fetch(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
-        headers: { Accept: 'application/vnd.github+json' },
-    })
-    if (!res.ok) throw new Error(`Gagal memuat daftar unduhan (HTTP ${res.status})`)
-
-    const data = pilihUnduhan((await res.json()) as RilisGithub[], { staging: STAGING, buildApp: -1 })
     try {
-        localStorage.setItem(KUNCI_CACHE_UNDUHAN, JSON.stringify({ pada: Date.now(), data }))
-    } catch {
-        // abaikan
-    }
+        const res = await fetch(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
+            headers: { Accept: 'application/vnd.github+json' },
+        })
+        if (!res.ok) throw new Error(`Gagal memuat daftar unduhan (HTTP ${res.status})`)
 
-    return data
+        const dataTerpilih = pilihUnduhan((await res.json()) as RilisGithub[], { staging: STAGING, buildApp: -1 })
+        const data = gabungUnduhan(UNDUHAN_TERBARU, dataTerpilih)
+        try {
+            localStorage.setItem(KUNCI_CACHE_UNDUHAN, JSON.stringify({ pada: Date.now(), data }))
+        } catch {
+            // abaikan
+        }
+
+        return data
+    } catch {
+        return UNDUHAN_TERBARU
+    }
 }

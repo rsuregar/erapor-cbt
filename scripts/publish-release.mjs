@@ -92,3 +92,9 @@ if (!ada) {
 
 gh('release', 'upload', tag, ...berkas, '--clobber');
 console.log(`[publish-release] ${berkas.length} berkas -> ${repo}@${tag}`);
+
+try {
+  execFileSync('node', ['scripts/sinkron-unduhan.mjs'], { stdio: 'inherit' });
+} catch (e) {
+  console.warn('[publish-release] Catatan: Gagal menjalankan sinkron-unduhan.mjs:', e.message);
+}
