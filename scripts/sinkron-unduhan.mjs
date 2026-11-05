@@ -17,13 +17,15 @@ const REPO = process.env.RELEASE_REPO || 'rsuregar/erapor-cbt-releases';
 
 const BERKAS_POLA = {
   windows: [/\.exe$/i, /\.msi$/i],
-  macos: [/\.dmg$/i],
+  macos: [/arm64\.dmg$/i, /universal\.dmg$/i, /\.dmg$/i],
+  macos_intel: [/x64\.dmg$/i, /x86_64\.dmg$/i],
   android: [/\.apk$/i],
 };
 
 const JENIS_TAG = {
   windows: ['desktop', 'win'],
   macos: ['desktop', 'macos'],
+  macos_intel: ['desktop', 'macos'],
   android: ['mobile', 'android'],
 };
 
@@ -67,7 +69,7 @@ function bandingkanVersi(a, b) {
 function prosesUnduhan(daftarRilis) {
   const hasil = {};
 
-  for (const platform of ['windows', 'macos', 'android']) {
+  for (const platform of ['windows', 'macos', 'macos_intel', 'android']) {
     const targetTag = JENIS_TAG[platform];
     const polaBerkas = BERKAS_POLA[platform];
     let terbaik = null;

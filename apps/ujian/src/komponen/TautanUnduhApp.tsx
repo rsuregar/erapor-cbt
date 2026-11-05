@@ -133,7 +133,7 @@ export function TautanUnduhApp() {
             {ini && (
                 <div className="mt-4">
                     <p className="mb-1.5 text-micro font-bold uppercase tracking-wider text-slate-500">Untuk perangkatmu</p>
-                    {ini === 'ios' ? <KartuIos /> : <KartuUnduh platform={ini} berkas={data?.[ini]} memuat={isLoading} gagal={isError || !online} utama />}
+                    {ini === 'ios' ? <KartuIos /> : <KartuUnduh platform={ini} berkas={data?.[ini]} berkasIntel={data?.macos_intel} memuat={isLoading} gagal={isError || !online} utama />}
                 </div>
             )}
 
@@ -174,7 +174,7 @@ export function TautanUnduhApp() {
                             p === 'ios' ? (
                                 <KartuIosRingkas key={p} />
                             ) : (
-                                <KartuUnduh key={p} platform={p} berkas={data?.[p as keyof DaftarUnduhan]} memuat={isLoading} gagal={isError || !online} />
+                                <KartuUnduh key={p} platform={p} berkas={data?.[p as keyof DaftarUnduhan]} berkasIntel={p === 'macos' ? data?.macos_intel : undefined} memuat={isLoading} gagal={isError || !online} />
                             ),
                         )}
                     </div>
@@ -194,38 +194,67 @@ function LencanaIkon({ platform, besar }: { platform: Pilihan; besar?: boolean }
     )
 }
 
-function KartuUnduh({ platform, berkas, memuat, gagal, utama }: { platform: Exclude<Pilihan, 'ios'>; berkas?: UnduhanPlatform; memuat: boolean; gagal: boolean; utama?: boolean }) {
+function KartuUnduh({
+    platform,
+    berkas,
+    berkasIntel,
+    memuat,
+    gagal,
+    utama,
+}: {
+    platform: Exclude<Pilihan, 'ios'>
+    berkas?: UnduhanPlatform
+    berkasIntel?: UnduhanPlatform
+    memuat: boolean
+    gagal: boolean
+    utama?: boolean
+}) {
     const { nama, catatan } = INFO[platform]
     const href = berkas?.unduh ?? HALAMAN_RILIS
     const keterangan = berkas ? [`v${berkas.versi}`, berkas.ukuran ? mb(berkas.ukuran) : null].filter(Boolean).join(' · ') : memuat ? 'Memuat versi terbaru…' : gagal ? 'Buka halaman rilis' : 'Belum tersedia'
 
     return (
-        <a
-            href={href}
-            {...(berkas ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' })}
-            aria-label={`Unduh CBT Al Akhyar untuk ${nama}${berkas ? ` versi ${berkas.versi}` : ''}`}
-            className={cn(
-                'group flex min-h-14 items-center gap-3 rounded-lg border p-3 transition active:scale-[0.99]',
-                utama ? 'border-primary/30 bg-primary-50/50 hover:border-primary hover:bg-primary-50' : 'border-slate-200 bg-slate-50/60 hover:border-primary/40 hover:bg-white',
-            )}
-        >
-            <LencanaIkon platform={platform} besar={utama} />
-            <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-ink">{nama}</span>
-                <span className="block truncate text-xs text-slate-600">{catatan}</span>
-                <span className={cn('mt-0.5 block text-xs font-semibold', memuat && !berkas ? 'animate-pulse text-slate-400' : 'text-primary')}>{keterangan}</span>
-            </span>
-            {utama ? (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-bold text-white shadow-sm transition group-hover:bg-primary/90">
-                    {berkas ? <Download className="size-3.5" /> : <ExternalLink className="size-3.5" />}
-                    Unduh
+        <div className="space-y-1.5">
+            <a
+                href={href}
+                {...(berkas ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' })}
+                aria-label={`Unduh CBT Al Akhyar untuk ${nama}${berkas ? ` versi ${berkas.versi}` : ''}`}
+                className={cn(
+                    'group flex min-h-14 items-center gap-3 rounded-lg border p-3 transition active:scale-[0.99]',
+                    utama ? 'border-primary/30 bg-primary-50/50 hover:border-primary hover:bg-primary-50' : 'border-slate-200 bg-slate-50/60 hover:border-primary/40 hover:bg-white',
+                )}
+            >
+                <LencanaIkon platform={platform} besar={utama} />
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-ink">{nama}</span>
+                    <span className="block truncate text-xs text-slate-600">{catatan}</span>
+                    <span className={cn('mt-0.5 block text-xs font-semibold', memuat && !berkas ? 'animate-pulse text-slate-400' : 'text-primary')}>{keterangan}</span>
                 </span>
-            ) : berkas ? (
-                <Download className="size-4 shrink-0 text-slate-400 transition group-hover:text-primary" />
-            ) : (
-                <ExternalLink className="size-4 shrink-0 text-slate-400 transition group-hover:text-primary" />
+                {utama ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-bold text-white shadow-sm transition group-hover:bg-primary/90">
+                        {berkas ? <Download className="size-3.5" /> : <ExternalLink className="size-3.5" />}
+                        Unduh
+                    </span>
+                ) : berkas ? (
+                    <Download className="size-4 shrink-0 text-slate-400 transition group-hover:text-primary" />
+                ) : (
+                    <ExternalLink className="size-4 shrink-0 text-slate-400 transition group-hover:text-primary" />
+                )}
+            </a>
+            {platform === 'macos' && (
+                <div className="flex items-center justify-between px-1 text-xs">
+                    <span className="text-slate-500">Punya Mac Intel lama?</span>
+                    <a
+                        href={berkasIntel?.unduh ?? HALAMAN_RILIS}
+                        {...(berkasIntel ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' })}
+                        className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                    >
+                        <Download className="size-3" />
+                        <span>Unduh versi Intel (64-bit){berkasIntel ? ` · v${berkasIntel.versi}` : ''}</span>
+                    </a>
+                </div>
             )}
-        </a>
+        </div>
     )
 }
 
@@ -321,7 +350,7 @@ export function UnduhDesktop() {
     return (
         <div className="space-y-2.5">
             {urutan.map((p, i) => (
-                <KartuUnduh key={p} platform={p} berkas={data?.[p]} memuat={isLoading} gagal={isError || !online} utama={i === 0 && (ini === p || ini === null)} />
+                <KartuUnduh key={p} platform={p} berkas={data?.[p]} berkasIntel={p === 'macos' ? data?.macos_intel : undefined} memuat={isLoading} gagal={isError || !online} utama={i === 0 && (ini === p || ini === null)} />
             ))}
             {(ini === 'android' || ini === 'ios') && (
                 <p className="text-xs text-slate-600">Kamu membuka halaman ini dari HP/tablet. Pilih tab Android atau iPhone/iPad di atas untuk panduan perangkatmu.</p>

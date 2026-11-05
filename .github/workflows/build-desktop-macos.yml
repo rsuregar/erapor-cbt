@@ -43,8 +43,18 @@ on:
 
 jobs:
   build-macos:
-    name: Build macOS Exam Browser (.dmg & .app)
-    runs-on: macos-latest
+    name: Build macOS ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            label: Apple Silicon
+            os: macos-latest
+          - arch: x64
+            label: Intel
+            os: macos-13
     environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
       - name: Checkout repository
@@ -186,7 +196,7 @@ jobs:
       - name: Upload macOS DMG Installer
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.installer.outputs.name }}
+          name: ${{ steps.installer.outputs.name }}-${{ matrix.arch }}
           path: ${{ steps.installer.outputs.dir }}/*
 
       - name: Publish to GitHub Release

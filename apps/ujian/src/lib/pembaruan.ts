@@ -208,7 +208,8 @@ export async function cekPembaruan(): Promise<InfoPembaruan | null> {
 
 /** Berkas pemasang terbaru per platform untuk tautan unduh di halaman Masuk (web/PWA). */
 export type UnduhanPlatform = { versi: string; unduh: string; halaman: string; ukuran?: number }
-export type DaftarUnduhan = Partial<Record<Exclude<PlatformRilis, 'ios'>, UnduhanPlatform>>
+export type KunciUnduhan = Exclude<PlatformRilis, 'ios'> | 'macos_intel'
+export type DaftarUnduhan = Partial<Record<KunciUnduhan, UnduhanPlatform>>
 
 /**
  * Rilis terbaru tiap platform berpemasang (Windows, macOS, Android) — memakai aturan
@@ -224,6 +225,24 @@ export function pilihUnduhan(rilis: RilisGithub[], saluran: Saluran = { staging:
         hasil[p] = { versi: info.versi, unduh: info.unduh, halaman: info.halaman, ...(ukuran ? { ukuran } : {}) }
     }
 
+    // Ekstrak rilis macOS Intel (x64) bila tersedia berdampingan dengan Apple Silicon
+    for (const r of rilis) {
+        if (r.draft || (r.prerelease !== saluran.staging)) continue
+        if (!r.tag_name.startsWith('release-desktop-') && !r.tag_name.startsWith('release-macos-')) continue
+        const asetIntel = r.assets?.find((a) => /x64\.dmg$/i.test(a.name) || /x86_64\.dmg$/i.test(a.name))
+        if (asetIntel) {
+            const m = r.tag_name.match(/(\d+\.\d+\.\d+)/)
+            const v = m ? m[1] : '0.0.0'
+            hasil.macos_intel = {
+                versi: v,
+                unduh: asetIntel.browser_download_url,
+                halaman: r.html_url,
+                ...(asetIntel.size ? { ukuran: asetIntel.size } : {}),
+            }
+            break
+        }
+    }
+
     return hasil
 }
 
@@ -234,11 +253,11 @@ export function pilihUnduhan(rilis: RilisGithub[], saluran: Saluran = { staging:
 export function gabungUnduhan(dasar: DaftarUnduhan, baru?: DaftarUnduhan | null): DaftarUnduhan {
     const hasil: DaftarUnduhan = { ...dasar }
     if (!baru) return hasil
-    for (const p of ['windows', 'macos', 'android'] as const) {
+    for (const p of ['windows', 'macos', 'macos_intel', 'android'] as const) {
         const itemBaru = baru[p]
         if (!itemBaru) continue
         const itemDasar = hasil[p]
-        if (!itemDasar || (bandingkanVersi(itemBaru.versi, itemDasar.versi) ?? 0) >= 0) {
+        if (!itemDasar || (bandingkanVersi(itemBaru.versi, itemDasar.versi) ?? -1) > 0) {
             hasil[p] = itemBaru
         }
     }
