@@ -1,7 +1,7 @@
 import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
-import { TautanUnduhApp } from "@/komponen/TautanUnduhApp";
+import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
 import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from "@/lib/native";
@@ -187,6 +187,9 @@ export default function Masuk() {
                     <p className="mt-1.5 text-sm sm:text-body text-sky-50 leading-relaxed">
                         Masuk dengan akun e-Rapor untuk mulai ujian.
                     </p>
+
+                    {/* Pintasan: gulir ke kartu unduh di bawah form */}
+                    <PintasanUnduhApp className="mt-4" />
                 </div>
             </section>
 

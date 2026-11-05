@@ -5,12 +5,44 @@ import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, CheckCircle2, ChevronDown, Download, ExternalLink, PlusSquare, Share } from 'lucide-react'
+import { ArrowDown, ArrowRight, CheckCircle2, ChevronDown, Download, ExternalLink, PlusSquare, Share } from 'lucide-react'
 import { useState, type ReactNode, type SVGProps } from 'react'
 
 const REPO_RILIS = (import.meta.env.VITE_UPDATE_REPO as string | undefined) || 'rsuregar/erapor-cbt-releases'
 /** Cadangan bila API GitHub gagal / kena batas: halaman semua rilis. */
 const HALAMAN_RILIS = `https://github.com/${REPO_RILIS}/releases`
+
+const ID_BAGIAN_UNDUH = 'unduh-app'
+
+/**
+ * Tombol kecil di bagian atas halaman Masuk: menggulir mulus ke kartu unduh yang ada di
+ * bawah form (tidak tampil di app native, tempat kartunya juga tidak ada).
+ */
+export function PintasanUnduhApp({ className }: { className?: string }) {
+    if (isNative()) return null
+
+    const gulir = () => {
+        const bagian = document.getElementById(ID_BAGIAN_UNDUH)
+        if (!bagian) return
+        const kurangiGerak = matchMedia('(prefers-reduced-motion: reduce)').matches
+        bagian.scrollIntoView({ behavior: kurangiGerak ? 'auto' : 'smooth', block: 'start' })
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={gulir}
+            className={cn(
+                'inline-flex min-h-11 items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 text-sm font-semibold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 active:scale-[0.97]',
+                className,
+            )}
+        >
+            <Download className="size-4" />
+            Unduh aplikasi ujian
+            <ArrowDown className="size-3.5 opacity-80" />
+        </button>
+    )
+}
 
 /* ---------- Ikon platform (SVG inline, ikut warna teks lewat currentColor) ---------- */
 
@@ -83,7 +115,7 @@ export function TautanUnduhApp() {
     const lain = URUTAN.filter((p) => p !== ini)
 
     return (
-        <section aria-labelledby="judul-unduh-app" className="mt-5 rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section id={ID_BAGIAN_UNDUH} aria-labelledby="judul-unduh-app" className="mt-5 scroll-mt-4 rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-start gap-3">
                 <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary">
                     <Download className="size-4" />
