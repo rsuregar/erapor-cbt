@@ -288,3 +288,34 @@ function Langkah({ n, children }: { n: number; children: ReactNode }) {
         </li>
     )
 }
+
+/**
+ * Unduhan langsung untuk laptop/PC (halaman Panduan): kartu OS perangkat ini ditonjolkan,
+ * OS desktop lainnya di bawahnya. Berkas diambil dari rilis terbaru yang sama dengan halaman Masuk.
+ */
+export function UnduhDesktop() {
+    const online = useOnline()
+    const [ini] = useState(perangkatIni)
+    const { data, isLoading, isError } = useQuery({
+        queryKey: ['unduhan-app'],
+        queryFn: cariUnduhan,
+        enabled: online && !isNative(),
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+        refetchOnWindowFocus: false,
+    })
+    if (isNative()) return null
+
+    const urutan: ('windows' | 'macos')[] = ini === 'macos' ? ['macos', 'windows'] : ['windows', 'macos']
+
+    return (
+        <div className="space-y-2.5">
+            {urutan.map((p, i) => (
+                <KartuUnduh key={p} platform={p} berkas={data?.[p]} memuat={isLoading} gagal={isError || !online} utama={i === 0 && (ini === p || ini === null)} />
+            ))}
+            {(ini === 'android' || ini === 'ios') && (
+                <p className="text-xs text-slate-600">Kamu membuka halaman ini dari HP/tablet. Pilih tab Android atau iPhone/iPad di atas untuk panduan perangkatmu.</p>
+            )}
+        </div>
+    )
+}

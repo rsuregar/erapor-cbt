@@ -1,6 +1,7 @@
 import { IlustrasiPanduan, type Adegan } from '@/komponen/IlustrasiPanduan'
 import { Kartu } from '@/komponen/Kartu'
 import { KepalaFitur } from '@/komponen/KepalaFitur'
+import { UnduhDesktop } from '@/komponen/TautanUnduhApp'
 import { Tombol } from '@/komponen/Tombol'
 import { isNative, isTauri } from '@/lib/native'
 import { usePasang } from '@/lib/pasang'
@@ -105,6 +106,9 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
     const [untuk, setUntuk] = useState<UntukPanduan>(awal)
     const pasang = usePasang()
     const kunci = KUNCI[untuk]
+    // Tab laptop (web): bagian "Unduh aplikasi" jadi langkah 1, bagian lain bergeser.
+    const unduh = untuk === 'laptop' && !isNative()
+    const geser = unduh ? 1 : 0
 
     return (
         <div className="min-h-full pb-10">
@@ -147,7 +151,14 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                         <KunciOtomatis />
                     </>
                 ) : (
-                    <Bagian nomor={1} judul={untuk === 'laptop' ? 'Siapkan browser' : 'Pasang aplikasi ujian'}>
+                    <>
+                        {unduh && (
+                            <Bagian nomor={1} judul="Unduh aplikasi ujian" ikon={<Download className="size-4" />}>
+                                <p className="text-sm text-slate-700">Pakai aplikasi resmi CBT Al Akhyar (Exam Browser): layar otomatis terkunci saat ujian. Pilih sesuai sistem operasi laptopmu.</p>
+                                <UnduhDesktop />
+                            </Bagian>
+                        )}
+                    <Bagian nomor={1 + geser} judul={untuk === 'laptop' ? 'Cadangan: pakai browser' : 'Pasang aplikasi ujian'}>
                         {CATATAN_PASANG[untuk] && !pasang.terpasang && <p className="text-sm text-slate-700">{CATATAN_PASANG[untuk]}</p>}
                         {pasang.terpasang ? (
                             <p className="flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2.5 text-sm font-semibold text-green-700">
@@ -163,10 +174,11 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                         )}
                         <DaftarLangkah langkah={PASANG[untuk]} />
                     </Bagian>
+                    </>
                 )}
 
                 {!isNative() && (
-                    <Bagian nomor={2} judul={untuk === 'laptop' ? 'Saat ujian' : `Kunci layar: ${kunci.judul}`} ikon={<Lock className="size-4" />}>
+                    <Bagian nomor={2 + geser} judul={untuk === 'laptop' ? 'Saat ujian' : `Kunci layar: ${kunci.judul}`} ikon={<Lock className="size-4" />}>
                         <p className="text-sm text-slate-700">{kunci.pengantar}</p>
                         {untuk !== 'laptop' && (
                             <p className="rounded-lg bg-sky-100 px-3 py-2.5 text-sm font-semibold text-sky-700">Dinyalakan bersama pengawas di ruang ujian, sebelum token diberikan.</p>
@@ -175,7 +187,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                     </Bagian>
                 )}
 
-                <Bagian nomor={isNative() ? 2 : 3} judul="Sebelum hari ujian">
+                <Bagian nomor={isNative() ? 2 : 3 + geser} judul="Sebelum hari ujian">
                     <ul className="space-y-2.5 text-sm">
                         <Tip ikon={<BatteryCharging className="size-4" />}>Isi daya baterai penuh dan bawa charger.</Tip>
                         <Tip ikon={<BellOff className="size-4" />}>Nyalakan mode Jangan Ganggu agar notifikasi tidak muncul.</Tip>
