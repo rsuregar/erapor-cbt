@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { dekripsiPaket, GalatApi, type UjianRingkas } from '@erapor-cbt/exam-core'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, BellOff, CheckCircle2, ChevronDown, ChevronLeft, Clock, Lock, RefreshCw, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldCheck, Wifi } from 'lucide-react'
+import { AlertTriangle, BellOff, CheckCircle2, ChevronDown, ChevronLeft, Clock, Lock, RefreshCw, DownloadCloud, ListChecks, Loader2, LocateFixed, MapPin, RotateCw, ShieldAlert, ShieldCheck, Wifi } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 const KEAMANAN = { dasar: 'Dasar', ketat: 'Ketat', lockdown: 'Lockdown' } as const
@@ -40,6 +40,7 @@ const PESAN_MULAI: Record<string, string> = {
     LOKASI_PALSU: 'Terdeteksi aplikasi lokasi palsu. Matikan aplikasi tersebut lalu coba lagi.',
     LOKASI_BELUM_DIATUR: 'Lokasi sekolah belum diatur untuk ujian ini. Hubungi pengawas.',
     VERSI_USANG: 'Versi aplikasi sudah usang. Perbarui aplikasi lalu coba lagi.',
+    TIDAK_ELIGIBLE: 'Belum memenuhi batas minimum pembayaran SPP/iuran untuk Ujian Akhir Semester. Harap lunasi tunggakan atau ajukan dispensasi ujian ke admin/kepala sekolah.',
 }
 
 const PESAN_LOKASI_PERANGKAT: Record<string, string> = {
@@ -89,6 +90,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const ujian = useQuery({
         queryKey: ['ujian'],
         queryFn: daftarUjian,
+        staleTime: 60_000,
+        gcTime: 10 * 60_000,
         select: (d) => ({
             u: d.data.find((u) => u.id === ujianId),
             aplikasi: d.aplikasi,
@@ -198,7 +201,8 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     const masihLama = !selesai && sekarang < buka - 30 * 60_000
     const lokasiSiap = !wajibLokasi || lokasi.status.tahap === 'siap'
     const perangkatSiap = kesiapan.penghalang.length === 0
-    const bisaMulai = online && perangkatSiap && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
+    const tidakEligible = u.eligible === false
+    const bisaMulai = !tidakEligible && online && perangkatSiap && siap && lokasiSiap && dibuka && !selesai && token.length === 6 && !mulai.isPending
     const offlineLokal = !online && !!lokal.data
     const galatMulai = mulai.error ? pesanGalatMulai(mulai.error) : null
     /** Ujian ditutup / sesi dihentikan pengawas (410): tidak ada yang bisa dicoba lagi di layar ini. */
@@ -211,8 +215,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         ...(wajibLokasi && !lokasiSiap ? [{ label: 'Lokasi', ke: 'cek-lokasi' }] : []),
         ...kesiapan.penghalang.map((i) => ({ label: i.judul, ke: 'cek-perangkat' })),
     ]
-
-    const petunjuk: ReactNode = selesai ? (
+    const petunjuk: ReactNode = tidakEligible ? (
+        'Ujian ini terkunci karena belum memenuhi syarat eligible Ujian Akhir Semester.'
+    ) : selesai ? (
         'Ujian ini sudah dikumpulkan.'
     ) : sekarang > tutup ? (
         'Ujian sudah ditutup.'
@@ -295,89 +300,139 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
 
                     {masihLama && <KartuBelumDibuka u={u} sekarang={sekarang} wajibLokasi={wajibLokasi} onPanduan={() => void navigate({ to: '/panduan' })} />}
 
-                    {/* Satu ringkasan kesiapan: paket, lokasi, perangkat. Tak perlu bila murid kembali lewat sesi di perangkat ini. */}
-                    {!(tertahan && (u.status === 'menunggu_sinkron' || lokal.data)) && (
-                        <section aria-labelledby="judul-sebelum" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
-                            <h2 id="judul-sebelum" className="text-base font-bold text-ink">
-                                Sebelum mulai
-                            </h2>
-                            <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
-                            {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
-                            <div className="border-t border-slate-100 pt-4">
-                                <KartuKesiapan
-                                    id="cek-perangkat"
-                                    daftar={kesiapan.daftar}
-                                    penghalang={kesiapan.penghalang}
-                                    onAksi={(a) => {
-                                        const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
-                                        if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
-                                        else if (a === 'layar_penuh') void masukLayarPenuh()
-                                        else if (a === 'panduan') void navigate({ to: '/panduan' })
-                                    }}
-                                />
+                    {tidakEligible ? (
+                        <section aria-labelledby="judul-tidak-eligible" className="space-y-4 rounded-xl border border-rose-200 bg-white p-5 shadow-sm sm:p-6 text-center">
+                            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                                <ShieldAlert className="size-7" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <span className="inline-block rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700 uppercase tracking-wider">
+                                    Tidak Eligible
+                                </span>
+                                <h2 id="judul-tidak-eligible" className="text-lg font-bold text-slate-800">
+                                    Belum Bisa Mengikuti Ujian
+                                </h2>
+                                <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                                    Ujian <strong>{u.nama}</strong> merupakan <strong>Ujian Akhir Semester (UAS / PAS / PAT)</strong> yang mewajibkan status kelayakan (eligible) dari segi administrasi atau keuangan sekolah.
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-left text-xs text-amber-950 space-y-2 max-w-md mx-auto">
+                                <p className="font-bold text-sm flex items-center gap-1.5 text-amber-900">
+                                    <span>💡</span>
+                                    <span>Bagaimana agar eligible?</span>
+                                </p>
+                                <ol className="list-decimal pl-4 space-y-1.5 leading-normal font-medium">
+                                    <li>
+                                        <strong>Melunasi tunggakan SPP / Iuran Tahunan</strong> sesuai batas minimum syarat eligible sekolah.
+                                    </li>
+                                    <li>
+                                        <strong>Diberikan dispensasi ujian</strong> secara resmi oleh Admin Sekolah atau Kepala Sekolah/Pimpinan.
+                                    </li>
+                                </ol>
+                                <p className="pt-1.5 text-[11px] text-amber-800 border-t border-amber-200/80">
+                                    Ujian selain UAS/PAS/PAT (seperti Ulangan Harian, formatif, kuis, dan PTS) tetap dapat kamu ikuti seperti biasa.
+                                </p>
+                            </div>
+
+                            <div className="pt-2">
+                                <Tombol
+                                    varian="primary"
+                                    ukuran="md"
+                                    onClick={() => navigate({ to: '/' })}
+                                    ikonKiri={<ChevronLeft className="size-4" />}
+                                >
+                                    Kembali ke Beranda
+                                </Tombol>
                             </div>
                         </section>
-                    )}
-
-                    {!offlineLokal && !masihLama && !selesai && !tertahan && (
-                        <section aria-labelledby="judul-token" className="space-y-3 rounded-lg border border-slate-200/90 bg-white p-4 text-center shadow-sm sm:p-5">
-                            <h2 id="judul-token" className="text-base font-bold text-ink">
-                                {melanjutkan ? 'Token untuk melanjutkan' : 'Token ujian'}
-                            </h2>
-                            <p className="text-sm text-slate-600">
-                                {melanjutkan
-                                    ? 'Waktumu sudah berjalan sejak kamu mulai. Masukkan token untuk melanjutkan.'
-                                    : 'Tanyakan 6 karakter token kepada pengawas di ruangan.'}
-                            </p>
-                            <div key={goyang} className={cn('pt-1', goyang ? 'animate-goyang motion-reduce:animate-none' : undefined)}>
-                                <KotakToken
-                                    nilai={token}
-                                    onUbah={setToken}
-                                    galat={!!galatMulai && token.length === 0}
-                                    nonaktif={!siap || mulai.isPending}
-                                    fokusOtomatis={siap && dibuka && perangkatSiap && lokasiSiap}
-                                />
-                            </div>
-                            {!siap && <p className="text-xs text-slate-500">Kotak token aktif setelah paket soal selesai diunduh.</p>}
-
-                            {galatMulai && (
-                                <div role="alert" className="space-y-2.5 rounded-lg border border-coral-200 bg-coral-50 px-3.5 py-2.5 text-left text-sm font-semibold text-coral-700">
-                                    <p className="flex items-start gap-2">
-                                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                                        <span>{galatMulai}</span>
-                                    </p>
-                                    {sesiDitutup && (
-                                        <Tombol varian="outline" ukuran="sm" penuh onClick={() => void navigate({ to: '/' })} ikonKiri={<ChevronLeft className="size-4" />}>
-                                            Kembali ke Beranda
-                                        </Tombol>
-                                    )}
-                                </div>
+                    ) : (
+                        <>
+                            {!(tertahan && (u.status === 'menunggu_sinkron' || lokal.data)) && (
+                                <section aria-labelledby="judul-sebelum" className="space-y-4 rounded-lg border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
+                                    <h2 id="judul-sebelum" className="text-base font-bold text-ink">
+                                        Sebelum mulai
+                                    </h2>
+                                    <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
+                                    {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
+                                    <div className="border-t border-slate-100 pt-4">
+                                        <KartuKesiapan
+                                            id="cek-perangkat"
+                                            daftar={kesiapan.daftar}
+                                            penghalang={kesiapan.penghalang}
+                                            onAksi={(a) => {
+                                                const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
+                                                if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
+                                                else if (a === 'layar_penuh') void masukLayarPenuh()
+                                                else if (a === 'panduan') void navigate({ to: '/panduan' })
+                                            }}
+                                        />
+                                    </div>
+                                </section>
                             )}
-                        </section>
+
+                            {!offlineLokal && !masihLama && !selesai && !tertahan && (
+                                <section aria-labelledby="judul-token" className="space-y-3 rounded-lg border border-slate-200/90 bg-white p-4 text-center shadow-sm sm:p-5">
+                                    <h2 id="judul-token" className="text-base font-bold text-ink">
+                                        {melanjutkan ? 'Token untuk melanjutkan' : 'Token ujian'}
+                                    </h2>
+                                    <p className="text-sm text-slate-600">
+                                        {melanjutkan
+                                            ? 'Waktumu sudah berjalan sejak kamu mulai. Masukkan token untuk melanjutkan.'
+                                            : 'Tanyakan 6 karakter token kepada pengawas di ruangan.'}
+                                    </p>
+                                    <div key={goyang} className={cn('pt-1', goyang ? 'animate-goyang motion-reduce:animate-none' : undefined)}>
+                                        <KotakToken
+                                            nilai={token}
+                                            onUbah={setToken}
+                                            galat={!!galatMulai && token.length === 0}
+                                            nonaktif={!siap || mulai.isPending}
+                                            fokusOtomatis={siap && dibuka && perangkatSiap && lokasiSiap}
+                                        />
+                                    </div>
+                                    {!siap && <p className="text-xs text-slate-500">Kotak token aktif setelah paket soal selesai diunduh.</p>}
+
+                                    {galatMulai && (
+                                        <div role="alert" className="space-y-2.5 rounded-lg border border-coral-200 bg-coral-50 px-3.5 py-2.5 text-left text-sm font-semibold text-coral-700">
+                                            <p className="flex items-start gap-2">
+                                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                                                <span>{galatMulai}</span>
+                                            </p>
+                                            {sesiDitutup && (
+                                                <Tombol varian="outline" ukuran="sm" penuh onClick={() => void navigate({ to: '/' })} ikonKiri={<ChevronLeft className="size-4" />}>
+                                                    Kembali ke Beranda
+                                                </Tombol>
+                                            )}
+                                        </div>
+                                    )}
+                                </section>
+                            )}
+
+                            <TataTertib terbuka={u.status === 'belum_mulai' && (ujian.data?.pertama ?? false)} lockdown={lockdown} wajibLokasi={wajibLokasi} />
+
+                            <details className="group rounded-lg border border-slate-200/90 bg-white shadow-sm">
+                                <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-bold text-ink sm:px-5 [&::-webkit-details-marker]:hidden">
+                                    <span className="mr-auto">Detail ujian</span>
+                                    <ChevronDown className="size-4 text-slate-500 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                                </summary>
+                                <dl className="grid grid-cols-1 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
+                                    <Butir ikon={<Clock className="size-3.5 text-primary" />} label="Jadwal" isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)} WITA`} />
+                                    <Butir ikon={<ListChecks className="size-3.5 text-primary" />} label="Soal & durasi" isi={`${u.jumlah_soal} soal · ${durasi} menit`} />
+                                    <Butir ikon={<MapPin className="size-3.5 text-primary" />} label="Sesi & ruang" isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'} />
+                                    <Butir
+                                        ikon={<LocateFixed className="size-3.5 text-primary" />}
+                                        label="Tempat mengerjakan"
+                                        isi={wajibLokasi ? `Di sekolah${u.lokasi.radius_meter ? ` (radius ${u.lokasi.radius_meter} m)` : ''}` : 'Dari mana saja'}
+                                    />
+                                </dl>
+                            </details>
+                        </>
                     )}
-
-                    <TataTertib terbuka={u.status === 'belum_mulai' && (ujian.data?.pertama ?? false)} lockdown={lockdown} wajibLokasi={wajibLokasi} />
-
-                    <details className="group rounded-lg border border-slate-200/90 bg-white shadow-sm">
-                        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-bold text-ink sm:px-5 [&::-webkit-details-marker]:hidden">
-                            <span className="mr-auto">Detail ujian</span>
-                            <ChevronDown className="size-4 text-slate-500 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
-                        </summary>
-                        <dl className="grid grid-cols-1 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
-                            <Butir ikon={<Clock className="size-3.5 text-primary" />} label="Jadwal" isi={`${hariTanggal(u.dibuka_pada)}, ${jamMenit(u.dibuka_pada)}–${jamMenit(u.ditutup_pada)} WITA`} />
-                            <Butir ikon={<ListChecks className="size-3.5 text-primary" />} label="Soal & durasi" isi={`${u.jumlah_soal} soal · ${durasi} menit`} />
-                            <Butir ikon={<MapPin className="size-3.5 text-primary" />} label="Sesi & ruang" isi={u.sesi ? `${u.sesi.nama}${u.sesi.ruang ? ` · ${u.sesi.ruang}` : ''}` : '—'} />
-                            <Butir
-                                ikon={<LocateFixed className="size-3.5 text-primary" />}
-                                label="Tempat mengerjakan"
-                                isi={wajibLokasi ? `Di sekolah${u.lokasi.radius_meter ? ` (radius ${u.lokasi.radius_meter} m)` : ''}` : 'Dari mana saja'}
-                            />
-                        </dl>
-                    </details>
                 </div>
 
                 {/* Tombol Mulai menempel di bawah layar: di HP tetap terlihat walau kartu di atas panjang. */}
-                {!masihLama && !tertahan && (
+                {!masihLama && !tertahan && !tidakEligible && (
+
                     <div className="sticky bottom-0 z-20 -mx-3 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:-mx-6 sm:px-6">
                         <div className="mx-auto max-w-xl space-y-2">
                             {offlineLokal ? (
@@ -423,6 +478,14 @@ function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
     const buka = Date.parse(u.dibuka_pada)
     const tutup = Date.parse(u.ditutup_pada)
     const kelas = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold'
+
+    if (u.eligible === false) {
+        return (
+            <span className={cn(kelas, 'border-rose-300/40 bg-rose-500/20 text-rose-100')}>
+                <ShieldAlert className="size-3.5" /> Tidak Eligible (Terkunci)
+            </span>
+        )
+    }
 
     if (u.status === 'selesai') return <span className={cn(kelas, 'border-white/20 bg-white/10 text-sky-50')}>Ujian sudah dikumpulkan</span>
     if (u.status === 'terkunci') {

@@ -93,11 +93,16 @@ export default function Masuk() {
             return api.masuk(nis.trim(), sandi, { platform: platform(), versi_app: __VERSI_APP__ });
         },
         onSuccess: async ({ data }) => {
+            const user = data.user
             await sesi.masuk(
                 data.access_token,
-                (data.user?.name as string) ?? null,
+                user?.name ?? null,
                 data.uuid,
-                nis.trim(),
+                user?.nis || nis.trim(),
+                user?.kelas ?? null,
+                user?.nisn ?? null,
+                user?.avatar ?? null,
+                user?.sekolah?.name ?? null,
             );
             await navigate({ to: "/" });
         },

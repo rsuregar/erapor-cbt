@@ -25,8 +25,21 @@ export type UjianRingkas = {
     id: number
     nama: string
     mapel: string | null
+    /** Jenis penilaian CBT (harian, pts, pas, pat, try_out, latihan) */
+    jenis_penilaian?: 'harian' | 'pts' | 'pas' | 'pat' | 'try_out' | 'latihan' | string | null
+    /** Kelayakan ujian akhir semester (UAS/PAS/PAT): false = belum eligible SPP / butuh dispensasi */
+    eligible?: boolean
+    keterangan_eligibility?: string | null
     /** Identitas peserta untuk konfirmasi sebelum ujian; foto null bila belum ada. */
-    murid: { id: number; nama: string; foto: string | null }
+    murid: {
+        id: number
+        nama: string
+        foto: string | null
+        nis?: string | null
+        nisn?: string | null
+        kelas?: string | null
+        sekolah?: string | null
+    }
     dibuka_pada: string
     ditutup_pada: string
     durasi_menit: number

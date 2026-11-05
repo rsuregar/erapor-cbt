@@ -43,8 +43,19 @@ export type OpsiKlien = {
     fetch?: typeof fetch
 }
 
+export type UserMurid = {
+    name?: string
+    nis?: string | null
+    nisn?: string | null
+    kelas?: string | null
+    avatar?: string | null
+    profile_photo?: string | null
+    sekolah?: { id?: number; name?: string; school_type?: string } | null
+    [k: string]: unknown
+}
+
 export type MasukRespons = {
-    data: { access_token: string; uuid: string; user: { name?: string; [k: string]: unknown } }
+    data: { access_token: string; uuid: string; user: UserMurid }
 }
 
 /**

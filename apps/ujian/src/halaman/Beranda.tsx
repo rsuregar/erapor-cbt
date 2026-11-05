@@ -21,6 +21,7 @@ import {
     CalendarClock,
     ChevronRight,
     Clock,
+    Info,
     ListChecks,
     Lock,
     LogOut,
@@ -31,8 +32,9 @@ import {
     Smartphone,
     Sparkles,
     Trophy,
+    X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LencanaStaging } from '@/komponen/PenandaStaging'
 
 const STATUS: Record<UjianRingkas['status'], [string, NadaLencana]> = {
@@ -74,7 +76,8 @@ export default function Beranda() {
     const [tabAktif, setTabAktif] = useState<KategoriTab>('Semua')
     const [modalKeluarAkun, setModalKeluarAkun] = useState(false)
     const [prosesKeluarAkun, setProsesKeluarAkun] = useState(false)
-
+    const [modalProfilMurid, setModalProfilMurid] = useState(false)
+    const [ujianInfoEligible, setUjianInfoEligible] = useState<UjianRingkas | null>(null)
     // Modal khusus pengawas: tutup aplikasi ke OS (butuh PIN)
     const [modalPengawasKeluar, setModalPengawasKeluar] = useState(false)
     const [pinPengawas, setPinPengawas] = useState('')
@@ -82,18 +85,24 @@ export default function Beranda() {
     const [prosesTutupApp, setProsesTutupApp] = useState(false)
 
     // networkMode always: offline tetap menjalankan queryFn, yang jatuh ke salinan lokal
+    // staleTime 60_000: data dianggap segar selama 1 menit, tidak refetch saat berpindah ke/dari dashboard
     const ujian = useQuery({
         queryKey: ['ujian'],
         queryFn: daftarUjian,
+        staleTime: 60_000,
+        gcTime: 10 * 60_000,
         refetchInterval: 60_000,
         networkMode: 'always',
     })
 
-    // Tersambung lagi: segarkan daftar
+    // Tersambung lagi: segarkan daftar HANYA saat transisi dari offline ke online (bukan tiap render/mount)
+    const prevOnlineRef = useRef(online)
     useEffect(() => {
-        if (online) void ujian.refetch()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [online])
+        if (!prevOnlineRef.current && online) {
+            void ujian.refetch()
+        }
+        prevOnlineRef.current = online
+    }, [online, ujian])
 
     // Hitung mundur realtime setiap 1 detik
     const [sekarang, setSekarang] = useState(Date.now())
@@ -103,24 +112,47 @@ export default function Beranda() {
         return () => clearInterval(t)
     }, [])
 
-    // Cheatsheet Pengawas: Shortcut keyboard khusus proktor untuk membuka dialog tutup aplikasi
+    // Shortcut keyboard pengawas + tombol Escape untuk menutup dialog
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
             if (isShortcutPengawas(e)) {
                 e.preventDefault()
                 setModalPengawasKeluar(true)
+            } else if (e.key === 'Escape') {
+                if (ujianInfoEligible) setUjianInfoEligible(null)
+                else if (modalProfilMurid) setModalProfilMurid(false)
+                else if (modalKeluarAkun) setModalKeluarAkun(false)
+                else if (modalPengawasKeluar) setModalPengawasKeluar(false)
             }
         }
 
         window.addEventListener('keydown', tanganiKeydown)
         return () => window.removeEventListener('keydown', tanganiKeydown)
-    }, [])
+    }, [ujianInfoEligible, modalProfilMurid, modalKeluarAkun, modalPengawasKeluar])
 
     const daftarSemua = ujian.data?.data ?? []
     const kelompok = kelompokkan(daftarSemua, sekarang)
-    const nama = sesi.nama()
-    const nis = sesi.nis()
     const murid = daftarSemua[0]?.murid
+    const nama = murid?.nama ?? sesi.nama()
+    const nis = murid?.nis ?? sesi.nis()
+    const kelas = murid?.kelas ?? sesi.kelas()
+    const nisn = murid?.nisn ?? sesi.nisn()
+    const foto = murid?.foto ?? sesi.foto()
+    const sekolah = murid?.sekolah ?? sesi.sekolah()
+
+    // Sinkronkan data profil terbaru dari API ke sesi penyimpanan lokal
+    useEffect(() => {
+        if (murid) {
+            void sesi.perbaruiProfil({
+                nama: murid.nama,
+                nis: murid.nis,
+                kelas: murid.kelas,
+                nisn: murid.nisn,
+                foto: murid.foto,
+                sekolah: murid.sekolah,
+            })
+        }
+    }, [murid])
 
     const daftarFilter =
         tabAktif === 'Semua'
@@ -214,18 +246,41 @@ export default function Beranda() {
                             <h1 className="font-display text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm truncate">
                                 {nama ? `Assalamu'alaikum, ${nama.split(' ')[0]}` : "Assalamu'alaikum"}
                             </h1>
-                            <p className="text-xs text-sky-100 truncate">
-                                Pusat Ujian Digital (CBT) Al Akhyar
+                            <p className="text-xs text-sky-100 truncate flex items-center gap-2">
+                                <span>Pusat Ujian Digital (CBT) Al Akhyar</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalProfilMurid(true)}
+                                    className="sm:hidden font-semibold text-amber-300 underline underline-offset-2 hover:text-white cursor-pointer"
+                                >
+                                    {kelas ? `(${kelas})` : '(Data Murid)'}
+                                </button>
                             </p>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2 rounded-lg bg-white/10 p-1.5 sm:p-2.5 backdrop-blur-md border border-white/15">
-                            <FotoMurid nama={murid?.nama ?? nama ?? 'Murid'} foto={murid?.foto} ukuran="sm" className="ring-2 ring-white/60 bg-white" />
+                        <button
+                            type="button"
+                            onClick={() => setModalProfilMurid(true)}
+                            className="group flex shrink-0 items-center gap-2 rounded-xl bg-white/10 p-1.5 sm:p-2.5 backdrop-blur-md border border-white/15 transition hover:bg-white/20 active:scale-95 text-left focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer"
+                            aria-label="Buka data lengkap murid"
+                            title="Klik untuk melihat data lengkap murid"
+                        >
+                            <FotoMurid nama={murid?.nama ?? nama ?? 'Murid'} foto={foto} ukuran="sm" className="ring-2 ring-white/60 bg-white transition group-hover:scale-105" />
                             <div className="hidden sm:block pr-1 text-left">
-                                <p className="text-xs font-bold leading-tight text-white line-clamp-1">{murid?.nama ?? nama ?? 'Murid'}</p>
-                                <p className="text-xs text-sky-100 mt-0.5">{nis ? `NIS: ${nis}` : 'Peserta Ujian'}</p>
+                                <p className="text-xs font-bold leading-tight text-white line-clamp-1 group-hover:text-sky-100">
+                                    {murid?.nama ?? nama ?? 'Murid'}
+                                </p>
+                                <p className="text-xs text-sky-100 mt-0.5 flex items-center gap-1.5">
+                                    <span>{nis ? `NIS: ${nis}` : 'Peserta Ujian'}</span>
+                                    {kelas && (
+                                        <span className="rounded bg-white/20 px-1.5 py-0.2 text-[10px] font-bold text-sky-100 border border-white/10">
+                                            {kelas}
+                                        </span>
+                                    )}
+                                    <ChevronRight className="size-3 text-sky-200 transition-transform group-hover:translate-x-0.5" />
+                                </p>
                             </div>
-                        </div>
+                        </button>
                     </div>
 
                     {/* Ringkasan angka (bukan tombol — penyaringan cukup lewat tab di bawah). */}
@@ -312,7 +367,13 @@ export default function Beranda() {
                 {!ujian.isPending && daftarFilter.length > 0 && (
                     <div id="daftar-ujian" role="tabpanel" className="space-y-3">
                         {daftarFilter.map((u) => (
-                            <KartuUjian key={u.id} ujian={u} sekarang={sekarang} riwayat={tabAktif === 'Riwayat' || u.status === 'selesai'} />
+                            <KartuUjian
+                                key={u.id}
+                                ujian={u}
+                                sekarang={sekarang}
+                                riwayat={tabAktif === 'Riwayat' || u.status === 'selesai'}
+                                onInfoEligible={setUjianInfoEligible}
+                            />
                         ))}
                     </div>
                 )}
@@ -410,6 +471,225 @@ export default function Beranda() {
                     </div>
                 </div>
             )}
+            {/* Modal Data Lengkap Murid */}
+            {modalProfilMurid && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in"
+                    onClick={() => setModalProfilMurid(false)}
+                >
+                    <div
+                        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-100 animate-in zoom-in-95"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header Gradien dengan Identitas Murid */}
+                        <div className="relative bg-gradient-to-br from-[#0B486F] via-[#006195] to-[#004B74] px-5 pt-6 pb-5 text-white">
+                            <button
+                                type="button"
+                                onClick={() => setModalProfilMurid(false)}
+                                className="absolute right-3.5 top-3.5 inline-flex size-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 active:scale-95 transition"
+                                aria-label="Tutup modal"
+                            >
+                                <X className="size-4" />
+                            </button>
+
+                            <div className="flex items-center gap-3.5">
+                                <FotoMurid
+                                    nama={murid?.nama ?? nama ?? 'Murid'}
+                                    foto={foto}
+                                    ukuran="lg"
+                                    className="size-16 ring-4 ring-white/30 bg-white shadow-md text-xl"
+                                />
+                                <div className="min-w-0 pr-6">
+                                    <div className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-sky-100 backdrop-blur-sm border border-white/10 mb-1">
+                                        <Sparkles className="size-3 text-amber-300" />
+                                        <span>Peserta Ujian CBT</span>
+                                    </div>
+                                    <h2 className="text-lg font-extrabold leading-tight tracking-tight text-white line-clamp-2">
+                                        {murid?.nama ?? nama ?? 'Murid'}
+                                    </h2>
+                                    <p className="text-xs text-sky-100 mt-0.5">
+                                        {sekolah ?? 'Sekolah Islam Al Akhyar'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Rincian Lengkap Data Murid */}
+                        <div className="p-5 sm:p-6 space-y-4">
+                            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 space-y-3">
+                                {/* Nama Lengkap */}
+                                <div className="flex items-start justify-between gap-3 text-sm">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0 mt-0.5">
+                                        Nama Lengkap
+                                    </span>
+                                    <span className="font-bold text-slate-800 text-right">
+                                        {murid?.nama ?? nama ?? '-'}
+                                    </span>
+                                </div>
+
+                                <div className="h-px bg-slate-200/70" />
+
+                                {/* NIS */}
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        NIS
+                                    </span>
+                                    <span className="font-mono font-bold text-primary text-base">
+                                        {nis || '-'}
+                                    </span>
+                                </div>
+
+                                <div className="h-px bg-slate-200/70" />
+
+                                {/* Kelas Saat Ini */}
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Kelas Saat Ini
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2.5 py-0.5 text-xs font-extrabold text-sky-800 border border-sky-200/60">
+                                        {kelas || '-'}
+                                    </span>
+                                </div>
+
+                                {/* NISN (bila tersedia) */}
+                                {nisn && (
+                                    <>
+                                        <div className="h-px bg-slate-200/70" />
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                NISN
+                                            </span>
+                                            <span className="font-mono font-medium text-slate-700">
+                                                {nisn}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Satuan Pendidikan / Sekolah */}
+                                <div className="h-px bg-slate-200/70" />
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Sekolah
+                                    </span>
+                                    <span className="font-semibold text-slate-700 text-right text-xs">
+                                        {sekolah ?? 'Sekolah Islam Al Akhyar'}
+                                    </span>
+                                </div>
+
+                                {/* Ruang & Sesi Ujian (bila terjadwal) */}
+                                {daftarSemua[0]?.sesi && (
+                                    <>
+                                        <div className="h-px bg-slate-200/70" />
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                Ruang & Sesi
+                                            </span>
+                                            <span className="font-semibold text-slate-700 text-right text-xs">
+                                                {daftarSemua[0].sesi.nama}
+                                                {daftarSemua[0].sesi.ruang ? ` · ${daftarSemua[0].sesi.ruang}` : ''}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-end pt-1">
+                                <Tombol
+                                    varian="primary"
+                                    ukuran="sm"
+                                    onClick={() => setModalProfilMurid(false)}
+                                    className="w-full sm:w-auto"
+                                >
+                                    Tutup
+                                </Tombol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal Penjelasan Syarat Ujian Akhir Semester (Tidak Eligible) */}
+            {ujianInfoEligible && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in"
+                    onClick={() => setUjianInfoEligible(null)}
+                >
+                    <div
+                        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-100 animate-in zoom-in-95"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="relative bg-gradient-to-br from-rose-700 via-rose-800 to-rose-900 px-5 pt-6 pb-5 text-white">
+                            <button
+                                type="button"
+                                onClick={() => setUjianInfoEligible(null)}
+                                className="absolute right-3.5 top-3.5 inline-flex size-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 active:scale-95 transition"
+                                aria-label="Tutup dialog"
+                            >
+                                <X className="size-4" />
+                            </button>
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md border border-white/20">
+                                    <ShieldAlert className="size-6 text-white" />
+                                </div>
+                                <div className="min-w-0 pr-6">
+                                    <span className="inline-block rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold text-rose-100 uppercase tracking-wider mb-1">
+                                        Status: Tidak Eligible
+                                    </span>
+                                    <h2 className="text-lg font-bold leading-tight">
+                                        Belum Bisa Mengikuti Ujian
+                                    </h2>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-5 sm:p-6 space-y-4">
+                            <div className="rounded-xl border border-slate-200/90 bg-slate-50 p-3.5 space-y-1.5">
+                                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Ujian Akhir Semester</p>
+                                <p className="font-bold text-slate-800 text-sm leading-snug">{ujianInfoEligible.nama}</p>
+                                {ujianInfoEligible.mapel && (
+                                    <p className="text-xs text-slate-600">Mata Pelajaran: <span className="font-semibold text-slate-700">{ujianInfoEligible.mapel}</span></p>
+                                )}
+                            </div>
+
+                            <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
+                                <p>
+                                    Ujian ini merupakan <strong>Ujian Akhir Semester (UAS / PAS / PAT)</strong> yang mewajibkan status kelayakan (eligible) dari segi administrasi atau keuangan sekolah.
+                                </p>
+
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 space-y-2 text-xs text-amber-950">
+                                    <p className="font-bold text-amber-950 flex items-center gap-1.5 text-sm">
+                                        <span>💡</span>
+                                        <span>Bagaimana agar eligible?</span>
+                                    </p>
+                                    <ol className="list-decimal pl-4 space-y-1.5 leading-normal font-medium">
+                                        <li>
+                                            <strong>Melunasi tunggakan SPP / Iuran Tahunan</strong> sesuai batas minimum syarat eligible sekolah.
+                                        </li>
+                                        <li>
+                                            <strong>Diberikan dispensasi ujian</strong> secara resmi oleh Admin Sekolah atau Kepala Sekolah/Pimpinan.
+                                        </li>
+                                    </ol>
+                                </div>
+
+                                <p className="text-xs text-slate-500">
+                                    Catatan: Ujian selain UAS/PAS/PAT (seperti Ulangan Harian, formatif, kuis, dan PTS) tetap dapat kamu ikuti seperti biasa.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-end pt-2">
+                                <Tombol
+                                    varian="primary"
+                                    ukuran="sm"
+                                    onClick={() => setUjianInfoEligible(null)}
+                                    className="w-full sm:w-auto"
+                                >
+                                    Saya Mengerti
+                                </Tombol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Pengawas: Tutup Aplikasi dengan PIN */}
             {modalPengawasKeluar && (
@@ -482,26 +762,45 @@ export default function Beranda() {
     )
 }
 
-function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; sekarang: number; riwayat: boolean }) {
+function KartuUjian({
+    ujian: u,
+    sekarang,
+    riwayat,
+    onInfoEligible,
+}: {
+    ujian: UjianRingkas
+    sekarang: number
+    riwayat: boolean
+    onInfoEligible?: (u: UjianRingkas) => void
+}) {
     const [label, nada] = STATUS[u.status]
     const buka = Date.parse(u.dibuka_pada)
     const tutup = Date.parse(u.ditutup_pada)
     const sedangDibuka = buka <= sekarang && sekarang <= tutup
     const durasi = u.durasi_menit + u.tambahan_waktu_menit
+    const tidakEligible = u.eligible === false
 
     return (
         <div
             className={cn(
                 'group rounded-lg border bg-white p-3.5 sm:p-4.5 transition-all duration-200 shadow-sm hover:shadow-md',
-                sedangDibuka && u.status !== 'selesai'
-                    ? 'border-primary/40 ring-1 ring-primary/20 bg-gradient-to-br from-white via-white to-sky-50/30'
-                    : 'border-slate-200/90 hover:border-slate-300',
+                tidakEligible
+                    ? 'border-rose-200/90 bg-rose-50/20 hover:border-rose-300'
+                    : sedangDibuka && u.status !== 'selesai'
+                      ? 'border-primary/40 ring-1 ring-primary/20 bg-gradient-to-br from-white via-white to-sky-50/30'
+                      : 'border-slate-200/90 hover:border-slate-300',
             )}
         >
             {/* Top Row: Mapel & Security Badges + Status */}
             <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                    {sedangDibuka && u.status !== 'selesai' && (
+                    {tidakEligible && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 border border-rose-300 px-2 py-0.5 text-xs font-bold text-rose-700">
+                            <ShieldAlert className="size-3" />
+                            <span>Tidak Eligible</span>
+                        </span>
+                    )}
+                    {sedangDibuka && u.status !== 'selesai' && !tidakEligible && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-green-100 px-1.5 py-0.5 text-xs font-bold text-green-700">
                             <span className="size-1.5 rounded-full bg-green-500" aria-hidden />
                             <span>Berlangsung</span>
@@ -526,8 +825,8 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                     )}
                 </div>
 
-                <Lencana nada={nada} className="shrink-0 text-xs py-0.5 px-2">
-                    {label}
+                <Lencana nada={tidakEligible ? 'red' : nada} className="shrink-0 text-xs py-0.5 px-2">
+                    {tidakEligible ? 'Terkunci' : label}
                 </Lencana>
             </div>
 
@@ -564,34 +863,41 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
             {/* Bottom Actions Area */}
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
                 <div className="min-w-0 text-sm">
-                    {!riwayat && u.status !== 'selesai' && (
-                        u.status === 'terkunci' ? (
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-coral-700">
-                                <Lock className="size-4 shrink-0" aria-hidden />
-                                <span className="truncate">Tunggu pengawas</span>
-                            </span>
-                        ) : u.status === 'menunggu_sinkron' ? (
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-sky-700">
-                                <RefreshCw className="size-4 shrink-0" aria-hidden />
-                                <span className="truncate">Jawaban dikirim…</span>
-                            </span>
-                        ) : sekarang < buka ? (
-                            <span className="inline-flex items-center gap-1.5 text-slate-700 truncate">
-                                <span className="size-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
-                                <span>Dibuka <strong className="font-semibold text-primary">{durasiTenang(buka - sekarang)}</strong></span>
-                                <span className="text-slate-600 hidden sm:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
-                            </span>
-                        ) : sedangDibuka ? (
-                            <span className="inline-flex items-center gap-1.5 text-green-700 font-semibold truncate">
-                                <span className="size-1.5 rounded-full bg-green-500 shrink-0" aria-hidden />
-                                <span>Ditutup pukul <strong className="font-bold">{jamMenit(u.ditutup_pada)}</strong></span>
-                                <span className="text-slate-600 font-normal hidden sm:inline">WITA</span>
-                            </span>
-                        ) : (
-                            <span className="text-slate-600">Jadwal telah berakhir</span>
+                    {tidakEligible ? (
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-rose-700 text-xs sm:text-sm truncate">
+                            <Lock className="size-3.5 shrink-0" aria-hidden />
+                            <span>Ujian Terkunci (Read-Only)</span>
+                        </span>
+                    ) : (
+                        !riwayat && u.status !== 'selesai' && (
+                            u.status === 'terkunci' ? (
+                                <span className="inline-flex items-center gap-1.5 font-semibold text-coral-700">
+                                    <Lock className="size-4 shrink-0" aria-hidden />
+                                    <span className="truncate">Tunggu pengawas</span>
+                                </span>
+                            ) : u.status === 'menunggu_sinkron' ? (
+                                <span className="inline-flex items-center gap-1.5 font-semibold text-sky-700">
+                                    <RefreshCw className="size-4 shrink-0" aria-hidden />
+                                    <span className="truncate">Jawaban dikirim…</span>
+                                </span>
+                            ) : sekarang < buka ? (
+                                <span className="inline-flex items-center gap-1.5 text-slate-700 truncate">
+                                    <span className="size-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
+                                    <span>Dibuka <strong className="font-semibold text-primary">{durasiTenang(buka - sekarang)}</strong></span>
+                                    <span className="text-slate-600 hidden sm:inline">({jamMenit(u.dibuka_pada)} WITA)</span>
+                                </span>
+                            ) : sedangDibuka ? (
+                                <span className="inline-flex items-center gap-1.5 text-green-700 font-semibold truncate">
+                                    <span className="size-1.5 rounded-full bg-green-500 shrink-0" aria-hidden />
+                                    <span>Ditutup pukul <strong className="font-bold">{jamMenit(u.ditutup_pada)}</strong></span>
+                                    <span className="text-slate-600 font-normal hidden sm:inline">WITA</span>
+                                </span>
+                            ) : (
+                                <span className="text-slate-600">Jadwal telah berakhir</span>
+                            )
                         )
                     )}
-                    {(riwayat || u.status === 'selesai') && (
+                    {!tidakEligible && (riwayat || u.status === 'selesai') && (
                         <span className="text-slate-600">Ujian sudah dikumpulkan</span>
                     )}
                 </div>
@@ -608,28 +914,40 @@ function KartuUjian({ ujian: u, sekarang, riwayat }: { ujian: UjianRingkas; seka
                         </Link>
                     )}
 
-                    {!riwayat && u.status !== 'selesai' && (
-                        <Link
-                            to="/ujian/$ujianId"
-                            params={{ ujianId: u.id }}
-                            className={cn(
-                                'inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-bold transition shadow-sm active:scale-95',
-                                sedangDibuka && (u.status === 'belum_mulai' || u.status === 'mengerjakan')
-                                    ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
-                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                            )}
+                    {tidakEligible ? (
+                        <button
+                            type="button"
+                            onClick={() => onInfoEligible?.(u)}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-3.5 text-xs sm:text-sm font-bold text-rose-800 hover:bg-rose-100 transition shadow-sm active:scale-95 cursor-pointer"
+                            title="Klik untuk melihat syarat eligible ujian ini"
                         >
-                            <span>
-                                {u.status === 'terkunci' || u.status === 'menunggu_sinkron'
-                                    ? 'Lihat status'
-                                    : u.status === 'mengerjakan'
-                                      ? 'Lanjutkan Ujian'
-                                      : sedangDibuka
-                                        ? 'Mulai Ujian'
-                                        : 'Persiapan Ujian'}
-                            </span>
-                            <ArrowRight className="size-4 opacity-80" />
-                        </Link>
+                            <Info className="size-4 shrink-0 text-rose-700" />
+                            <span>Info Syarat Ujian</span>
+                        </button>
+                    ) : (
+                        !riwayat && u.status !== 'selesai' && (
+                            <Link
+                                to="/ujian/$ujianId"
+                                params={{ ujianId: u.id }}
+                                className={cn(
+                                    'inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-bold transition shadow-sm active:scale-95',
+                                    sedangDibuka && (u.status === 'belum_mulai' || u.status === 'mengerjakan')
+                                        ? 'bg-primary text-white hover:bg-primary-600 shadow-primary/20'
+                                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                                )}
+                            >
+                                <span>
+                                    {u.status === 'terkunci' || u.status === 'menunggu_sinkron'
+                                        ? 'Lihat status'
+                                        : u.status === 'mengerjakan'
+                                          ? 'Lanjutkan Ujian'
+                                          : sedangDibuka
+                                            ? 'Mulai Ujian'
+                                            : 'Persiapan Ujian'}
+                                </span>
+                                <ArrowRight className="size-4 opacity-80" />
+                            </Link>
+                        )
                     )}
                 </div>
             </div>

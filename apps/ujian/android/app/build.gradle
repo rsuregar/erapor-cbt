@@ -12,8 +12,8 @@ android {
         applicationId "sch.alakhyar.ujian"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
-        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "0.5.0"
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 2
+        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "0.6.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         if (stagingBuild) {
             applicationIdSuffix ".staging"

@@ -13,19 +13,24 @@ function ujian(): UjianRingkas[] {
 
     return [
         {
-            id: 1, nama: 'Penilaian Akhir Semester Ganjil', mapel: 'Matematika', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(-20), ditutup_pada: j(100),
+            id: 1, nama: 'Penilaian Akhir Semester Ganjil', mapel: 'Matematika', jenis_penilaian: 'pas', eligible: true, murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null, nis: '2024001', nisn: '0081234567', kelas: 'Kelas 8A', sekolah: 'SMP Islam Al Akhyar' }, dibuka_pada: j(-20), ditutup_pada: j(100),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 8, level_keamanan: 'ketat',
             sesi: { nama: 'Sesi 1', ruang: 'Lab Komputer 1' }, lokasi: { wajib: true, radius_meter: 150 }, status: st.status ?? 'belum_mulai', attempt_id: st.mulai ? ATTEMPT : null, bisa_unduh: true, hasil_tersedia: false,
         },
         {
-            id: 2, nama: 'Ulangan Harian Bab 3', mapel: 'Bahasa Arab', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(60 * 26), ditutup_pada: j(60 * 27),
+            id: 2, nama: 'Ulangan Harian Bab 3', mapel: 'Bahasa Arab', jenis_penilaian: 'harian', eligible: true, murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null, nis: '2024001', nisn: '0081234567', kelas: 'Kelas 8A', sekolah: 'SMP Islam Al Akhyar' }, dibuka_pada: j(60 * 26), ditutup_pada: j(60 * 27),
             durasi_menit: 45, tambahan_waktu_menit: 0, jumlah_soal: 20, level_keamanan: 'dasar',
             sesi: { nama: 'Sesi 2', ruang: 'Kelas 8A' }, lokasi: { wajib: false, radius_meter: null }, status: 'belum_mulai', attempt_id: null, bisa_unduh: false, hasil_tersedia: false,
         },
         {
-            id: 3, nama: 'Penilaian Tengah Semester', mapel: 'Ilmu Pengetahuan Alam', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null }, dibuka_pada: j(-60 * 72), ditutup_pada: j(-60 * 70),
+            id: 3, nama: 'Penilaian Tengah Semester', mapel: 'Ilmu Pengetahuan Alam', jenis_penilaian: 'pts', eligible: true, murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null, nis: '2024001', nisn: '0081234567', kelas: 'Kelas 8A', sekolah: 'SMP Islam Al Akhyar' }, dibuka_pada: j(-60 * 72), ditutup_pada: j(-60 * 70),
             durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 25, level_keamanan: 'lockdown',
             sesi: null, lokasi: { wajib: true, radius_meter: 150 }, status: 'selesai', attempt_id: 31, bisa_unduh: false, hasil_tersedia: true,
+        },
+        {
+            id: 4, nama: 'Penilaian Akhir Tahun (PAT) Fisika', mapel: 'Fisika', jenis_penilaian: 'pat', eligible: false, keterangan_eligibility: 'Belum memenuhi batas minimum pembayaran SPP/iuran semester.', murid: { id: 1, nama: 'Ahmad Fauzan Hidayat', foto: null, nis: '2024001', nisn: '0081234567', kelas: 'Kelas 8A', sekolah: 'SMP Islam Al Akhyar' }, dibuka_pada: j(-10), ditutup_pada: j(120),
+            durasi_menit: 90, tambahan_waktu_menit: 0, jumlah_soal: 30, level_keamanan: 'ketat',
+            sesi: { nama: 'Sesi 1', ruang: 'Lab Komputer 2' }, lokasi: { wajib: true, radius_meter: 150 }, status: 'belum_mulai', attempt_id: null, bisa_unduh: false, hasil_tersedia: false,
         },
     ]
 }
@@ -161,12 +166,15 @@ export async function fetchDemo(url: string | URL | Request, init?: RequestInit)
         perangkatLainDemo = false
         tokenDicabutDemo = false
 
-        return json({ data: { access_token: TOKEN_DEMO, uuid: 'demo', user: { name: 'Ahmad Fauzan Hidayat' } } })
+        return json({ data: { access_token: TOKEN_DEMO, uuid: 'demo', user: { name: 'Ahmad Fauzan Hidayat', nis: '2024001', nisn: '0081234567', kelas: 'Kelas 8A', avatar: null, sekolah: { name: 'SMP Islam Al Akhyar' } } } })
     }
     if (tokenDicabutDemo && !jalur.endsWith('/auth/logout')) return json({ message: 'Unauthenticated.' }, 401)
     if (jalur.endsWith('/auth/logout')) return json({ message: 'ok' })
     if (jalur.endsWith('/cbt/ujian')) return json({ data: ujian(), aplikasi: { versi_minimum: { android: null, ios: null }, tautan_pembaruan: { android: null, ios: null } } })
     if (/\/cbt\/attempt\/\d+\/hasil$/.test(jalur)) return json(hasil())
+    if (jalur.includes('/cbt/ujian/4/mulai') || jalur.includes('/cbt/ujian/4/paket')) {
+        return json({ message: 'Belum memenuhi batas minimum pembayaran SPP/iuran untuk Ujian Akhir Semester. Harap lunasi tunggakan atau ajukan dispensasi ujian ke admin/kepala sekolah.', kode: 'TIDAK_ELIGIBLE' }, 403)
+    }
 
     const isi = typeof init?.body === 'string' ? JSON.parse(init.body) : null
     if (jalur.endsWith('/cbt/ujian/1/paket')) {
