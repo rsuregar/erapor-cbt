@@ -3,6 +3,7 @@ import { Tombol } from '@/komponen/Tombol'
 import { adaNative, bisaPasangPembaruan, bukaTautanLuar, pasangPembaruan } from '@/lib/native'
 import { terapkanPembaruan, usePembaruanPwa } from '@/lib/pembaruanPwa'
 import { usePembaruan } from '@/lib/usePembaruan'
+import { UNDUHAN_TERBARU } from '@/lib/dataUnduhan'
 import { Download, RotateCw, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
@@ -123,10 +124,12 @@ export function SpanduPembaruan() {
     }
 
     if (pwa && !ditutup.has(KUNCI_PWA)) {
+        const versiTujuan = info?.versi || UNDUHAN_TERBARU.android?.versi || UNDUHAN_TERBARU.windows?.versi || UNDUHAN_TERBARU.macos?.versi
+
         return (
             <Kerangka onTutup={() => tutup(KUNCI_PWA)}>
                 <p>
-                    <b>Versi baru aplikasi sudah siap.</b> Ketuk Perbarui: halaman dimuat ulang sebentar, akun dan jawabanmu tetap aman (versi sekarang {__VERSI_APP__}).
+                    <b>Versi baru {versiTujuan ? `v${versiTujuan} ` : ''}sudah siap.</b> Ketuk Perbarui: halaman dimuat ulang sebentar, akun dan jawabanmu tetap aman (versi sekarang v{__VERSI_APP__}{versiTujuan && versiTujuan !== __VERSI_APP__ ? ` → v${versiTujuan}` : ''}).
                 </p>
                 <Tombol
                     ukuran="sm"
@@ -138,7 +141,7 @@ export function SpanduPembaruan() {
                         void terapkanPembaruan()
                     }}
                 >
-                    {memasang ? 'Memperbarui…' : 'Perbarui'}
+                    {memasang ? 'Memperbarui…' : versiTujuan ? `Perbarui ke v${versiTujuan}` : 'Perbarui'}
                 </Tombol>
             </Kerangka>
         )
