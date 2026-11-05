@@ -12,10 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-export const POLA_TAG = /^release-(desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(-.+)?$/;
+export const POLA_TAG = /^release-(all|universal|desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(-.+)?$/;
 
 /** Platform yang dibangun setiap jenis tag (lihat workflow build-*.yml). */
 const PLATFORM = {
+  all: ['android', 'windows', 'macos'],
+  universal: ['android', 'windows', 'macos'],
   desktop: ['windows', 'macos'],
   win: ['windows'],
   macos: ['macos'],
@@ -25,6 +27,8 @@ const PLATFORM = {
 };
 
 const PRODUK = {
+  all: 'CBT Al Akhyar (Semua Platform)',
+  universal: 'CBT Al Akhyar (Semua Platform)',
   desktop: 'CBT Al Akhyar Desktop (Windows & macOS)',
   win: 'CBT Al Akhyar Windows',
   macos: 'CBT Al Akhyar macOS',
@@ -52,12 +56,40 @@ const CATATAN_PLATFORM = {
 };
 
 export function uraiTag(tag) {
-  const m = POLA_TAG.exec(tag);
-  if (!m) return null;
-  const angka = m[2].split('.').map(Number);
-  while (angka.length < 3) angka.push(0);
+  if (!tag) return null;
+  const t = String(tag).trim();
 
-  return { jenis: m[1], versi: angka.join('.') + (m[3] ?? ''), angka, praRilis: !!m[3] };
+  // Tag standar semver: v0.7.0 atau 0.7.0
+  const mSemver = /^v?(\d+)\.(\d+)(?:\.(\d+))?(-.+)?$/.exec(t);
+  if (mSemver) {
+    const mayor = Number(mSemver[1]);
+    const minor = Number(mSemver[2]);
+    const patch = Number(mSemver[3] ?? 0);
+    const praRilis = mSemver[4] ?? '';
+    const versi = `${mayor}.${minor}.${patch}${praRilis}`;
+    return {
+      jenis: 'all',
+      versi,
+      angka: [mayor, minor, patch],
+      praRilis: Boolean(praRilis),
+    };
+  }
+
+  // Tag release-*: release-0.7.0, release-all-0.7.0, release-desktop-0.7.0, dll.
+  const m = /^release-(?:(all|universal|desktop|win|macos|mobile|android|ios)-)?v?(\d+)\.(\d+)(?:\.(\d+))?(-.+)?$/.exec(t);
+  if (!m) return null;
+  const jenis = m[1] || 'all';
+  const mayor = Number(m[2]);
+  const minor = Number(m[3]);
+  const patch = Number(m[4] ?? 0);
+  const praRilis = m[5] ?? '';
+  const versi = `${mayor}.${minor}.${patch}${praRilis}`;
+  return {
+    jenis,
+    versi,
+    angka: [mayor, minor, patch],
+    praRilis: Boolean(praRilis),
+  };
 }
 
 function banding(a, b) {

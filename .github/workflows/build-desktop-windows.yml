@@ -3,8 +3,8 @@ name: "Build Desktop Windows (Exam Browser)"
 on:
   push:
     tags:
-      - 'release-desktop-*'
       - 'release-win-*'
+      - 'release-windows-*'
   workflow_call:
     inputs:
       environment:

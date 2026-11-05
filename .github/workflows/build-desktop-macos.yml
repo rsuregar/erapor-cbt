@@ -3,7 +3,6 @@ name: "Build Desktop macOS (Exam Browser)"
 on:
   push:
     tags:
-      - 'release-desktop-*'
       - 'release-macos-*'
   workflow_call:
     inputs:

@@ -47,6 +47,8 @@ for (const f of berkas) {
 }
 
 const NAMA = {
+  all: '(Semua Platform)',
+  universal: '(Semua Platform)',
   desktop: 'Desktop (Windows & macOS)',
   win: 'Windows',
   macos: 'macOS',
@@ -55,8 +57,8 @@ const NAMA = {
   ios: 'iOS',
 };
 
-/** "v0.3.0 · CBT Al Akhyar Android" — versi dulu, lalu nama app & platform. */
-const judulRilis = (v, j) => `v${v} · CBT Al Akhyar ${NAMA[j]}`;
+/** "v0.7.0 · CBT Al Akhyar (Semua Platform)" — versi dulu, lalu nama app & platform. */
+const judulRilis = (v, j) => `v${v} · CBT Al Akhyar ${NAMA[j] || ''}`.trim();
 
 const catatan = join(mkdtempSync(join(tmpdir(), 'catatan-rilis-')), 'catatan.md');
 writeFileSync(catatan, buatCatatanRilis(tag));

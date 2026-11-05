@@ -17,8 +17,6 @@ const pratinjau = args.includes('--pratinjau');
 const sisa = args.filter((a) => !a.startsWith('--'));
 
 let jenis, versi;
-let targetList = [];
-
 if (sisa.length === 1) {
   jenis = 'all';
   versi = sisa[0];
@@ -27,13 +25,7 @@ if (sisa.length === 1) {
 }
 
 const versiBersih = String(versi ?? '').replace(/^v/, '');
-if (jenis === 'all') {
-  targetList = ['desktop', 'android'];
-} else if (jenis) {
-  targetList = [jenis];
-}
-
-const tags = targetList.map((t) => `release-${t}-${versiBersih}`);
+const tag = jenis === 'all' ? `v${versiBersih}` : `release-${jenis}-${versiBersih}`;
 
 const gagal = (pesan) => {
   console.error(`[rilis] ${pesan}`);
@@ -41,33 +33,24 @@ const gagal = (pesan) => {
 };
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim();
 
-if (targetList.length === 0 || !versi || tags.some((t) => !uraiTag(t))) {
+if (!versi || !uraiTag(tag)) {
   gagal('Pemakaian: npm run rilis -- [all|desktop|android|win|macos|mobile|ios] <X.Y.Z[-pra]> [--pratinjau]');
 }
 
-for (const tag of tags) {
-  if (git('tag', '--list', tag)) gagal(`Tag ${tag} sudah ada.`);
-}
+if (git('tag', '--list', tag)) gagal(`Tag ${tag} sudah ada.`);
+
 if (!pratinjau) {
   if (git('branch', '--show-current') !== 'main') gagal('Tag rilis hanya dibuat dari branch main.');
   if (git('status', '--porcelain')) gagal('Working tree belum bersih; commit atau stash dulu.');
   git('fetch', '--quiet', '--tags', 'origin', 'main');
   if (git('rev-parse', 'HEAD') !== git('rev-parse', 'origin/main')) gagal('main lokal belum sama dengan origin/main (pull/push dulu).');
-  for (const tag of tags) {
-    if (git('ls-remote', '--tags', 'origin', tag)) gagal(`Tag ${tag} sudah ada di origin.`);
-  }
+  if (git('ls-remote', '--tags', 'origin', tag)) gagal(`Tag ${tag} sudah ada di origin.`);
 }
 
-for (const tag of tags) {
-  const catatan = buatCatatanRilis(tag, 'HEAD');
-  console.log(`\n===== Catatan rilis ${tag} =====\n\n${catatan}`);
-}
+const u = uraiTag(tag);
+const catatan = buatCatatanRilis(tag, 'HEAD');
+console.log(`\n===== Catatan rilis ${tag} =====\n\n${catatan}`);
 if (pratinjau) process.exit(0);
-
-const sampleTag = tags[0];
-const u = uraiTag(sampleTag);
-
-
 // Versi di repo (web PWA dari main, build lokal, dev) mengikuti rilis stabil terbaru.
 const kini = JSON.parse(readFileSync('apps/ujian/package.json', 'utf8')).version.split('.').map(Number);
 const selisih = u.angka.map((n, i) => n - kini[i]).find((d) => d !== 0) ?? 0;
@@ -78,12 +61,8 @@ if (!u.praRilis && selisih > 0) {
   git('push', 'origin', 'main');
 }
 
-for (const tag of tags) {
-  const catatan = buatCatatanRilis(tag, 'HEAD');
-  const berkas = join(mkdtempSync(join(tmpdir(), 'tag-rilis-')), 'catatan.md');
-  writeFileSync(berkas, `${tag}\n\n${catatan}`);
-  git('tag', '-a', tag, '-F', berkas, '--cleanup=verbatim');
-  git('push', 'origin', tag);
-  console.log(`[rilis] ✓ ${tag} dibuat & di-push.`);
-}
-console.log(`[rilis] Semua tag berhasil diterbitkan (${tags.join(', ')}). Pantau: gh run list --workflow build-*.yml`);
+const berkas = join(mkdtempSync(join(tmpdir(), 'tag-rilis-')), 'catatan.md');
+writeFileSync(berkas, `${tag}\n\n${catatan}`);
+git('tag', '-a', tag, '-F', berkas, '--cleanup=verbatim');
+git('push', 'origin', tag);
+console.log(`[rilis] ✓ Tag ${tag} dibuat & di-push. Pantau: gh run list`);

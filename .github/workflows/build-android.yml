@@ -3,8 +3,8 @@ name: "Build Android APK"
 on:
   push:
     tags:
-      - 'release-mobile-*'
       - 'release-android-*'
+      - 'release-mobile-*'
   workflow_call:
     inputs:
       environment:

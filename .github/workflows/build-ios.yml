@@ -3,7 +3,6 @@ name: "Build iOS App"
 on:
   push:
     tags:
-      - 'release-mobile-*'
       - 'release-ios-*'
   workflow_dispatch:
     inputs:

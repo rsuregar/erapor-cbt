@@ -1,0 +1,81 @@
+name: "Release CBT Al Akhyar (Semua Platform)"
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - 'release-v[0-9]+*'
+      - 'release-[0-9]+*'
+      - 'release-all-*'
+      - 'release-universal-*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Nomor versi (misal 0.7.0 - kosongkan untuk ambil dari tag/package.json)'
+        required: false
+        default: ''
+      environment:
+        description: 'Target Environment'
+        type: choice
+        options: [production, staging]
+        default: production
+
+# Pastikan hanya 1 proses rilis yang berjalan pada 1 waktu
+concurrency:
+  group: release-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  # 1. Gerbang Pengujian (Quality Gate): Uji TypeScript & Unit Test terlebih dahulu
+  ci:
+    name: CI & Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit Tests
+        run: npm test
+
+  # 2. Build Android APK
+  build-android:
+    name: Android APK
+    needs: ci
+    uses: ./.github/workflows/build-android.yml
+    with:
+      environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
+      build_type: release
+      version_name: ${{ inputs.version_name || '' }}
+    secrets: inherit
+
+  # 3. Build Windows Exam Browser (.exe & .msi)
+  build-windows:
+    name: Windows Exam Browser
+    needs: ci
+    uses: ./.github/workflows/build-desktop-windows.yml
+    with:
+      environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
+      version_name: ${{ inputs.version_name || '' }}
+    secrets: inherit
+
+  # 4. Build macOS Exam Browser (Apple Silicon & Intel)
+  build-macos:
+    name: macOS Exam Browser
+    needs: ci
+    uses: ./.github/workflows/build-desktop-macos.yml
+    with:
+      environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
+      version_name: ${{ inputs.version_name || '' }}
+    secrets: inherit
