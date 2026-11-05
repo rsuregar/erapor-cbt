@@ -74,7 +74,7 @@ const INFO: Record<Pilihan, { nama: string; catatan: string; Ikon: Ikon; warna: 
     windows: { nama: 'Windows', catatan: 'Windows 10/11 · 64-bit', Ikon: IkonWindows, warna: 'bg-sky-100 text-sky-700' },
     macos: { nama: 'macOS', catatan: 'Apple Silicon (M1 ke atas) · Mac Intel belum didukung', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
     android: { nama: 'Android', catatan: 'Android 8 ke atas · berkas APK', Ikon: IkonAndroid, warna: 'bg-green-100 text-green-700' },
-    ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
+    ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari atau Chrome (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
 }
 
 const URUTAN: Pilihan[] = ['windows', 'macos', 'android', 'ios']
@@ -95,7 +95,7 @@ const mb = (byte: number) => `${(byte / 1024 / 1024).toLocaleString('id-ID', { m
 /**
  * Tautan unduh aplikasi resmi di halaman Masuk (hanya web/PWA). Platform perangkat ini
  * ditonjolkan; platform lain bisa dibuka di "Perangkat lain". Windows/macOS/Android
- * mengunduh berkas dari rilis terbaru di GitHub; iPhone/iPad memasang PWA lewat Safari.
+ * mengunduh berkas dari rilis terbaru di GitHub; iPhone/iPad memasang PWA lewat Safari atau Chrome.
  */
 export function TautanUnduhApp() {
     const online = useOnline()
@@ -227,7 +227,7 @@ function KartuUnduh({ platform, berkas, memuat, gagal, utama }: { platform: Excl
     )
 }
 
-/** iPhone/iPad: tidak ada berkas unduhan; pasang PWA lewat Safari → Bagikan → Tambahkan ke Layar Utama. */
+/** iPhone/iPad: tidak ada berkas unduhan; pasang PWA lewat Safari/Chrome → Bagikan → Tambahkan ke Layar Utama. */
 function KartuIos() {
     if (standalone()) {
         return (
@@ -237,7 +237,6 @@ function KartuIos() {
             </p>
         )
     }
-    const bukanSafari = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(navigator.userAgent)
 
     return (
         <div className="rounded-lg border border-primary/30 bg-primary-50/50 p-3">
@@ -248,12 +247,9 @@ function KartuIos() {
                     <p className="text-xs text-slate-600">{INFO.ios.catatan}</p>
                 </div>
             </div>
-            {bukanSafari && (
-                <p className="mt-3 rounded-md bg-amber-100 px-2.5 py-2 text-xs font-semibold text-amber-900">Buka halaman ini di Safari terlebih dahulu.</p>
-            )}
             <ol className="mt-3 space-y-2 text-sm text-slate-700">
                 <Langkah n={1}>
-                    Ketuk <b>Bagikan</b> <Share className="inline size-4 -translate-y-0.5 text-primary" aria-label="ikon Bagikan" /> di bagian bawah Safari.
+                    Ketuk <b>Bagikan</b> <Share className="inline size-4 -translate-y-0.5 text-primary" aria-label="ikon Bagikan" /> di bilah Safari (bawah layar) atau di bilah alamat Chrome (kanan atas).
                 </Langkah>
                 <Langkah n={2}>
                     Pilih <b>Tambahkan ke Layar Utama</b> <PlusSquare className="inline size-4 -translate-y-0.5 text-primary" aria-hidden="true" />.

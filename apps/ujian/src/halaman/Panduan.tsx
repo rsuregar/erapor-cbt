@@ -22,10 +22,10 @@ const TAB: { id: UntukPanduan; label: string; ikon: ReactNode }[] = [
 
 const PASANG: Record<UntukPanduan, Langkah[]> = {
     ios: [
-        { teks: <>Buka alamat ujian di <b>Safari</b>, lalu ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas) di bagian bawah.</>, adegan: 'ios-bagikan' },
+        { teks: <>Buka alamat ujian di <b>Safari</b> atau <b>Chrome</b>, lalu ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas): di Safari ada di bilah bawah, di Chrome di bilah alamat kanan atas.</>, adegan: 'ios-bagikan' },
         { teks: <>Gulir ke bawah, pilih <b>Tambahkan ke Layar Utama</b>.</>, adegan: 'ios-tambah' },
         { teks: <>Ketuk <b>Tambah</b> di pojok kanan atas.</>, adegan: 'ios-konfirmasi' },
-        { teks: <>Mulai sekarang, buka ujian dari ikon <b>CBT Al Akhyar</b> di layar utama — bukan dari Safari.</>, adegan: 'layar-utama' },
+        { teks: <>Mulai sekarang, buka ujian dari ikon <b>CBT Al Akhyar</b> di layar utama — bukan dari Safari/Chrome.</>, adegan: 'layar-utama' },
     ],
     android: [
         { teks: <>Buka alamat ujian di <b>Chrome</b>, lalu ketuk menu <b>⋮</b> di kanan atas.</>, adegan: 'android-menu' },
