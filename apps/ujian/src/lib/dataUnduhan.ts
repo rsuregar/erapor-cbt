@@ -4,21 +4,27 @@ import type { DaftarUnduhan } from './pembaruan'
 
 export const UNDUHAN_TERBARU: DaftarUnduhan = {
     "windows": {
-        "versi": "0.6.1",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.1/cbt-al-akhyar-windows-v0.6.1-b8-x64-setup.exe",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.1",
-        "ukuran": 6417995
+        "versi": "0.7.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.7.0/cbt-al-akhyar-windows-v0.7.0-b2-x64-setup.exe",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.7.0",
+        "ukuran": 6419940
     },
     "macos": {
-        "versi": "0.6.0",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.0/cbt-al-akhyar-macos-v0.6.0-b7-universal.dmg",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.0",
-        "ukuran": 17923447
+        "versi": "0.7.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.7.0/cbt-al-akhyar-macos-v0.7.0-b2-arm64.dmg",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.7.0",
+        "ukuran": 8866497
+    },
+    "macos_intel": {
+        "versi": "0.7.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.7.0/cbt-al-akhyar-macos-v0.7.0-b2-x64.dmg",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.7.0",
+        "ukuran": 9394620
     },
     "android": {
-        "versi": "0.6.1",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-android-0.6.1/cbt-al-akhyar-android-v0.6.1-b12-release.apk",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-android-0.6.1",
-        "ukuran": 5013077
+        "versi": "0.7.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.7.0/cbt-al-akhyar-android-v0.7.0-b2-release.apk",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.7.0",
+        "ukuran": 5013427
     }
 } as const

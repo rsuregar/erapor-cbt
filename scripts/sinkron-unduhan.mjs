@@ -23,10 +23,10 @@ const BERKAS_POLA = {
 };
 
 const JENIS_TAG = {
-  windows: ['desktop', 'win'],
-  macos: ['desktop', 'macos'],
-  macos_intel: ['desktop', 'macos'],
-  android: ['mobile', 'android'],
+  windows: ['desktop', 'win', 'all', 'universal'],
+  macos: ['desktop', 'macos', 'all', 'universal'],
+  macos_intel: ['desktop', 'macos', 'all', 'universal'],
+  android: ['mobile', 'android', 'all', 'universal'],
 };
 
 function ambilRilis() {
