@@ -4,10 +4,10 @@ import type { DaftarUnduhan } from './pembaruan'
 
 export const UNDUHAN_TERBARU: DaftarUnduhan = {
     "windows": {
-        "versi": "0.6.0",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.0/cbt-al-akhyar-windows-v0.6.0-b7-x64-setup.exe",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.0",
-        "ukuran": 6417823
+        "versi": "0.6.1",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.1/cbt-al-akhyar-windows-v0.6.1-b8-x64-setup.exe",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.1",
+        "ukuran": 6417995
     },
     "macos": {
         "versi": "0.6.0",
