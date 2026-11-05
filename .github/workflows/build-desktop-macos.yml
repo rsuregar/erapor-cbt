@@ -51,9 +51,13 @@ jobs:
           - arch: arm64
             label: Apple Silicon
             os: macos-latest
+            target_rust: aarch64-apple-darwin
+            build_flag: ''
           - arch: x64
             label: Intel
-            os: macos-13
+            os: macos-latest
+            target_rust: x86_64-apple-darwin
+            build_flag: '--target x86_64-apple-darwin'
     environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
       - name: Checkout repository
@@ -70,7 +74,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
+        with:
+          targets: ${{ matrix.target_rust }}
       - name: Install dependencies
         run: npm ci
 
@@ -153,7 +158,7 @@ jobs:
           else
             echo "::notice::Updater di dalam app nonaktif: isi secret TAURI_SIGNING_PRIVATE_KEY dan variable TAURI_UPDATER_PUBKEY."
           fi
-          npx @tauri-apps/cli build "${ARGS[@]}"
+          npx @tauri-apps/cli build ${{ matrix.build_flag }} "${ARGS[@]}"
 
       # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installer
@@ -161,20 +166,23 @@ jobs:
         env:
           RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
-          # Build native (atau universal bila direktori ada)
-          BUNDLE=apps/ujian/src-tauri/target/release/bundle
+          # Build target bundle (atau universal / native fallback)
+          BUNDLE=apps/ujian/src-tauri/target/${{ matrix.target_rust }}/release/bundle
+          if [ ! -d "$BUNDLE" ]; then
+            BUNDLE=apps/ujian/src-tauri/target/release/bundle
+          fi
           if [ ! -d "$BUNDLE" ] && [ -d "apps/ujian/src-tauri/target/universal-apple-darwin/release/bundle" ]; then
             BUNDLE=apps/ujian/src-tauri/target/universal-apple-darwin/release/bundle
           fi
-          DMG=$(ls $BUNDLE/dmg/*.dmg)
-          ARCH=$(basename "$DMG" | sed -E 's/.*_([^_]+)\.dmg$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
+          DMG=$(ls "$BUNDLE"/dmg/*.dmg)
+          ARCH="${{ matrix.arch }}"
           BASE="cbt-al-akhyar-macos${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           OUT="$RUNNER_TEMP/installer"
           mkdir -p "$OUT"
           cp "$DMG" "$OUT/$BASE-$ARCH.dmg"
           # Manifes updater: hanya bila build ditandatangani dan berkas akan diterbitkan ke rilis (tag-nya pasti).
           TAG=""
-          if [[ "${{ github.ref }}" == refs/tags/release-* ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${{ github.ref_name }}"
           elif [ "${{ inputs.terbitkan_staging }}" = true ] && [ "${{ steps.env.outputs.target }}" = staging ]; then
             TAG="staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
@@ -199,7 +207,7 @@ jobs:
           path: ${{ steps.installer.outputs.dir }}/*
 
       - name: Publish to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/release-')
+        if: startsWith(github.ref, 'refs/tags/release-') || startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
