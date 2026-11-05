@@ -78,13 +78,13 @@ cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
 * `platform`: `windows` · `macos` · `android` · `ios`
 * `env`: hanya ditulis bila **bukan** production (`-staging`); build production tanpa label. Build staging memakai API staging, jadi harus terlihat beda.
 * `build`: nomor build (Android `versionCode`, iOS `CFBundleVersion`)
-* `arch`: hanya untuk desktop yang berbeda per arsitektur (`x64`, `arm64`)
+* `arch`: hanya untuk desktop yang berbeda per arsitektur (`x64` untuk Windows, `universal` untuk macOS: satu berkas untuk Mac Intel & Apple Silicon)
 * `varian`: jenis paket bila ada lebih dari satu (`setup` NSIS, `release`/`debug` APK, `unsigned` arsip iOS)
 
 | Platform | Contoh berkas (production) | Nama artifact (zip) |
 | :--- | :--- | :--- |
 | Windows | `cbt-al-akhyar-windows-v1.2.0-b7-x64-setup.exe`, `cbt-al-akhyar-windows-v1.2.0-b7-x64.msi` | `cbt-al-akhyar-windows-v1.2.0-b7` |
-| macOS | `cbt-al-akhyar-macos-v1.2.0-b7-arm64.dmg` | `cbt-al-akhyar-macos-v1.2.0-b7` |
+| macOS | `cbt-al-akhyar-macos-v1.2.0-b7-universal.dmg` | `cbt-al-akhyar-macos-v1.2.0-b7` |
 | Android | `cbt-al-akhyar-android-v1.2.0-b7-release.apk` | `cbt-al-akhyar-android-v1.2.0-b7` |
 | iOS | `cbt-al-akhyar-ios-v1.2.0-b7-unsigned.xcarchive.zip` | `cbt-al-akhyar-ios-v1.2.0-b7` |
 

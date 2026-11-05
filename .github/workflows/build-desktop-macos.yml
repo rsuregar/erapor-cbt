@@ -61,6 +61,9 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # Build universal: satu app untuk Mac Intel (x86_64) dan Apple Silicon (arm64).
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Install dependencies
         run: npm ci
@@ -144,7 +147,7 @@ jobs:
           else
             echo "::notice::Updater di dalam app nonaktif: isi secret TAURI_SIGNING_PRIVATE_KEY dan variable TAURI_UPDATER_PUBKEY."
           fi
-          npx @tauri-apps/cli build "${ARGS[@]}"
+          npx @tauri-apps/cli build --target universal-apple-darwin "${ARGS[@]}"
 
       # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installer
@@ -152,8 +155,10 @@ jobs:
         env:
           RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
-          DMG=$(ls apps/ujian/src-tauri/target/release/bundle/dmg/*.dmg)
-          # Tauri: "<Produk>_<versi>_<arch>.dmg"
+          # Build universal: keluaran ada di target/universal-apple-darwin/release/bundle/.
+          BUNDLE=apps/ujian/src-tauri/target/universal-apple-darwin/release/bundle
+          DMG=$(ls $BUNDLE/dmg/*.dmg)
+          # Tauri: "<Produk>_<versi>_universal.dmg"
           ARCH=$(basename "$DMG" | sed -E 's/.*_([^_]+)\.dmg$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
           BASE="cbt-al-akhyar-macos${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           OUT="$RUNNER_TEMP/installer"
@@ -167,9 +172,10 @@ jobs:
             TAG="staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           fi
           if [ "${{ steps.build.outputs.updater }}" = true ] && [ -n "$TAG" ]; then
-            TARBALL=$(ls apps/ujian/src-tauri/target/release/bundle/macos/*.app.tar.gz)
+            TARBALL=$(ls $BUNDLE/macos/*.app.tar.gz)
             SIG="$TARBALL.sig"
-            TARGET_ARCH="darwin-$(echo "$ARCH" | sed -E 's/^x64$/x86_64/; s/^arm64$/aarch64/')"
+            # Satu berkas universal melayani kedua arsitektur: manifes memuat keduanya.
+            TARGET_ARCH="darwin-aarch64,darwin-x86_64"
             ASET="$BASE-$ARCH.app.tar.gz"
             cp "$TARBALL" "$OUT/$ASET"
             node scripts/buat-manifes-updater.mjs "$OUT/$BASE-updater.json" "${{ steps.version.outputs.version_name }}" "$TARGET_ARCH" \
