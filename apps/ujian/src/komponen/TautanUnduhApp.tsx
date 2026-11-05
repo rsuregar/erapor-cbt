@@ -72,7 +72,7 @@ type Pilihan = PlatformRilis
 
 const INFO: Record<Pilihan, { nama: string; catatan: string; Ikon: Ikon; warna: string }> = {
     windows: { nama: 'Windows', catatan: 'Windows 10/11 · 64-bit', Ikon: IkonWindows, warna: 'bg-sky-100 text-sky-700' },
-    macos: { nama: 'macOS', catatan: 'Mac Apple Silicon (M1 ke atas)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
+    macos: { nama: 'macOS', catatan: 'Apple Silicon (M1 ke atas) · Mac Intel belum didukung', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
     android: { nama: 'Android', catatan: 'Android 8 ke atas · berkas APK', Ikon: IkonAndroid, warna: 'bg-green-100 text-green-700' },
     ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
 }
@@ -135,24 +135,35 @@ export function TautanUnduhApp() {
                 </div>
             )}
 
-            <div className={cn(ini && 'mt-4 border-t border-slate-100 pt-3')}>
+            <div className={cn(ini && 'mt-4')}>
                 {ini && (
                     <button
                         type="button"
                         onClick={() => setBukaLain((v) => !v)}
                         aria-expanded={bukaLain}
-                        className="flex min-h-11 w-full items-center justify-between rounded-md text-sm font-semibold text-slate-700 transition hover:text-primary"
+                        className={cn(
+                            'group flex min-h-14 w-full items-center gap-3 rounded-lg border-2 border-dashed px-3 py-2.5 text-left transition active:scale-[0.99]',
+                            bukaLain ? 'border-primary/40 bg-primary-50/60' : 'border-primary/30 bg-primary-50/40 hover:border-primary hover:bg-primary-50',
+                        )}
                     >
-                        <span className="flex items-center gap-2">
-                            Perangkat lain
-                            <span className="flex items-center gap-1 text-slate-400">
-                                {lain.map((p) => {
-                                    const I = INFO[p].Ikon
-                                    return <I key={p} className="size-3.5" />
-                                })}
-                            </span>
+                        <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+                            {lain.map((p) => {
+                                const { Ikon: I, warna } = INFO[p]
+                                return (
+                                    <span key={p} className={cn('inline-flex size-9 items-center justify-center rounded-full ring-2 ring-white', warna)}>
+                                        <I className="size-4" />
+                                    </span>
+                                )
+                            })}
                         </span>
-                        <ChevronDown className={cn('size-4 transition-transform', bukaLain && 'rotate-180')} />
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-bold text-primary">Pakai perangkat lain?</span>
+                            <span className="block truncate text-xs text-slate-600">{lain.map((p) => INFO[p].nama.split(' ')[0]).join(' · ')}</span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-sm transition group-hover:bg-primary/90">
+                            {bukaLain ? 'Tutup' : 'Lihat'}
+                            <ChevronDown className={cn('size-3.5 transition-transform', bukaLain && 'rotate-180')} />
+                        </span>
                     </button>
                 )}
                 {bukaLain && (
