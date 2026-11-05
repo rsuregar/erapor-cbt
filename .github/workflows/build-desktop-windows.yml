@@ -169,7 +169,7 @@ jobs:
           cp "$MSI" "$OUT/$BASE-$ARCH.msi"
           # Manifes updater: hanya bila build ditandatangani dan berkas akan diterbitkan ke rilis (tag-nya pasti).
           TAG=""
-          if [[ "${{ github.ref }}" == refs/tags/release-* ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${{ github.ref_name }}"
           elif [ "${{ inputs.terbitkan_staging }}" = true ] && [ "${{ steps.env.outputs.target }}" = staging ]; then
             TAG="staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
@@ -193,7 +193,7 @@ jobs:
           path: ${{ steps.installer.outputs.dir }}/*
 
       - name: Publish to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/release-')
+        if: startsWith(github.ref, 'refs/tags/release-') || startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
