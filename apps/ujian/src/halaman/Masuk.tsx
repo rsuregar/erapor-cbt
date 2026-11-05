@@ -1,6 +1,7 @@
 import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
+import { TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
 import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from "@/lib/native";
@@ -360,6 +361,9 @@ export default function Masuk() {
                             </div>
                         )}
                     </form>
+
+                    {/* Tautan unduh aplikasi resmi sesuai perangkat (hanya web/PWA) */}
+                    <TautanUnduhApp />
 
                     {/* Modern Security & School Trust Footer */}
                     <footer className="mt-8 space-y-2 text-center text-xs text-slate-600">

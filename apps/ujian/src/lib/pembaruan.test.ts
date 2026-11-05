@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pilihPembaruan, type RilisGithub } from './pembaruan'
+import { pilihPembaruan, pilihUnduhan, type RilisGithub } from './pembaruan'
 
 const rilis = (tag: string, berkas: string[], ekstra: Partial<RilisGithub> = {}): RilisGithub => ({
     tag_name: tag,
@@ -124,5 +124,31 @@ describe('pilihPembaruan', () => {
             const r = [rilis('staging-1.1.0-b7', berkas, { prerelease: true })]
             expect(pilihPembaruan(r, 'macos', '1.1.0', { staging: true, buildApp: 6 })?.manifes).toMatch(/macos.*-updater\.json$/)
         })
+    })
+})
+
+describe('pilihUnduhan', () => {
+    it('ambil rilis terbaru tiap platform (Windows .exe, macOS .dmg, Android .apk), lewati pra-rilis', () => {
+        const hasil = pilihUnduhan([
+            rilis('release-desktop-0.5.0', ['cbt-windows-x64-setup.exe', 'cbt-windows-x64.msi', 'cbt-macos-arm64.dmg']),
+            rilis('release-desktop-0.4.0', ['old.exe', 'old.dmg']),
+            rilis('release-android-0.5.0', ['cbt.apk']),
+            rilis('release-android-0.6.0', ['beta.apk'], { prerelease: true }),
+            rilis('staging-0.7.0-b3', ['s.apk'], { prerelease: true }),
+        ])
+        expect(hasil.windows?.unduh).toBe('https://dl/release-desktop-0.5.0/cbt-windows-x64-setup.exe')
+        expect(hasil.macos?.versi).toBe('0.5.0')
+        expect(hasil.android?.unduh).toBe('https://dl/release-android-0.5.0/cbt.apk')
+    })
+
+    it('platform tanpa berkas tidak diisi', () => {
+        expect(pilihUnduhan([rilis('release-android-1.0.0', ['a.apk'])])).toEqual({
+            android: expect.objectContaining({ versi: '1.0.0' }),
+        })
+    })
+
+    it('saluran staging memakai tag staging terbaru', () => {
+        const hasil = pilihUnduhan([rilis('staging-0.4.0-b2', ['s.apk'], { prerelease: true }), rilis('release-android-0.5.0', ['a.apk'])], { staging: true, buildApp: 0 })
+        expect(hasil.android?.versi).toBe('0.4.0-b2')
     })
 })
