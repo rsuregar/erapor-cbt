@@ -5,12 +5,44 @@ import { useOnline } from '@/lib/useOnline'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, CheckCircle2, ChevronDown, Download, ExternalLink, PlusSquare, Share } from 'lucide-react'
+import { ArrowDown, ArrowRight, CheckCircle2, ChevronDown, Download, ExternalLink, PlusSquare, Share } from 'lucide-react'
 import { useState, type ReactNode, type SVGProps } from 'react'
 
 const REPO_RILIS = (import.meta.env.VITE_UPDATE_REPO as string | undefined) || 'rsuregar/erapor-cbt-releases'
 /** Cadangan bila API GitHub gagal / kena batas: halaman semua rilis. */
 const HALAMAN_RILIS = `https://github.com/${REPO_RILIS}/releases`
+
+const ID_BAGIAN_UNDUH = 'unduh-app'
+
+/**
+ * Tombol kecil di bagian atas halaman Masuk: menggulir mulus ke kartu unduh yang ada di
+ * bawah form (tidak tampil di app native, tempat kartunya juga tidak ada).
+ */
+export function PintasanUnduhApp({ className }: { className?: string }) {
+    if (isNative()) return null
+
+    const gulir = () => {
+        const bagian = document.getElementById(ID_BAGIAN_UNDUH)
+        if (!bagian) return
+        const kurangiGerak = matchMedia('(prefers-reduced-motion: reduce)').matches
+        bagian.scrollIntoView({ behavior: kurangiGerak ? 'auto' : 'smooth', block: 'start' })
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={gulir}
+            className={cn(
+                'inline-flex min-h-11 items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 text-sm font-semibold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 active:scale-[0.97]',
+                className,
+            )}
+        >
+            <Download className="size-4" />
+            Unduh aplikasi ujian
+            <ArrowDown className="size-3.5 opacity-80" />
+        </button>
+    )
+}
 
 /* ---------- Ikon platform (SVG inline, ikut warna teks lewat currentColor) ---------- */
 
@@ -40,9 +72,9 @@ type Pilihan = PlatformRilis
 
 const INFO: Record<Pilihan, { nama: string; catatan: string; Ikon: Ikon; warna: string }> = {
     windows: { nama: 'Windows', catatan: 'Windows 10/11 · 64-bit', Ikon: IkonWindows, warna: 'bg-sky-100 text-sky-700' },
-    macos: { nama: 'macOS', catatan: 'Mac Apple Silicon (M1 ke atas)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
+    macos: { nama: 'macOS', catatan: 'Apple Silicon (M1 ke atas) · Mac Intel belum didukung', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
     android: { nama: 'Android', catatan: 'Android 8 ke atas · berkas APK', Ikon: IkonAndroid, warna: 'bg-green-100 text-green-700' },
-    ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
+    ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari atau Chrome (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
 }
 
 const URUTAN: Pilihan[] = ['windows', 'macos', 'android', 'ios']
@@ -63,7 +95,7 @@ const mb = (byte: number) => `${(byte / 1024 / 1024).toLocaleString('id-ID', { m
 /**
  * Tautan unduh aplikasi resmi di halaman Masuk (hanya web/PWA). Platform perangkat ini
  * ditonjolkan; platform lain bisa dibuka di "Perangkat lain". Windows/macOS/Android
- * mengunduh berkas dari rilis terbaru di GitHub; iPhone/iPad memasang PWA lewat Safari.
+ * mengunduh berkas dari rilis terbaru di GitHub; iPhone/iPad memasang PWA lewat Safari atau Chrome.
  */
 export function TautanUnduhApp() {
     const online = useOnline()
@@ -83,7 +115,7 @@ export function TautanUnduhApp() {
     const lain = URUTAN.filter((p) => p !== ini)
 
     return (
-        <section aria-labelledby="judul-unduh-app" className="mt-5 rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section id={ID_BAGIAN_UNDUH} aria-labelledby="judul-unduh-app" className="mt-5 scroll-mt-4 rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-start gap-3">
                 <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary">
                     <Download className="size-4" />
@@ -103,24 +135,35 @@ export function TautanUnduhApp() {
                 </div>
             )}
 
-            <div className={cn(ini && 'mt-4 border-t border-slate-100 pt-3')}>
+            <div className={cn(ini && 'mt-4')}>
                 {ini && (
                     <button
                         type="button"
                         onClick={() => setBukaLain((v) => !v)}
                         aria-expanded={bukaLain}
-                        className="flex min-h-11 w-full items-center justify-between rounded-md text-sm font-semibold text-slate-700 transition hover:text-primary"
+                        className={cn(
+                            'group flex min-h-14 w-full items-center gap-3 rounded-lg border-2 border-dashed px-3 py-2.5 text-left transition active:scale-[0.99]',
+                            bukaLain ? 'border-primary/40 bg-primary-50/60' : 'border-primary/30 bg-primary-50/40 hover:border-primary hover:bg-primary-50',
+                        )}
                     >
-                        <span className="flex items-center gap-2">
-                            Perangkat lain
-                            <span className="flex items-center gap-1 text-slate-400">
-                                {lain.map((p) => {
-                                    const I = INFO[p].Ikon
-                                    return <I key={p} className="size-3.5" />
-                                })}
-                            </span>
+                        <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+                            {lain.map((p) => {
+                                const { Ikon: I, warna } = INFO[p]
+                                return (
+                                    <span key={p} className={cn('inline-flex size-9 items-center justify-center rounded-full ring-2 ring-white', warna)}>
+                                        <I className="size-4" />
+                                    </span>
+                                )
+                            })}
                         </span>
-                        <ChevronDown className={cn('size-4 transition-transform', bukaLain && 'rotate-180')} />
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-bold text-primary">Pakai perangkat lain?</span>
+                            <span className="block truncate text-xs text-slate-600">{lain.map((p) => INFO[p].nama.split(' ')[0]).join(' · ')}</span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-sm transition group-hover:bg-primary/90">
+                            {bukaLain ? 'Tutup' : 'Lihat'}
+                            <ChevronDown className={cn('size-3.5 transition-transform', bukaLain && 'rotate-180')} />
+                        </span>
                     </button>
                 )}
                 {bukaLain && (
@@ -184,7 +227,7 @@ function KartuUnduh({ platform, berkas, memuat, gagal, utama }: { platform: Excl
     )
 }
 
-/** iPhone/iPad: tidak ada berkas unduhan; pasang PWA lewat Safari → Bagikan → Tambahkan ke Layar Utama. */
+/** iPhone/iPad: tidak ada berkas unduhan; pasang PWA lewat Safari/Chrome → Bagikan → Tambahkan ke Layar Utama. */
 function KartuIos() {
     if (standalone()) {
         return (
@@ -194,7 +237,6 @@ function KartuIos() {
             </p>
         )
     }
-    const bukanSafari = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(navigator.userAgent)
 
     return (
         <div className="rounded-lg border border-primary/30 bg-primary-50/50 p-3">
@@ -205,12 +247,9 @@ function KartuIos() {
                     <p className="text-xs text-slate-600">{INFO.ios.catatan}</p>
                 </div>
             </div>
-            {bukanSafari && (
-                <p className="mt-3 rounded-md bg-amber-100 px-2.5 py-2 text-xs font-semibold text-amber-900">Buka halaman ini di Safari terlebih dahulu.</p>
-            )}
             <ol className="mt-3 space-y-2 text-sm text-slate-700">
                 <Langkah n={1}>
-                    Ketuk <b>Bagikan</b> <Share className="inline size-4 -translate-y-0.5 text-primary" aria-label="ikon Bagikan" /> di bagian bawah Safari.
+                    Ketuk <b>Bagikan</b> <Share className="inline size-4 -translate-y-0.5 text-primary" aria-label="ikon Bagikan" /> di bilah Safari (bawah layar) atau di bilah alamat Chrome (kanan atas).
                 </Langkah>
                 <Langkah n={2}>
                     Pilih <b>Tambahkan ke Layar Utama</b> <PlusSquare className="inline size-4 -translate-y-0.5 text-primary" aria-hidden="true" />.
@@ -254,5 +293,36 @@ function Langkah({ n, children }: { n: number; children: ReactNode }) {
             <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-micro font-bold text-white">{n}</span>
             <span className="leading-snug">{children}</span>
         </li>
+    )
+}
+
+/**
+ * Unduhan langsung untuk laptop/PC (halaman Panduan): kartu OS perangkat ini ditonjolkan,
+ * OS desktop lainnya di bawahnya. Berkas diambil dari rilis terbaru yang sama dengan halaman Masuk.
+ */
+export function UnduhDesktop() {
+    const online = useOnline()
+    const [ini] = useState(perangkatIni)
+    const { data, isLoading, isError } = useQuery({
+        queryKey: ['unduhan-app'],
+        queryFn: cariUnduhan,
+        enabled: online && !isNative(),
+        staleTime: 60 * 60 * 1000,
+        retry: false,
+        refetchOnWindowFocus: false,
+    })
+    if (isNative()) return null
+
+    const urutan: ('windows' | 'macos')[] = ini === 'macos' ? ['macos', 'windows'] : ['windows', 'macos']
+
+    return (
+        <div className="space-y-2.5">
+            {urutan.map((p, i) => (
+                <KartuUnduh key={p} platform={p} berkas={data?.[p]} memuat={isLoading} gagal={isError || !online} utama={i === 0 && (ini === p || ini === null)} />
+            ))}
+            {(ini === 'android' || ini === 'ios') && (
+                <p className="text-xs text-slate-600">Kamu membuka halaman ini dari HP/tablet. Pilih tab Android atau iPhone/iPad di atas untuk panduan perangkatmu.</p>
+            )}
+        </div>
     )
 }
