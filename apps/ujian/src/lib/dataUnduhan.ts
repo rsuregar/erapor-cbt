@@ -10,10 +10,10 @@ export const UNDUHAN_TERBARU: DaftarUnduhan = {
         "ukuran": 6417995
     },
     "macos": {
-        "versi": "0.6.0",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.0/cbt-al-akhyar-macos-v0.6.0-b7-universal.dmg",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.0",
-        "ukuran": 17923447
+        "versi": "0.6.1",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/release-desktop-0.6.1/cbt-al-akhyar-macos-v0.6.1-b8-arm64.dmg",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/release-desktop-0.6.1",
+        "ukuran": 9459056
     },
     "android": {
         "versi": "0.6.1",

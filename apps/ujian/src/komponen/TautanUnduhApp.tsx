@@ -73,7 +73,7 @@ type Pilihan = PlatformRilis
 
 const INFO: Record<Pilihan, { nama: string; catatan: string; Ikon: Ikon; warna: string }> = {
     windows: { nama: 'Windows', catatan: 'Windows 10/11 · 64-bit', Ikon: IkonWindows, warna: 'bg-sky-100 text-sky-700' },
-    macos: { nama: 'macOS', catatan: 'Mac Intel & Apple Silicon (M1 ke atas)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
+    macos: { nama: 'macOS', catatan: 'Apple Silicon (M1 ke atas)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
     android: { nama: 'Android', catatan: 'Android 8 ke atas · berkas APK', Ikon: IkonAndroid, warna: 'bg-green-100 text-green-700' },
     ios: { nama: 'iPhone / iPad', catatan: 'Pasang lewat Safari atau Chrome (tanpa App Store)', Ikon: IkonApple, warna: 'bg-slate-200 text-slate-800' },
 }
