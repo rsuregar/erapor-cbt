@@ -28,6 +28,33 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { KartuStaging, LencanaStaging } from '@/komponen/PenandaStaging'
 
+const PESAN_GALAT_KODE: Record<string, string> = {
+    SESI_LAIN: "Akun ini sedang dipakai di perangkat lain. Satu akun hanya boleh masuk di satu perangkat. Minta pengawas mereset sesi akunmu bila itu bukan kamu.",
+    JARINGAN: "Tidak tersambung ke server e-Rapor. Periksa internetmu lalu coba lagi.",
+};
+
+const PESAN_GALAT_STATUS: Record<number, string> = {
+    401: "NIS atau kata sandi tidak cocok. Periksa lagi penulisannya, termasuk huruf besar dan kecil.",
+    429: "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi.",
+};
+
+function uraikanPesanGalat(error: unknown): string | null {
+    if (!error) return null;
+    if (error instanceof GalatApi) {
+        if (error.kode && PESAN_GALAT_KODE[error.kode]) {
+            return error.message || PESAN_GALAT_KODE[error.kode];
+        }
+        if (error.status && PESAN_GALAT_STATUS[error.status]) {
+            return PESAN_GALAT_STATUS[error.status];
+        }
+        if (error.status && error.status >= 500) {
+            return "Server sedang sibuk. Tunggu sebentar lalu coba lagi.";
+        }
+        return error.message || "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas.";
+    }
+    return "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas.";
+}
+
 /** Masuk dengan akun e-Rapor murid (NIS/username + kata sandi). PRD M-01. */
 export default function Masuk() {
     const navigate = useNavigate();
@@ -115,21 +142,7 @@ export default function Masuk() {
     }, []);
 
     // Setiap kegagalan harus terlihat: galat di luar GalatApi pun diberi pesan, bukan diam.
-    const galat = !masuk.error
-        ? null
-        : masuk.error instanceof GalatApi
-          ? masuk.error.status === 401 && masuk.error.kode !== "SESI_LAIN"
-              ? "NIS atau kata sandi tidak cocok. Periksa lagi penulisannya, termasuk huruf besar dan kecil."
-              : masuk.error.status === 429
-                ? "Terlalu banyak percobaan masuk. Tunggu sekitar 1 menit lalu coba lagi."
-                : masuk.error.kode === "SESI_LAIN"
-                  ? "Akun ini sedang dipakai di perangkat lain. Satu akun hanya boleh masuk di satu perangkat. Minta pengawas mereset sesi akunmu bila itu bukan kamu."
-                  : masuk.error.kode === "JARINGAN"
-                    ? "Tidak tersambung ke server e-Rapor. Periksa internetmu lalu coba lagi."
-                    : masuk.error.status >= 500
-                      ? "Server sedang sibuk. Tunggu sebentar lalu coba lagi."
-                      : masuk.error.message || "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas."
-          : "Belum bisa masuk. Coba lagi atau minta bantuan wali kelas.";
+    const galat = uraikanPesanGalat(masuk.error);
     // Pesan galat lama hilang begitu murid memperbaiki isiannya.
     const ubahIsian = (atur: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
         atur(e.target.value);
