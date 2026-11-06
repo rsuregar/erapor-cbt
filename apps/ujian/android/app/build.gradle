@@ -13,7 +13,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 2
-        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "0.7.0"
+        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : "0.7.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         if (stagingBuild) {
             applicationIdSuffix ".staging"
