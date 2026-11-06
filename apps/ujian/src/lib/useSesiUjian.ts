@@ -142,6 +142,8 @@ export function useSesiUjian(attemptId: number) {
                         kode === 'SELESAI' ||
                         kode === 'SUDAH_DITUTUP' ||
                         g.status === 409 ||
+                        // 404: pengerjaan sudah tidak ada di server (jadwal dihapus pengelola) — jangan mencoba selamanya.
+                        g.status === 404 ||
                         pesan.includes('selesai') ||
                         pesan.includes('dikumpulkan')
                     ) {

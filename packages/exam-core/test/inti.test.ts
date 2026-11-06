@@ -199,6 +199,24 @@ describe('KlienApi', () => {
         expect(saatTidakSah).toHaveBeenCalledTimes(1)
     })
 
+    it('fetch yang menggantung dibatalkan dan jadi galat JARINGAN (putaran sinkron tidak macet)', async () => {
+        vi.useFakeTimers()
+        try {
+            const fetch = vi.fn((_u: unknown, init?: RequestInit) => {
+                const { promise, reject } = Promise.withResolvers<Response>()
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+
+                return promise
+            })
+            const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', fetch: fetch as unknown as typeof globalThis.fetch })
+            const hasil = expect(api.sinkron(1, [], {}, 'p')).rejects.toMatchObject({ kode: 'JARINGAN', status: 0, sementara: true })
+            await vi.advanceTimersByTimeAsync(20_001)
+            await hasil
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it('melaporkan progres unduh paket', async () => {
         const badan = JSON.stringify({ versi: 'v', algoritma: 'AES-256-GCM', iv: 'a', aad: 'b', isi: 'c', media: [] })
         const fetch = vi.fn(async () => new Response(badan, { status: 200, headers: { 'Content-Length': String(badan.length) } }))

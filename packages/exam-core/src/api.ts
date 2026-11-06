@@ -58,6 +58,11 @@ export type MasukRespons = {
     data: { access_token: string; uuid: string; user: UserMurid }
 }
 
+/** Batas satu permintaan biasa (sinkron, mulai, kumpul, ...). Detak 15 detik: 20 detik cukup longgar untuk jaringan lambat. */
+const BATAS_PERMINTAAN_MS = 20_000
+/** Pra-unduh paket soal bisa besar di jaringan sekolah yang lambat. */
+const BATAS_UNDUH_PAKET_MS = 180_000
+
 /**
  * Klien API murid. Tanpa ketergantungan DOM selain fetch/FormData, supaya
  * sama di PWA, Capacitor, dan Node (uji).
@@ -90,7 +95,7 @@ export class KlienApi {
 
     /** Pra-unduh paket; `onProgres(diterima, total)` — total null bila server tidak memberi Content-Length. */
     paket(ujianId: number, onProgres?: (diterima: number, total: number | null) => void): Promise<PaketTerenkripsi> {
-        return this.minta('GET', `/cbt/ujian/${ujianId}/paket`, undefined, true, onProgres)
+        return this.minta('GET', `/cbt/ujian/${ujianId}/paket`, undefined, true, onProgres, BATAS_UNDUH_PAKET_MS)
     }
 
     /** `lokasi` wajib bila `UjianRingkas.lokasi.wajib` (galat LOKASI_DIPERLUKAN bila tidak dikirim). */
@@ -136,6 +141,7 @@ export class KlienApi {
         isi?: unknown,
         berToken = true,
         onProgres?: (diterima: number, total: number | null) => void,
+        batasMs = BATAS_PERMINTAAN_MS,
     ): Promise<T> {
         const kepala: Record<string, string> = { Accept: 'application/json' }
         if (berToken) {
@@ -150,23 +156,39 @@ export class KlienApi {
             body = JSON.stringify(isi)
         }
 
-        let respons: Response
+        // Tanpa batas waktu, fetch yang menggantung (Wi-Fi lab putus-nyambung, WebView Android)
+        // tidak pernah gagal: putaran sinkron macet selamanya, server melihat murid "offline"
+        // dan tidak pernah menyampaikan perintah pengawas, padahal app murid tampak normal.
+        const pembatal = new AbortController()
+        const timer = globalThis.setTimeout(() => pembatal.abort(), batasMs)
         try {
-            respons = await this.fetch(this.opsi.baseUrl.replace(/\/$/, '') + jalur, { method: metode, headers: kepala, body })
-        } catch {
-            throw new GalatApi('JARINGAN', 'Tidak tersambung ke server.', 0)
-        }
+            let respons: Response
+            try {
+                respons = await this.fetch(this.opsi.baseUrl.replace(/\/$/, '') + jalur, { method: metode, headers: kepala, body, signal: pembatal.signal })
+            } catch {
+                throw new GalatApi('JARINGAN', pembatal.signal.aborted ? 'Server tidak menjawab tepat waktu.' : 'Tidak tersambung ke server.', 0)
+            }
 
-        const data = (respons.ok && onProgres ? await bacaDenganProgres(respons, onProgres) : await respons.json().catch(() => ({}))) as Record<string, unknown>
-        if (respons.ok) return data as T
+            let data: Record<string, unknown>
+            try {
+                data = (respons.ok && onProgres ? await bacaDenganProgres(respons, onProgres) : await respons.json().catch(() => ({}))) as Record<string, unknown>
+            } catch {
+                throw new GalatApi('JARINGAN', 'Jawaban server terputus.', 0)
+            }
+            // Badan yang terpotong karena batas waktu bukan jawaban kosong yang sah.
+            if (pembatal.signal.aborted) throw new GalatApi('JARINGAN', 'Server tidak menjawab tepat waktu.', 0)
+            if (respons.ok) return data as T
 
-        // 401 saat login = kredensial salah, bukan sesi berakhir.
-        if (respons.status === 401 && berToken) {
-            this.opsi.saatTidakSah?.()
-            throw new GalatApi('TIDAK_SAH', String(data.message ?? 'Sesi berakhir, silakan masuk lagi.'), 401, data)
+            // 401 saat login = kredensial salah, bukan sesi berakhir.
+            if (respons.status === 401 && berToken) {
+                this.opsi.saatTidakSah?.()
+                throw new GalatApi('TIDAK_SAH', String(data.message ?? 'Sesi berakhir, silakan masuk lagi.'), 401, data)
+            }
+            const { message, kode, ...lain } = data
+            throw new GalatApi((kode as KodeGalat) ?? (respons.status === 401 ? 'TIDAK_SAH' : 'TIDAK_DIKENAL'), String(message ?? `Galat ${respons.status}`), respons.status, lain)
+        } finally {
+            globalThis.clearTimeout(timer)
         }
-        const { message, kode, ...lain } = data
-        throw new GalatApi((kode as KodeGalat) ?? (respons.status === 401 ? 'TIDAK_SAH' : 'TIDAK_DIKENAL'), String(message ?? `Galat ${respons.status}`), respons.status, lain)
     }
 }
 
