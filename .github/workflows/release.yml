@@ -79,3 +79,42 @@ jobs:
       environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
       version_name: ${{ inputs.version_name || '' }}
     secrets: inherit
+
+  # 5. Otomatis sinkronkan data unduhan resmi setelah semua installer berhasil terbit
+  sync-downloads:
+    name: Sync Downloads & Auto-Commit
+    needs: [build-android, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Downloads Data from GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
+        run: |
+          node scripts/sinkron-unduhan.mjs
+
+      - name: Commit & Push Updated dataUnduhan.ts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/ujian/src/lib/dataUnduhan.ts
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore(unduhan): otomatis sinkronkan data unduhan resmi"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
