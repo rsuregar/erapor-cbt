@@ -174,6 +174,9 @@ export type JenisPelanggaran =
     | 'perangkat_lain'
     | 'multi_monitor'
     | 'salin_tempel'
+    // Hanya informasi untuk pengawas (tidak dihitung ke ambang kunci di server).
+    | 'klik_kanan'
+    | 'salin_diblokir'
 
 export type EntriPelanggaran = {
     jenis: JenisPelanggaran

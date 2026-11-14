@@ -155,7 +155,9 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const soal = u.data?.isi.soal ?? []
     const aktif = soal[indeks]
 
-    const pesanProteksi = useProteksiKonten(u.status === 'mengerjakan')
+    // Percobaan salin/tempel/klik kanan yang diblokir dilaporkan sebagai informasi untuk pengawas,
+    // lengkap dengan nomor soal yang sedang dibuka.
+    const pesanProteksi = useProteksiKonten(u.status === 'mengerjakan', { lapor: p.laporInfo, soalAktif: () => indeks + 1 })
 
     // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab).
     const blokir = useBlocker({

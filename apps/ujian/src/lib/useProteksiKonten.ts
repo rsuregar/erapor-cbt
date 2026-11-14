@@ -1,3 +1,4 @@
+import { buatPelapor, perkirakanSumber, pintasanSalin, type KirimInfo } from '@/lib/laporProteksi'
 import { adaNative } from '@/lib/native'
 import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -7,13 +8,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * tempel, klik kanan, seret, dan cetak diblokir sebatas yang bisa dilakukan
  * browser. Tangkapan layar tidak bisa dicegah web — dimitigasi watermark.
  *
- * Sengaja TIDAK dicatat sebagai pelanggaran `salin_tempel`: setelah diblokir,
+ * Percobaan yang diblokir TIDAK dicatat sebagai `salin_tempel`: setelah diblokir,
  * Ctrl+C yang tak sengaja tidak berbahaya, sedangkan server menghitungnya ke
- * ambang kunci.
+ * ambang kunci. Sebagai gantinya dilaporkan sebagai `salin_diblokir` dan `klik_kanan`,
+ * yang hanya informasi untuk pengawas dan digabung per jendela (laporProteksi.ts).
  */
-export function useProteksiKonten(aktif: boolean) {
+export function useProteksiKonten(
+    aktif: boolean,
+    opsi: {
+        /** Melapor ke server (usePelanggaran.laporInfo). Tanpa ini, hanya memblokir. */
+        lapor?: KirimInfo
+        /** Nomor soal yang sedang dibuka murid, sebagai konteks untuk pengawas. */
+        soalAktif?: () => number | undefined
+    } = {},
+) {
     const [pesan, setPesan] = useState<string | null>(null)
     const timer = useRef<ReturnType<typeof setTimeout>>()
+    const opsiRef = useRef(opsi)
+    opsiRef.current = opsi
 
     const kabari = useCallback((teks: string) => {
         setPesan(teks)
@@ -25,15 +37,29 @@ export function useProteksiKonten(aktif: boolean) {
         if (!aktif) return
         document.body.classList.add('ujian-berjalan')
 
-        const blokir = (teks: string) => (e: Event) => {
+        const pelapor = buatPelapor((jenis, meta) => opsiRef.current.lapor?.(jenis, meta))
+        let terakhirPapanKetik: number | null = null
+        const soal = () => opsiRef.current.soalAktif?.()
+
+        const blokir = (teks: string, catat: (e: Event) => void) => (e: Event) => {
             e.preventDefault()
             kabari(teks)
+            catat(e)
         }
-        const salin = blokir('Menyalin dan menempel dinonaktifkan selama ujian.')
-        const menu = blokir('Klik kanan dinonaktifkan selama ujian.')
+        const salin = blokir('Menyalin dan menempel dinonaktifkan selama ujian.', (e) => {
+            if (e.type !== 'copy' && e.type !== 'cut' && e.type !== 'paste') return
+            pelapor.lapor('salin_diblokir', {
+                aksi: e.type,
+                sumber: perkirakanSumber(performance.now(), terakhirPapanKetik),
+                diblokir: true,
+                soal: soal(),
+            })
+        })
+        const menu = blokir('Klik kanan dinonaktifkan selama ujian.', () => pelapor.lapor('klik_kanan', { soal: soal() }))
         const seret = (e: Event) => e.preventDefault()
         const tombol = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase()
+            if (pintasanSalin(e)) terakhirPapanKetik = performance.now()
             // Muat ulang tak pernah perlu: jawaban ada di perangkat. Internet lambat sering memancingnya.
             if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && k === 'r')) {
                 e.preventDefault()
@@ -70,6 +96,8 @@ export function useProteksiKonten(aktif: boolean) {
             window.removeEventListener('beforeprint', cetak)
             void kembali?.then((h) => h.remove())
             clearTimeout(timer.current)
+            // Yang masih tertahan di jendela penggabungan ikut dikirim.
+            pelapor.siram()
         }
     }, [aktif, kabari])
 
