@@ -12,8 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * bukan kecurangan; di Lockdown server tetap langsung mengunci.
  * `keluar_lokasi` juga tidak dihitung, tapi hanya dicatat server dari
  * detak.lokasi — app tidak pernah mengirimnya.
+ * `klik_kanan` dan `salin_diblokir` (percobaan yang sudah dibatalkan proteksi konten)
+ * hanya informasi untuk pengawas.
  */
-const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'muat_ulang'])
+const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'muat_ulang', 'klik_kanan', 'salin_diblokir'])
 
 /** Tinggal sebentar (mis. menarik panel notifikasi) tidak dihitung. */
 const MIN_PERGI_MS = 1000
@@ -103,8 +105,8 @@ export function usePelanggaran(opsi: {
     }, [K_ANTRE, K_JUMLAH, attemptId, ubahAntre])
 
     const catat = useCallback(
-        async (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => {
-            const entri: EntriPelanggaran = { jenis, mulai_ms: mulaiMs ?? 0, durasi_ms: durasiMs, offline: !navigator.onLine }
+        async (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number, meta?: Record<string, unknown>) => {
+            const entri: EntriPelanggaran = { jenis, mulai_ms: mulaiMs ?? 0, durasi_ms: durasiMs, offline: !navigator.onLine, ...(meta ? { meta } : {}) }
             await ubahAntre((a) => [[...a, entri], null])
             if (!TIDAK_DIHITUNG.has(jenis)) setKejadian({ kunci: Date.now(), jenis, durasiMs, ke: jumlahRef.current + 1 })
             void kirim()
@@ -189,6 +191,14 @@ export function usePelanggaran(opsi: {
         return () => document.removeEventListener('fullscreenchange', ubah)
     }, [aktif, pantauLayarPenuh, catat])
 
+    /** Catat percobaan yang diblokir proteksi konten (informasi; tidak memicu banner dan tidak dihitung). */
+    const laporInfo = useCallback(
+        (jenis: 'klik_kanan' | 'salin_diblokir', meta: Record<string, unknown>) => {
+            void catat(jenis, ref.current.msSejakMulai(), 0, meta)
+        },
+        [catat],
+    )
+
     const level = opsi.level ?? 'ketat'
     const mengunci = level !== 'dasar' && ambang > 0
     const jumlah = server + tertunda
@@ -202,5 +212,6 @@ export function usePelanggaran(opsi: {
         kejadian,
         tutupKejadian: () => setKejadian(null),
         kirim,
+        laporInfo,
     } as const
 }
