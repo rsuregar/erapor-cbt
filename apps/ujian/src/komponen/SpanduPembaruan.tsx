@@ -3,7 +3,6 @@ import { Tombol } from '@/komponen/Tombol'
 import { adaNative, bisaPasangPembaruan, bukaTautanLuar, pasangPembaruan } from '@/lib/native'
 import { terapkanPembaruan, usePembaruanPwa } from '@/lib/pembaruanPwa'
 import { usePembaruan } from '@/lib/usePembaruan'
-import { UNDUHAN_TERBARU } from '@/lib/dataUnduhan'
 import { Download, RotateCw, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
@@ -124,7 +123,9 @@ export function SpanduPembaruan() {
     }
 
     if (pwa && !ditutup.has(KUNCI_PWA)) {
-        const versiTujuan = info?.versi || UNDUHAN_TERBARU.android?.versi || UNDUHAN_TERBARU.windows?.versi || UNDUHAN_TERBARU.macos?.versi
+        // Hanya versi dari cek rilis langsung (selalu > versi app). Data unduhan yang ikut di bundle ini
+        // bisa lebih lama dari app yang berjalan, jadi tidak boleh dipakai sebagai "versi tujuan".
+        const versiTujuan = info?.versi
 
         return (
             <Kerangka onTutup={() => tutup(KUNCI_PWA)}>
