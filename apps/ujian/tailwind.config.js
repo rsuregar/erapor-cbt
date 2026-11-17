@@ -43,7 +43,9 @@ export default {
                 },
             },
             fontFamily: {
-                sans: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+                // Amiri di depan: teks Arab memakai Amiri, teks Latin tetap Plus
+                // Jakarta Sans (Amiri dibatasi unicode-range di src/index.css).
+                sans: ['Amiri', '"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
                 display: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
             },
             fontSize: {
