@@ -123,8 +123,35 @@ function renderNode(node: TiptapNode): ReactNode {
     }
 }
 
+/**
+ * Rumus sebaris yang ditulis sebagai teks biasa: `$x = 12$`, `$60^\circ$`.
+ * Rubrik dan jawaban dari AI kerap begini — node inlineMath hanya ada bila
+ * guru mengetik lewat dialog rumus editor. Penjaga di kanan-kiri `$` sama
+ * dengan TeksSoal supaya "Rp5$ dan 6$" tidak terbaca sebagai rumus.
+ */
+const POLA_RUMUS_SEBARIS = /\$(?!\s)((?:\\.|[^$\\\n])+?)(?<!\s)\$(?!\d)/g
+
+function potongRumus(teks: string): ReactNode {
+    if (!teks.includes('$')) return teks
+
+    const bagian: ReactNode[] = []
+    let akhir = 0
+
+    for (const cocok of teks.matchAll(POLA_RUMUS_SEBARIS)) {
+        const mulai = cocok.index ?? 0
+        if (mulai > akhir) bagian.push(teks.slice(akhir, mulai))
+        bagian.push(<Rumus key={`rumus-${mulai}`} latex={cocok[1]} blok={false} />)
+        akhir = mulai + cocok[0].length
+    }
+
+    if (akhir === 0) return teks
+    if (akhir < teks.length) bagian.push(teks.slice(akhir))
+
+    return <>{bagian}</>
+}
+
 function renderTeks(teks: string, marks?: TiptapMark[]): ReactNode {
-    let hasil: ReactNode = teks
+    let hasil: ReactNode = potongRumus(teks)
     for (const m of marks ?? []) {
         switch (m.type) {
             case 'bold':
