@@ -7,15 +7,31 @@ import { platform } from '@/lib/api'
 
 export type JenisPerangkat = 'ios' | 'android' | 'desktop'
 
-export function jenisPerangkat(): JenisPerangkat {
-    const p = platform()
-    if (p !== 'pwa') return p
-    const ua = navigator.userAgent
+/**
+ * Bedakan jenis perangkat dari platform native & userAgent.
+ * Tablet Android di Chrome mode "Desktop Site" sering mengirim `X11; Linux x86_64` tanpa
+ * kata `Android`; bedakan lewat layar sentuh (`maxTouchPoints > 1`) sambil mengecualikan Chromebook (`CrOS`).
+ */
+export function deteksiJenisPerangkat(params: {
+    platform: 'android' | 'ios' | 'pwa'
+    userAgent: string
+    maxTouchPoints: number
+}): JenisPerangkat {
+    if (params.platform !== 'pwa') return params.platform
+    const ua = params.userAgent
     // iPadOS 13+ mengaku Macintosh; bedakan lewat layar sentuh.
-    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios'
-    if (/Android/.test(ua)) return 'android'
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && params.maxTouchPoints > 1)) return 'ios'
+    if (/Android/.test(ua) || (/Linux/.test(ua) && !/CrOS/.test(ua) && params.maxTouchPoints > 1)) return 'android'
 
     return 'desktop'
+}
+
+export function jenisPerangkat(): JenisPerangkat {
+    return deteksiJenisPerangkat({
+        platform: platform(),
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        maxTouchPoints: typeof navigator !== 'undefined' ? (navigator.maxTouchPoints ?? 0) : 0,
+    })
 }
 
 /** Dibuka dari ikon layar utama (PWA terpasang), bukan tab browser biasa. */

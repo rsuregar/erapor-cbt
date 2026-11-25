@@ -1,5 +1,7 @@
 import { api, platform } from '@/lib/api'
-import { adaNative } from '@/lib/native'
+import { harusPantauBlurWindow, klasifikasiKepergian } from '@/lib/deteksiKepergian'
+import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative } from '@/lib/native'
+import { jenisPerangkat } from '@/lib/perangkat'
 import { App } from '@capacitor/app'
 import { penyimpanan } from '@/lib/ujian'
 import { GalatApi, type EntriPelanggaran, type JenisPelanggaran, type UjianRingkas } from '@erapor-cbt/exam-core'
@@ -15,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * `klik_kanan` dan `salin_diblokir` (percobaan yang sudah dibatalkan proteksi konten)
  * hanya informasi untuk pengawas.
  */
-const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'muat_ulang', 'klik_kanan', 'salin_diblokir'])
+const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'layar_mati', 'muat_ulang', 'klik_kanan', 'salin_diblokir'])
 
 /** Tinggal sebentar (mis. menarik panel notifikasi) tidak dihitung. */
 const MIN_PERGI_MS = 1000
@@ -143,38 +145,77 @@ export function usePelanggaran(opsi: {
         }
     }, [aktif, attemptId, catat])
 
-    // Pindah tab/aplikasi, jendela lain di depan, app ke latar belakang.
+    // Pindah tab/aplikasi, layar mati, jendela lain di depan, app ke latar belakang.
     useEffect(() => {
         if (!aktif) return
-        let sejak: number | null = null
+        let sejakMono: number | null = null
+        let sejakDinding = 0
         let mulaiMs: number | undefined
-        const jenis: JenisPelanggaran = platform() === 'pwa' ? 'pindah_tab' : 'latar_belakang'
+        let pernahLayarMati = false
+        const pakaiNative = adaNative()
+        const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, jenisPerangkat: jenisPerangkat() })
 
         const pergi = () => {
-            if (sejak !== null) return
-            sejak = performance.now()
+            if (sejakMono !== null) return
+            sejakMono = performance.now()
+            sejakDinding = Date.now()
             mulaiMs = ref.current.msSejakMulai()
+            if (pakaiNative) {
+                void apakahLayarMatiNative().then((mati) => {
+                    if (mati && sejakMono !== null) pernahLayarMati = true
+                })
+            }
         }
         const kembali = () => {
-            if (sejak === null || document.visibilityState !== 'visible' || !document.hasFocus()) return
-            const durasi = Math.round(performance.now() - sejak)
-            sejak = null
-            if (durasi >= MIN_PERGI_MS) void catat(jenis, mulaiMs, durasi)
+            if (sejakMono === null || document.visibilityState !== 'visible') return
+            if (pantauBlur && !document.hasFocus()) return
+            const selisihMonotonikMs = performance.now() - sejakMono
+            const selisihDindingMs = Date.now() - sejakDinding
+            const layarMatiNative = pernahLayarMati
+            sejakMono = null
+            pernahLayarMati = false
+
+            const catatDenganStatus = (mati: boolean) => {
+                const hasil = klasifikasiKepergian({
+                    platform: platform(),
+                    layarMatiNative: mati,
+                    selisihDindingMs,
+                    selisihMonotonikMs,
+                    minPergiMs: MIN_PERGI_MS,
+                })
+                if (hasil) void catat(hasil.jenis, mulaiMs, hasil.durasiMs)
+            }
+
+            if (pakaiNative && !layarMatiNative) {
+                void apakahLayarMatiNative().then(catatDenganStatus)
+            } else {
+                catatDenganStatus(layarMatiNative)
+            }
         }
         const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
 
         document.addEventListener('visibilitychange', visibilitas)
-        // App native: perpindahan ke latar belakang dilaporkan OS, lebih andal dari event WebView.
-        const statusApp = adaNative() ? App.addListener('appStateChange', ({ isActive }) => (isActive ? kembali() : pergi())) : null
-        window.addEventListener('blur', pergi)
-        window.addEventListener('focus', kembali)
+        // App native: perpindahan ke latar belakang dan status layar dilaporkan OS.
+        const statusApp = pakaiNative ? App.addListener('appStateChange', ({ isActive }) => (isActive ? kembali() : pergi())) : null
+        const statusLayar = pakaiNative
+            ? dengarStatusLayarNative((interaktif) => {
+                  if (!interaktif) pernahLayarMati = true
+              })
+            : null
+        if (pantauBlur) {
+            window.addEventListener('blur', pergi)
+            window.addEventListener('focus', kembali)
+        }
         window.addEventListener('pagehide', pergi)
 
         return () => {
             document.removeEventListener('visibilitychange', visibilitas)
             void statusApp?.then((h) => h.remove())
-            window.removeEventListener('blur', pergi)
-            window.removeEventListener('focus', kembali)
+            void statusLayar?.then((h) => h?.remove())
+            if (pantauBlur) {
+                window.removeEventListener('blur', pergi)
+                window.removeEventListener('focus', kembali)
+            }
             window.removeEventListener('pagehide', pergi)
         }
     }, [aktif, catat])

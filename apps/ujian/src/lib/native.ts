@@ -26,7 +26,9 @@ interface UjianNativePlugin {
     bukaPengaturanWifi(): Promise<{ mode: 'panel' | 'pengaturan' }>
     aturProteksiKonten(opsi: { aktif: boolean }): Promise<void>
     aturTetapMenyala(opsi: { aktif: boolean }): Promise<void>
+    statusLayar(): Promise<{ interaktif: boolean; layarMati: boolean }>
     addListener(event: 'progresPembaruan', cb: (p: ProgresPembaruan) => void): Promise<PluginListenerHandle>
+    addListener(event: 'statusLayar', cb: (s: { interaktif: boolean; aksi: string }) => void): Promise<PluginListenerHandle>
 }
 
 const UjianNative = registerPlugin<UjianNativePlugin>('UjianNative')
@@ -307,6 +309,19 @@ export async function aturTetapMenyalaNative(aktif: boolean): Promise<void> {
     if (!isTauri()) return
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('atur_tetap_menyala', { aktif }).catch(() => undefined)
+}
+
+/** Periksa apakah layar Android sedang mati atau baru saja mati (tombol power / flip cover). */
+export async function apakahLayarMatiNative(): Promise<boolean> {
+    if (!adaNative()) return false
+    const status = await UjianNative.statusLayar().catch(() => null)
+    return Boolean(status && (status.layarMati || !status.interaktif))
+}
+
+/** Dengarkan perubahan status layar Android native (ACTION_SCREEN_OFF / ACTION_SCREEN_ON). */
+export async function dengarStatusLayarNative(cb: (interaktif: boolean) => void): Promise<PluginListenerHandle | null> {
+    if (!adaNative()) return null
+    return UjianNative.addListener('statusLayar', (s) => cb(Boolean(s.interaktif))).catch(() => null)
 }
 
 export async function jumlahMonitor(): Promise<number> {

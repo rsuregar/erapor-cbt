@@ -2,8 +2,10 @@ package sch.alakhyar.ujian;
 
 import android.Manifest;
 import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -15,6 +17,7 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 
 import android.content.ContentValues;
@@ -63,6 +66,74 @@ import org.json.JSONArray;
     }
 )
 public class UjianNativePlugin extends Plugin {
+
+    private volatile boolean layarMati = false;
+    private volatile long layarMatiTerakhirMs = 0L;
+    private BroadcastReceiver penerimaLayar;
+
+    @Override
+    public void load() {
+        super.load();
+        if (penerimaLayar != null) return;
+        penerimaLayar = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || intent.getAction() == null) return;
+                String aksi = intent.getAction();
+                if (Intent.ACTION_SCREEN_OFF.equals(aksi)) {
+                    layarMati = true;
+                    layarMatiTerakhirMs = SystemClock.elapsedRealtime();
+                    JSObject o = new JSObject();
+                    o.put("interaktif", false);
+                    o.put("aksi", aksi);
+                    notifyListeners("statusLayar", o);
+                } else if (Intent.ACTION_SCREEN_ON.equals(aksi) || Intent.ACTION_USER_PRESENT.equals(aksi)) {
+                    layarMati = false;
+                    JSObject o = new JSObject();
+                    o.put("interaktif", true);
+                    o.put("aksi", aksi);
+                    notifyListeners("statusLayar", o);
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getContext().registerReceiver(penerimaLayar, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getContext().registerReceiver(penerimaLayar, filter);
+            }
+        } catch (Exception ignored) {
+            // Abaikan jika OS membatasi pendaftaran broadcast receiver.
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (penerimaLayar != null) {
+            try {
+                getContext().unregisterReceiver(penerimaLayar);
+            } catch (Exception ignored) {
+                // Sudah dilepas.
+            }
+            penerimaLayar = null;
+        }
+        super.handleOnDestroy();
+    }
+
+    @PluginMethod
+    public void statusLayar(PluginCall call) {
+        PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        boolean interaktif = pm == null || pm.isInteractive();
+        boolean matiBaru = layarMati || (layarMatiTerakhirMs > 0L && (SystemClock.elapsedRealtime() - layarMatiTerakhirMs) < 3000L);
+        JSObject o = new JSObject();
+        o.put("interaktif", interaktif);
+        o.put("layarMati", !interaktif || matiBaru);
+        call.resolve(o);
+    }
 
     // ——— Kunci layar ————————————————————————————————————————————————
 
