@@ -99,6 +99,11 @@ fn jumlah_monitor(window: tauri::WebviewWindow) -> usize {
 }
 
 #[tauri::command]
+fn status_kiosk(window: tauri::WebviewWindow) -> bool {
+    window.is_fullscreen().unwrap_or(false)
+}
+
+#[tauri::command]
 fn buka_pengaturan_wifi(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -267,6 +272,7 @@ pub fn run() {
             keluar_aplikasi,
             atur_tetap_menyala,
             jumlah_monitor,
+            status_kiosk,
             buka_pengaturan_wifi,
             media::unduh_media,
             media::hapus_media,

@@ -3,7 +3,7 @@ import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { waktuMundur } from '@/lib/format'
 import { kelompokkanPerSection } from '@/lib/sectionSoal'
 import { sesi as sesiAkun } from '@/lib/sesi'
-import { adaNative, bisaBukaPengaturanWifi, bukaPengaturanWifi, isShortcutPengawas, keluarAplikasi, kunciLayar, validasiPinPengawas } from '@/lib/native'
+import { adaNative, bisaBukaPengaturanWifi, bukaPengaturanWifi, isShortcutPengawas, keluarAplikasi, kunciLayar, verifikasiPinPengawas } from '@/lib/native'
 import { ekstrakTeksDokumen, terdeteksiTempel } from '@/lib/proteksiSalin'
 import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
@@ -232,7 +232,12 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     const tanganiBukaWifiPengawas = async (e?: React.FormEvent) => {
         e?.preventDefault()
-        if (!validasiPinPengawas(pinWifi)) {
+        if (
+            !(await verifikasiPinPengawas(pinWifi, {
+                ujianId: u.data?.sesi.ujian.id,
+                hashSesi: u.data?.sesi.mulai.pin_pengawas_hash,
+            }))
+        ) {
             setGalatPinWifi('PIN pengawas salah. Hubungi proctor / tim IT.')
             return
         }
@@ -258,7 +263,12 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     }
 
     const tanganiTutupAppPengawas = async () => {
-        if (!validasiPinPengawas(pinWifi)) {
+        if (
+            !(await verifikasiPinPengawas(pinWifi, {
+                ujianId: u.data?.sesi.ujian.id,
+                hashSesi: u.data?.sesi.mulai.pin_pengawas_hash,
+            }))
+        ) {
             setGalatPinWifi('PIN pengawas salah. Hubungi proctor / tim IT.')
             return
         }
@@ -501,6 +511,9 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     {galatPinWifi && <p className="text-xs font-medium text-coral-700">{galatPinWifi}</p>}
+                    {u.data?.sesi.mulai.pin_pengawas_hash && (
+                        <p className="text-[11px] text-slate-500">PIN 6 digit pengawas tersedia di layar Pantau e-Rapor.</p>
+                    )}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                     <Tombol type="button" varian="outline" onClick={tutupModalPengawas} disabled={prosesTutupApp}>

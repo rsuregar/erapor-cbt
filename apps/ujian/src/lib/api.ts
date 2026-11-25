@@ -40,9 +40,14 @@ export const api = new KlienApi({
     },
 })
 
-/** `perangkat.platform` di kontrak: app Capacitor atau PWA. */
-export function platform(): 'android' | 'ios' | 'pwa' {
+/** `perangkat.platform` di kontrak: app Capacitor, desktop Tauri, atau PWA. */
+export function platform(): 'android' | 'ios' | 'windows' | 'macos' | 'pwa' {
     const p = Capacitor.getPlatform()
+    if (p === 'android' || p === 'ios') return p
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+        return /Macintosh|Mac OS X/i.test(ua) ? 'macos' : 'windows'
+    }
 
-    return p === 'android' || p === 'ios' ? p : 'pwa'
+    return 'pwa'
 }

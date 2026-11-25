@@ -9,6 +9,7 @@ export type JenisPerangkat = 'ios' | 'android' | 'desktop'
 
 export function jenisPerangkat(): JenisPerangkat {
     const p = platform()
+    if (p === 'windows' || p === 'macos') return 'desktop'
     if (p !== 'pwa') return p
     const ua = navigator.userAgent
     // iPadOS 13+ mengaku Macintosh; bedakan lewat layar sentuh.

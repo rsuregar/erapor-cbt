@@ -5,7 +5,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
-import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas } from '@/lib/native'
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, simpanHashPinGlobal, verifikasiPinPengawas } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian } from '@/lib/ujian'
@@ -112,6 +112,13 @@ export default function Beranda() {
         return () => clearInterval(t)
     }, [])
 
+    // Sinkronkan hash PIN pengawas global dari server agar verifikasi offline tetap jalan.
+    useEffect(() => {
+        if (ujian.data?.aplikasi !== undefined) {
+            simpanHashPinGlobal(ujian.data.aplikasi.pin_pengawas_hash)
+        }
+    }, [ujian.data?.aplikasi])
+
     // Shortcut keyboard pengawas + tombol Escape untuk menutup dialog
     useEffect(() => {
         const tanganiKeydown = (e: KeyboardEvent) => {
@@ -177,7 +184,7 @@ export default function Beranda() {
 
     const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
         if (e) e.preventDefault()
-        if (!validasiPinPengawas(pinPengawas)) {
+        if (!(await verifikasiPinPengawas(pinPengawas))) {
             setGalatPin('PIN Pengawas salah. Hubungi proctor / tim IT.')
             return
         }

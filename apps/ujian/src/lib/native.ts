@@ -255,11 +255,23 @@ export async function srcMediaNative(path: string): Promise<string> {
 /** Keluar / tutup aplikasi desktop Tauri (alias untuk kompatibilitas) */
 export const keluarAplikasiTauri = keluarAplikasi
 
-/** Sematkan aplikasi selama ujian. null = bukan app native. */
+/** Sematkan aplikasi selama ujian / kunci layar penuh Exam Browser desktop. null = bukan app native. */
 export async function kunciLayar(): Promise<boolean | null> {
-    if (!adaNative()) return null
-
-    return (await UjianNative.kunciLayar().catch(() => ({ aktif: false }))).aktif
+    if (adaNative()) {
+        return (await UjianNative.kunciLayar().catch(() => ({ aktif: false }))).aktif
+    }
+    if (isTauri()) {
+        try {
+            const { getCurrentWindow } = await import('@tauri-apps/api/window')
+            const jendela = getCurrentWindow()
+            await jendela.setFullscreen(true)
+            await jendela.setAlwaysOnTop(true)
+            return true
+        } catch {
+            return false
+        }
+    }
+    return null
 }
 
 export async function lepasKunciLayar(): Promise<void> {
@@ -268,9 +280,18 @@ export async function lepasKunciLayar(): Promise<void> {
 
 /** Untuk `kiosk_aktif` (kontrak): null di PWA, karena web tidak bisa membaca kunci OS. */
 export async function statusKunciLayar(): Promise<boolean | null> {
-    if (!adaNative()) return null
-
-    return (await UjianNative.statusKunciLayar().catch(() => ({ aktif: false }))).aktif
+    if (adaNative()) {
+        return (await UjianNative.statusKunciLayar().catch(() => ({ aktif: false }))).aktif
+    }
+    if (isTauri()) {
+        try {
+            const { invoke } = await import('@tauri-apps/api/core')
+            return await invoke<boolean>('status_kiosk')
+        } catch {
+            return true
+        }
+    }
+    return null
 }
 
 export function izinLokasiNative(): Promise<PermissionState> {
@@ -286,10 +307,70 @@ export function ambilLokasiNative(opsi: { maksUmurMs?: number; batasMs?: number 
 const BATAS_PULIH_KIOS_MS = 15_000
 const BATAS_PULIH_WIFI_MS = 30_000
 
+const KUNCI_PIN_GLOBAL_HASH = 'cbt_pin_global_hash'
+
 export function validasiPinPengawas(pin: string): boolean {
     const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || 'alakhyar'
     const bersih = pin.trim()
     return bersih === pinTarget || bersih === '778899'
+}
+
+export function simpanHashPinGlobal(hash: string | null | undefined): void {
+    try {
+        if (hash) globalThis.localStorage?.setItem(KUNCI_PIN_GLOBAL_HASH, hash)
+        else if (hash === null) globalThis.localStorage?.removeItem(KUNCI_PIN_GLOBAL_HASH)
+    } catch {
+        // Abaikan bila localStorage tidak tersedia.
+    }
+}
+
+export function ambilHashPinGlobal(): string | null {
+    try {
+        return globalThis.localStorage?.getItem(KUNCI_PIN_GLOBAL_HASH) ?? null
+    } catch {
+        return null
+    }
+}
+
+export async function sha256Hex(teks: string): Promise<string> {
+    const buf = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(teks))
+    return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+}
+
+/**
+ * Verifikasi PIN pengawas terhadap hash server (per ujian / global) agar tetap aman
+ * saat offline. Jatuh ke validasiPinPengawas hanya bila hash dari server belum tersedia.
+ */
+export async function verifikasiPinPengawas(
+    pin: string,
+    opsi: { ujianId?: number; hashSesi?: string | null; hashGlobal?: string | null } = {},
+): Promise<boolean> {
+    const bersih = pin.trim()
+    if (!bersih) return false
+
+    const hashGlobal = opsi.hashGlobal !== undefined ? opsi.hashGlobal : ambilHashPinGlobal()
+
+    if (opsi.hashSesi && opsi.ujianId) {
+        try {
+            if ((await sha256Hex(`cbt-pin:${opsi.ujianId}:${bersih}`)) === opsi.hashSesi) return true
+            if (hashGlobal && (await sha256Hex(`cbt-pin-global:${bersih}`)) === hashGlobal) return true
+            return false
+        } catch {
+            // Bila WebCrypto tidak tersedia di lingkungan tertentu, lanjutkan fallback.
+        }
+    }
+
+    if (hashGlobal) {
+        try {
+            return (await sha256Hex(`cbt-pin-global:${bersih}`)) === hashGlobal
+        } catch {
+            // Bila WebCrypto tidak tersedia, lanjutkan fallback.
+        }
+    }
+
+    return validasiPinPengawas(bersih)
 }
 
 export const bisaBukaPengaturanWifi = (): boolean => adaNative() || isTauri()
