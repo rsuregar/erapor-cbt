@@ -128,20 +128,20 @@ export async function sinkronSemuaTertunda(deps: DepsSinkronLokal = {}): Promise
                     } catch (e) {
                         const g = e instanceof GalatApi ? e : null
                         const kode = (g?.kode || '').toUpperCase()
-                        if (kode === 'SUDAH_SELESAI' || kode === 'SELESAI' || kode === 'SUDAH_DITUTUP' || g?.status === 409) {
-                            if (kode === 'PERANGKAT_LAIN') {
-                                hasil.push({
-                                    attemptId: item.attemptId,
-                                    ujianId: item.ujianId,
-                                    namaUjian: item.namaUjian,
-                                    terkirim,
-                                    ditolak,
-                                    sisaTertunda: sisa,
-                                    status: 'perangkat_lain',
-                                    pesan: g?.message,
-                                })
-                                continue
-                            }
+                        if (kode === 'PERANGKAT_LAIN') {
+                            hasil.push({
+                                attemptId: item.attemptId,
+                                ujianId: item.ujianId,
+                                namaUjian: item.namaUjian,
+                                terkirim,
+                                ditolak,
+                                sisaTertunda: sisa,
+                                status: 'perangkat_lain',
+                                pesan: g?.message,
+                            })
+                            continue
+                        }
+                        if (kode === 'SUDAH_SELESAI' || kode === 'SELESAI' || kode === 'SUDAH_DITUTUP') {
                             await arsipkan(item.attemptId, ditolak)
                             await hapusSesi(item.attemptId, item.ujianId)
                         } else if (g?.sementara) {
@@ -214,11 +214,13 @@ export async function sinkronSemuaTertunda(deps: DepsSinkronLokal = {}): Promise
                 kode === 'SUDAH_SELESAI' ||
                 kode === 'SELESAI' ||
                 kode === 'SUDAH_DITUTUP' ||
-                g.status === 404 ||
-                g.status === 409
+                g.status === 404
             ) {
-                // Attempt ditutup/dihapus dengan perangkat lama dilepas: jangan loop selamanya bila tidak ada jawaban baru.
-                if (sisa === 0) await hapusSesi(item.attemptId, item.ujianId)
+                // Attempt ditutup/dihapus: jangan loop selamanya bila tidak ada jawaban baru yang tersisa.
+                if (sisa === 0) {
+                    await arsipkan(item.attemptId, [])
+                    await hapusSesi(item.attemptId, item.ujianId)
+                }
                 hasil.push({
                     attemptId: item.attemptId,
                     ujianId: item.ujianId,

@@ -219,6 +219,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         setMembukaWifi(true)
         setGalatWifi(null)
         try {
+            await u.tandaiKumpulFinal()
             await bukaPengaturanWifi({
                 pulihkanKiosk: true,
                 onKembali: () => {
@@ -274,10 +275,14 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         }
     }
 
-    // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab).
+    // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab) saat masih mengerjakan atau mengumpulkan.
+    const harusBlokirNavigasi = () =>
+        (u.status === 'mengerjakan' || u.status === 'mengumpulkan' || u.status === 'menunggu_sinkron') &&
+        !u.perangkatLain &&
+        !sesiAkun.lihatKeluarPaksa()
     const blokir = useBlocker({
-        shouldBlockFn: () => u.status === 'mengerjakan' && !u.perangkatLain,
-        enableBeforeUnload: () => u.status === 'mengerjakan' && !u.perangkatLain,
+        shouldBlockFn: harusBlokirNavigasi,
+        enableBeforeUnload: harusBlokirNavigasi,
         withResolver: true,
     })
 
@@ -386,6 +391,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const pintasan = useRef({
         aktif: false,
         terhalang: false,
+        waktuHabis: false,
         soal: undefined as SoalPaket | undefined,
         jawaban: undefined as IsiJawaban[string] | undefined,
         indeks: 0,
@@ -394,6 +400,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     pintasan.current = {
         aktif: u.status === 'mengerjakan' && !tinjau,
         terhalang: bantuanPintasan || panel || konfirmasi || modeModalPengawas !== null || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh),
+        waktuHabis,
         soal: aktif,
         jawaban: aktif ? u.jawaban[aktif.id] : undefined,
         indeks,
@@ -425,9 +432,11 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 e.preventDefault()
                 if (k.indeks > 0) setIndeks(k.indeks - 1)
             } else if (e.key.toLowerCase() === 'r') {
+                if (k.waktuHabis) return
                 e.preventDefault()
                 jawabRef.current(s.id, j?.jawaban ?? null, !j?.ragu)
             } else if (['pilihan_ganda', 'pg_stimulus', 'pg_kompleks'].includes(s.jenis)) {
+                if (k.waktuHabis) return
                 const i = 'abcdef'.indexOf(e.key.toLowerCase())
                 const opsi = (s.opsi as { id: string }[] | null) ?? []
                 if (i < 0 || !opsi[i]) return
@@ -455,7 +464,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     const adaJawabanTertunda = u.koneksi.tertunda > 0 || u.gagalSimpan > 0
 
     const dialogPengawas = modeModalPengawas && (
-        <Dialog onTutup={tutupModalPengawas}>
+        <Dialog onTutup={tutupModalPengawas} zIndexClass="z-[70]">
             <form
                 onSubmit={(e) => {
                     e.preventDefault()
@@ -535,14 +544,24 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         </Dialog>
     )
 
-    if (u.status === 'memuat') return <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Membuka ujian…" />
+    if (u.status === 'memuat') {
+        return (
+            <>
+                <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Membuka ujian…" />
+                {dialogPengawas}
+            </>
+        )
+    }
     if (u.status === 'tidak_ada') {
         return (
-            <Layar ikon={<AlertTriangle className="size-8 text-amber-500" />} judul="Sesi ujian tidak ada di perangkat ini" isi="Buka lagi dari daftar ujian lalu masukkan token.">
-                <Link to="/" className={kelasTombol('primary')}>
-                    Ke daftar ujian
-                </Link>
-            </Layar>
+            <>
+                <Layar ikon={<AlertTriangle className="size-8 text-amber-500" />} judul="Sesi ujian tidak ada di perangkat ini" isi="Buka lagi dari daftar ujian lalu masukkan token.">
+                    <Link to="/" className={kelasTombol('primary')}>
+                        Ke daftar ujian
+                    </Link>
+                </Layar>
+                {dialogPengawas}
+            </>
         )
     }
     if (u.status === 'selesai') {
@@ -550,66 +569,69 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         const adaDitolak = ditolak.length > 0
 
         return (
-            <Layar
-                ikon={
-                    adaDitolak ? (
-                        <AlertTriangle className="size-12 text-amber-500" />
-                    ) : olehPengawas ? (
-                        <Megaphone className="size-12 text-amber-500" />
-                    ) : (
-                        <CheckCircle2 className="size-12 text-green-500 animate-turun" />
-                    )
-                }
-                judul={
-                    adaDitolak
-                        ? 'Ujian Selesai — Sebagian Jawaban Ditolak Server'
-                        : u.alasanSelesai === 'sesi_dihentikan'
-                          ? 'Sesi Ujian Dihentikan Pengawas'
-                          : u.alasanSelesai === 'dikumpulkan_pengawas'
-                            ? 'Ujian Dikumpulkan Pengawas'
-                            : 'Ujian Selesai & Jawaban Terkumpul'
-                }
-                isi={
-                    adaDitolak
-                        ? 'Sebagian jawabanmu tidak dapat disimpan server. Jangan tutup layar ini dan segera tunjukkan kepada pengawas sebelum meninggalkan ruangan.'
-                        : u.alasanSelesai === 'sesi_dihentikan'
-                          ? 'Sesi ujian dihentikan oleh pengawas/guru. Semua jawabanmu sudah dikumpulkan otomatis dan tersimpan aman di server.'
-                          : u.alasanSelesai === 'dikumpulkan_pengawas'
-                            ? 'Pengawas/guru sudah mengumpulkan ujianmu. Jawaban yang terkirim tersimpan aman di server — aplikasimu tidak bermasalah.'
-                            : 'Terima kasih sudah mengerjakan dengan jujur. Jawabanmu sudah terkirim dan tersimpan aman. Nilai bisa dilihat setelah dirilis guru.'
-                }
-            >
-                <div className="mt-4 flex flex-col items-center gap-3">
-                    {adaDitolak && (
-                        <div role="alert" className="w-full max-w-md rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-left text-xs text-coral-800 space-y-1">
-                            <p className="font-bold">Rincian jawaban yang tidak diterima server:</p>
-                            {ditolak.map((d) => (
-                                <p key={d.alasan}>
-                                    • Nomor {d.nomor.join(', ')}: {ALASAN_DITOLAK[d.alasan] ?? d.alasan}
-                                </p>
-                            ))}
+            <>
+                <Layar
+                    ikon={
+                        adaDitolak ? (
+                            <AlertTriangle className="size-12 text-amber-500" />
+                        ) : olehPengawas ? (
+                            <Megaphone className="size-12 text-amber-500" />
+                        ) : (
+                            <CheckCircle2 className="size-12 text-green-500 animate-turun" />
+                        )
+                    }
+                    judul={
+                        adaDitolak
+                            ? 'Ujian Selesai — Sebagian Jawaban Ditolak Server'
+                            : u.alasanSelesai === 'sesi_dihentikan'
+                              ? 'Sesi Ujian Dihentikan Pengawas'
+                              : u.alasanSelesai === 'dikumpulkan_pengawas'
+                                ? 'Ujian Dikumpulkan Pengawas'
+                                : 'Ujian Selesai & Jawaban Terkumpul'
+                    }
+                    isi={
+                        adaDitolak
+                            ? 'Sebagian jawabanmu tidak dapat disimpan server. Jangan tutup layar ini dan segera tunjukkan kepada pengawas sebelum meninggalkan ruangan.'
+                            : u.alasanSelesai === 'sesi_dihentikan'
+                              ? 'Sesi ujian dihentikan oleh pengawas/guru. Semua jawabanmu sudah dikumpulkan otomatis dan tersimpan aman di server.'
+                              : u.alasanSelesai === 'dikumpulkan_pengawas'
+                                ? 'Pengawas/guru sudah mengumpulkan ujianmu. Jawaban yang terkirim tersimpan aman di server — aplikasimu tidak bermasalah.'
+                                : 'Terima kasih sudah mengerjakan dengan jujur. Jawabanmu sudah terkirim dan tersimpan aman. Nilai bisa dilihat setelah dirilis guru.'
+                    }
+                >
+                    <div className="mt-4 flex flex-col items-center gap-3">
+                        {adaDitolak && (
+                            <div role="alert" className="w-full max-w-md rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-left text-xs text-coral-800 space-y-1">
+                                <p className="font-bold">Rincian jawaban yang tidak diterima server:</p>
+                                {ditolak.map((d) => (
+                                    <p key={d.alasan}>
+                                        • Nomor {d.nomor.join(', ')}: {ALASAN_DITOLAK[d.alasan] ?? d.alasan}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+                        {u.jumlahTerjawabServer !== null && (
+                            <p className={cn('text-xs font-semibold', adaDitolak ? 'text-slate-700' : 'text-emerald-700')}>
+                                Tercatat {u.jumlahTerjawabServer} dari {soal.length} soal tersimpan di server.
+                            </p>
+                        )}
+                        <div className="flex flex-wrap justify-center gap-2">
+                            <Link to="/jawaban/$attemptId" params={{ attemptId }} className={kelasTombol('outline')}>
+                                Lihat Bukti Jawaban (Client vs Server)
+                            </Link>
+                            <Link to="/" className={kelasTombol('primary')} replace>
+                                Kembali ke beranda sekarang
+                            </Link>
                         </div>
-                    )}
-                    {u.jumlahTerjawabServer !== null && (
-                        <p className={cn('text-xs font-semibold', adaDitolak ? 'text-slate-700' : 'text-emerald-700')}>
-                            Tercatat {u.jumlahTerjawabServer} dari {soal.length} soal tersimpan di server.
-                        </p>
-                    )}
-                    <div className="flex flex-wrap justify-center gap-2">
-                        <Link to="/jawaban/$attemptId" params={{ attemptId }} className={kelasTombol('outline')}>
-                            Lihat Bukti Jawaban (Client vs Server)
-                        </Link>
-                        <Link to="/" className={kelasTombol('primary')} replace>
-                            Kembali ke beranda sekarang
-                        </Link>
+                        {!adaDitolak && (
+                            <p className="text-[11px] text-slate-400">
+                                {`Otomatis kembali ke beranda dalam ${(olehPengawas ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS) / 1000} detik…`}
+                            </p>
+                        )}
                     </div>
-                    {!adaDitolak && (
-                        <p className="text-[11px] text-slate-400">
-                            {`Otomatis kembali ke beranda dalam ${(olehPengawas ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS) / 1000} detik…`}
-                        </p>
-                    )}
-                </div>
-            </Layar>
+                </Layar>
+                {dialogPengawas}
+            </>
         )
     }
     if (u.status === 'mengumpulkan' || u.status === 'menunggu_sinkron') {
@@ -637,9 +659,11 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     {membukaWifi ? 'Membuka Wi-Fi…' : 'Ganti Wi-Fi / Hotspot'}
                                 </Tombol>
                             )}
-                            <Tombol varian="outline" onClick={() => void u.batalKumpul()}>
-                                Kembali ke soal
-                            </Tombol>
+                            {!waktuHabis && !u.kumpulFinal && (
+                                <Tombol varian="outline" onClick={() => void u.batalKumpul()}>
+                                    Kembali ke soal
+                                </Tombol>
+                            )}
                         </div>
                         {galatWifi && <p role="alert" className="mt-3 text-xs font-semibold text-coral-700">{galatWifi}</p>}
                     </Layar>
@@ -851,7 +875,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     jawaban={(j?.jawaban ?? null) as Jawaban}
                                     ragu={j?.ragu ?? false}
                                     onJawab={(isi) => {
-                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string') {
+                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string' && !proteksi.baruSajaUndo()) {
                                             const sebelum = typeof j?.jawaban === 'string' ? j.jawaban : ''
                                             const cek = terdeteksiTempel({ sebelum, sesudah: isi, teksSoal: teksSoalRef.current })
                                             if (cek.diblokir) {
@@ -896,11 +920,12 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         <div className="flex items-center gap-1.5 sm:hidden">
                             <button
                                 type="button"
+                                disabled={waktuHabis}
                                 aria-pressed={!!j?.ragu}
                                 aria-label={j?.ragu ? 'Batalkan tanda ragu-ragu' : 'Tandai ragu-ragu'}
-                                onClick={() => u.jawab(aktif.id, j?.jawaban ?? null, !j?.ragu)}
+                                onClick={() => !waktuHabis && u.jawab(aktif.id, j?.jawaban ?? null, !j?.ragu)}
                                 className={cn(
-                                    'inline-flex size-11 items-center justify-center rounded-xl border-2 transition active:scale-95',
+                                    'inline-flex size-11 items-center justify-center rounded-xl border-2 transition active:scale-95 disabled:opacity-50',
                                     j?.ragu ? 'border-amber-500 bg-amber-100 text-amber-800' : 'border-slate-200 bg-white text-slate-600',
                                 )}
                             >
@@ -1106,8 +1131,6 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </Dialog>
             )}
 
-            {dialogPengawas}
-
             {wajibLp && !layarPenuh && u.status === 'mengerjakan' && !jedaJaringan && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/80 p-6 backdrop-blur-md">
                     <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
@@ -1151,6 +1174,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                     </div>
                 </div>
             )}
+
+            {dialogPengawas}
         </div>
     )
 
@@ -1433,11 +1458,11 @@ function useLapisan(onTutup: () => void) {
     return ref
 }
 
-function Dialog({ children, onTutup }: { children: React.ReactNode; onTutup: () => void }) {
+function Dialog({ children, onTutup, zIndexClass = 'z-50' }: { children: React.ReactNode; onTutup: () => void; zIndexClass?: string }) {
     const ref = useLapisan(onTutup)
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-6" onClick={onTutup}>
+        <div className={cn('fixed inset-0 flex items-center justify-center bg-ink/50 p-6', zIndexClass)} onClick={onTutup}>
             <div ref={ref} role="dialog" aria-modal aria-labelledby="judul-dialog" className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
                 {children}
             </div>

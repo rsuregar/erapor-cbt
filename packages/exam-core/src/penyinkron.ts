@@ -61,12 +61,16 @@ export class Penyinkron {
         this.jadwalkan(this.o.jedaMs ?? 1500)
     }
 
-    /** Kirim sekarang (event online, app kembali terlihat, sebelum kumpul). Bila sedang mengirim, tunggu putaran aktif selesai. */
+    /** Kirim sekarang (event online, app kembali terlihat, sebelum kumpul). Bila sedang mengirim, tunggu putaran aktif selesai dan jalankan putaran baru jika masih ada entri tertunda. */
     async kirim(): Promise<SinkronRespons | null> {
         if (this.janjiKirim) {
             this.ulangSetelahKirim = true
+            const hasil = await this.janjiKirim
+            if (hasil !== null && (await this.o.outbox.jumlahTertunda()) > 0) {
+                return this.kirim()
+            }
 
-            return this.janjiKirim
+            return hasil
         }
         const janji = this.lakukanKirim()
         this.janjiKirim = janji

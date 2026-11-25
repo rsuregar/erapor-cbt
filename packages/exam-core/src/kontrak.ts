@@ -173,6 +173,7 @@ export type JenisPelanggaran =
     | 'ukuran_layar'
     | 'muat_ulang'
     | 'offline'
+    | 'layar_mati'
     | 'perangkat_lain'
     | 'multi_monitor'
     | 'salin_tempel'

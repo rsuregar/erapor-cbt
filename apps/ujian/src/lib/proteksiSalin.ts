@@ -108,7 +108,7 @@ export function adalahPintasanCopas(e: {
     const k = e.key.toLowerCase()
     if (e.ctrlKey || e.metaKey) {
         if (k === 'c' || e.code === 'KeyC') return 'copy'
-        if (k === 'x' || e.code === 'KeyX') return 'cut'
+        if ((k === 'x' || e.code === 'KeyX') && !e.shiftKey) return 'cut'
         if (k === 'v' || e.code === 'KeyV') return 'paste'
         if (e.ctrlKey && !e.metaKey && e.key === 'Insert') return 'copy'
     }

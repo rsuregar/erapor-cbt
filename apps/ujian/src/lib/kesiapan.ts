@@ -1,5 +1,6 @@
 import { platform } from '@/lib/api'
 import { pwaIosTerpasang, WEB_KHUSUS_IOS } from '@/lib/aksesWeb'
+import { isNative, isTauri } from '@/lib/native'
 import { hpMiring, jenisPerangkat, layarDibagi, layarPenuhAktif, standalone } from '@/lib/perangkat'
 import { versiUsang } from '@/lib/versi'
 import type { StatusPenyimpanan } from '@/lib/penyimpanan'
@@ -42,7 +43,7 @@ const MB = 1024 * 1024
 export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambahan): ItemCek[] {
     const daftar: ItemCek[] = []
     const jenis = jenisPerangkat()
-    const asli = platform() !== 'pwa'
+    const asli = isNative()
 
     const fiturHilang = [
         !globalThis.isSecureContext && 'koneksi aman (https)',
@@ -74,7 +75,7 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
 
     if (asli) {
         daftar.push({ kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
-        if (level !== 'dasar') {
+        if (level !== 'dasar' && !isTauri()) {
             daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.' })
         }
     } else if (jenis === 'desktop') {

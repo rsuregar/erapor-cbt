@@ -9,6 +9,7 @@ import {
     dekripsiPaket,
     keBase64,
     type PaketTerenkripsi,
+    type Penyimpanan,
     type SinkronRespons,
 } from '../src'
 
@@ -68,6 +69,57 @@ describe('Outbox', () => {
         expect(j['501'].jawaban).toBe('b')
         expect(j['502'].jawaban).toBe('x')
         expect((await o.antrean()).map((e) => e.soal_id)).toEqual([501])
+    })
+
+    it('menserialisasi catat dan akui paralel agar tidak ada jawaban yang tertimpa', async () => {
+        const simpanBase = new PenyimpananMemori()
+        const simpanLambat: Penyimpanan = {
+            ambil: (k) => simpanBase.ambil(k),
+            hapus: (k) => simpanBase.hapus(k),
+            daftarKunci: (a) => simpanBase.daftarKunci(a),
+            simpan: async (k, v) => {
+                await new Promise((r) => setTimeout(r, 5))
+                return simpanBase.simpan(k, v)
+            },
+        }
+        const o = new Outbox(simpanLambat, 7)
+        await o.catat(501, 'a', false)
+
+        await Promise.all([
+            o.catat(502, 'b', false),
+            o.akui({ 501: 1 }),
+            o.catat(503, 'c', true),
+        ])
+
+        const j = await o.jawaban()
+        expect(j['501']?.jawaban).toBe('a')
+        expect(j['502']?.jawaban).toBe('b')
+        expect(j['503']).toEqual({ jawaban: 'c', ragu: true })
+        expect((await o.antrean()).map((e) => e.soal_id).sort((a, b) => a - b)).toEqual([502, 503])
+    })
+
+    it('tidak merusak cache memori ketika penyimpanan gagal menulis', async () => {
+        const simpanBase = new PenyimpananMemori()
+        let gagal = false
+        const simpan: Penyimpanan = {
+            ambil: (k) => simpanBase.ambil(k),
+            hapus: (k) => simpanBase.hapus(k),
+            daftarKunci: (a) => simpanBase.daftarKunci(a),
+            simpan: async (k, v) => {
+                if (gagal) throw new Error('disk penuh')
+                return simpanBase.simpan(k, v)
+            },
+        }
+        const o = new Outbox(simpan, 7)
+        await o.catat(501, 'awal', false)
+
+        gagal = true
+        await expect(o.catat(502, 'gagal', false)).rejects.toThrow('disk penuh')
+        gagal = false
+
+        const j = await o.jawaban()
+        expect(j['501']?.jawaban).toBe('awal')
+        expect(j['502']).toBeUndefined()
     })
 })
 
@@ -292,6 +344,57 @@ describe('KlienApi', () => {
         const [r1, r2] = await Promise.all([p1, p2])
         expect(r1?.diakui).toEqual({ 501: 1 })
         expect(r2).toEqual(r1)
+        p.henti()
+    })
+
+    it('kirim() bersamaan menjalankan putaran baru jika ada jawaban baru saat kiriman aktif', async () => {
+        const o = new Outbox(new PenyimpananMemori(), 7)
+        await o.catat(501, 'o1', false)
+
+        const tunda = Promise.withResolvers<Response>()
+        let panggilan = 0
+        const fetch = vi.fn((_u: unknown, init?: RequestInit) => {
+            panggilan++
+            const body = JSON.parse(String(init?.body)) as { entri: { soal_id: number; seq: number }[] }
+            const diakui = Object.fromEntries(body.entri.map((e) => [e.soal_id, e.seq]))
+            const resp: SinkronRespons = {
+                diakui,
+                waktu_server: '2026-10-20T07:31:00+08:00',
+                berakhir_pada: '2026-10-20T09:00:00+08:00',
+                status: 'mengerjakan',
+                pesan_pengawas: null,
+                pesan_pada: null,
+            }
+            if (panggilan === 1) return tunda.promise
+            return Promise.resolve(new Response(JSON.stringify(resp), { status: 200 }))
+        })
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', fetch })
+        const p = new Penyinkron({ api, outbox: o, attemptId: 7, jam: new JamServer('2026-10-20T07:30:00+08:00') })
+
+        const p1 = p.kirim()
+        await vi.waitFor(() => expect(panggilan).toBe(1))
+        await o.catat(502, 'o2', false)
+        const p2 = p.kirim()
+
+        tunda.resolve(
+            new Response(
+                JSON.stringify({
+                    diakui: { 501: 1 },
+                    waktu_server: '2026-10-20T07:31:00+08:00',
+                    berakhir_pada: '2026-10-20T09:00:00+08:00',
+                    status: 'mengerjakan',
+                    pesan_pengawas: null,
+                    pesan_pada: null,
+                } satisfies SinkronRespons),
+                { status: 200 },
+            ),
+        )
+
+        const r2 = await p2
+        await p1
+        expect(panggilan).toBe(2)
+        expect(r2?.diakui).toEqual({ 502: 1 })
+        expect(await o.jumlahTertunda()).toBe(0)
         p.henti()
     })
 })

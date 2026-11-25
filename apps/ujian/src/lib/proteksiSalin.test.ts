@@ -130,6 +130,9 @@ describe('deteksi inputType, pintasan, dan target isian', () => {
         expect(adalahPintasanCopas({ key: 'Insert', ctrlKey: true, metaKey: false })).toBe('copy')
         expect(adalahPintasanCopas({ key: 'Delete', ctrlKey: false, metaKey: false, shiftKey: true })).toBe('cut')
         expect(adalahPintasanCopas({ key: 'a', ctrlKey: true, metaKey: false })).toBeNull()
+        // Pintasan pengawas Ctrl+Shift+X / Cmd+Shift+X tidak boleh diblokir sebagai Cut.
+        expect(adalahPintasanCopas({ key: 'X', code: 'KeyX', ctrlKey: true, metaKey: false, shiftKey: true })).toBeNull()
+        expect(adalahPintasanCopas({ key: 'x', code: 'KeyX', ctrlKey: false, metaKey: true, shiftKey: true })).toBeNull()
     })
 
     it('adalahTargetIsian aman untuk null/non-element di lingkungan Node', () => {

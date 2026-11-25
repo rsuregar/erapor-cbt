@@ -117,10 +117,10 @@ export const sesi = {
         await Preferences.set({ key: 'nama', value: namaMurid ?? '' })
         await Preferences.set({ key: 'uuid', value: uuidMurid })
         await Preferences.set({ key: 'nis', value: nisMurid })
-        if (kelasMurid) await Preferences.set({ key: 'kelas', value: kelasMurid })
-        if (nisnMurid) await Preferences.set({ key: 'nisn', value: nisnMurid })
-        if (fotoMurid) await Preferences.set({ key: 'foto', value: fotoMurid })
-        if (sekolahMurid) await Preferences.set({ key: 'sekolah', value: sekolahMurid })
+        await (kelasMurid ? Preferences.set({ key: 'kelas', value: kelasMurid }) : Preferences.remove({ key: 'kelas' }))
+        await (nisnMurid ? Preferences.set({ key: 'nisn', value: nisnMurid }) : Preferences.remove({ key: 'nisn' }))
+        await (fotoMurid ? Preferences.set({ key: 'foto', value: fotoMurid }) : Preferences.remove({ key: 'foto' }))
+        await (sekolahMurid ? Preferences.set({ key: 'sekolah', value: sekolahMurid }) : Preferences.remove({ key: 'sekolah' }))
     },
 
     async perbaruiProfil(data: {

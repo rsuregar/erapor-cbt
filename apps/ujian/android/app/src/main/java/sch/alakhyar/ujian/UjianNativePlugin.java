@@ -2,8 +2,10 @@ package sch.alakhyar.ujian;
 
 import android.Manifest;
 import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -15,6 +17,7 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 
 import android.content.ContentValues;
@@ -43,7 +46,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import org.json.JSONArray;
 
@@ -63,6 +68,85 @@ import org.json.JSONArray;
     }
 )
 public class UjianNativePlugin extends Plugin {
+
+    private volatile boolean layarMati = false;
+    private volatile boolean pernahLayarMati = false;
+    private volatile long layarMatiTerakhirMs = 0L;
+    private volatile long layarNyalaTerakhirMs = 0L;
+    private BroadcastReceiver penerimaLayar;
+
+    @Override
+    public void load() {
+        super.load();
+        if (penerimaLayar != null) return;
+        penerimaLayar = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || intent.getAction() == null) return;
+                String aksi = intent.getAction();
+                if (Intent.ACTION_SCREEN_OFF.equals(aksi)) {
+                    layarMati = true;
+                    pernahLayarMati = true;
+                    layarMatiTerakhirMs = SystemClock.elapsedRealtime();
+                    JSObject o = new JSObject();
+                    o.put("interaktif", false);
+                    o.put("aksi", aksi);
+                    notifyListeners("statusLayar", o);
+                } else if (Intent.ACTION_SCREEN_ON.equals(aksi) || Intent.ACTION_USER_PRESENT.equals(aksi)) {
+                    layarMati = false;
+                    layarNyalaTerakhirMs = SystemClock.elapsedRealtime();
+                    JSObject o = new JSObject();
+                    o.put("interaktif", true);
+                    o.put("aksi", aksi);
+                    notifyListeners("statusLayar", o);
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getContext().registerReceiver(penerimaLayar, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getContext().registerReceiver(penerimaLayar, filter);
+            }
+        } catch (Exception ignored) {
+            // Abaikan jika OS membatasi pendaftaran broadcast receiver.
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (penerimaLayar != null) {
+            try {
+                getContext().unregisterReceiver(penerimaLayar);
+            } catch (Exception ignored) {
+                // Sudah dilepas.
+            }
+            penerimaLayar = null;
+        }
+        super.handleOnDestroy();
+    }
+
+    @PluginMethod
+    public void statusLayar(PluginCall call) {
+        boolean reset = Boolean.TRUE.equals(call.getBoolean("reset", false));
+        PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        boolean interaktif = pm == null || pm.isInteractive();
+        long kini = SystemClock.elapsedRealtime();
+        boolean matiBaru = (layarMatiTerakhirMs > 0L && (kini - layarMatiTerakhirMs) < 3000L)
+                || (layarNyalaTerakhirMs > 0L && (kini - layarNyalaTerakhirMs) < 5000L);
+        boolean hasilMati = !interaktif || layarMati || pernahLayarMati || matiBaru;
+        if (reset && interaktif && !layarMati) {
+            pernahLayarMati = false;
+        }
+        JSObject o = new JSObject();
+        o.put("interaktif", interaktif);
+        o.put("layarMati", hasilMati);
+        call.resolve(o);
+    }
 
     // ——— Kunci layar ————————————————————————————————————————————————
 
@@ -194,48 +278,87 @@ public class UjianNativePlugin extends Plugin {
         long maksUmurMs = call.getLong("maksUmurMs", 0L);
         long batasMs = call.getLong("batasMs", 20000L);
 
-        String penyedia = pilihPenyedia(lm);
-        if (penyedia == null) {
+        List<String> penyediaList = pilihSemuaPenyedia(lm);
+        if (penyediaList.isEmpty()) {
             call.reject("Layanan lokasi (GPS) mati.", "TIDAK_ADA");
             return;
         }
 
         // Posisi terakhir yang masih segar dipakai langsung (hemat baterai).
         if (maksUmurMs > 0) {
-            Location terakhir = lm.getLastKnownLocation(penyedia);
-            if (terakhir != null && umurMs(terakhir) <= maksUmurMs) {
-                call.resolve(keJs(terakhir));
+            Location terbaik = null;
+            for (String p : penyediaList) {
+                Location terakhir = lm.getLastKnownLocation(p);
+                if (terakhir != null && umurMs(terakhir) <= maksUmurMs) {
+                    if (terbaik == null || terakhir.getAccuracy() < terbaik.getAccuracy()) {
+                        terbaik = terakhir;
+                    }
+                }
+            }
+            if (terbaik != null) {
+                call.resolve(keJs(terbaik));
                 return;
             }
         }
 
         Handler h = new Handler(Looper.getMainLooper());
         final boolean[] selesai = { false };
+        final Location[] cadangan = { null };
+        final boolean adaGanda = penyediaList.size() > 1;
         LocationListener pendengar = new LocationListener() {
             @Override
             public void onLocationChanged(Location loc) {
                 if (selesai[0]) return;
+                boolean dariNetwork = LocationManager.NETWORK_PROVIDER.equals(loc.getProvider());
+                boolean kurangAkurat = loc.hasAccuracy() && loc.getAccuracy() > 100f;
+                // Di dalam ruangan Android < 12: simpan fix jaringan kasar sebagai cadangan sambil menunggu GPS sebentar.
+                if (adaGanda && dariNetwork && kurangAkurat) {
+                    if (cadangan[0] == null || loc.getAccuracy() < cadangan[0].getAccuracy()) {
+                        cadangan[0] = loc;
+                    }
+                    return;
+                }
                 selesai[0] = true;
+                h.removeCallbacksAndMessages(null);
                 lm.removeUpdates(this);
                 call.resolve(keJs(loc));
             }
         };
-        h.post(() -> lm.requestLocationUpdates(penyedia, 0L, 0f, pendengar, Looper.getMainLooper()));
+        h.post(() -> {
+            for (String p : penyediaList) {
+                lm.requestLocationUpdates(p, 0L, 0f, pendengar, Looper.getMainLooper());
+            }
+        });
+        if (adaGanda && batasMs > 6000L) {
+            h.postDelayed(() -> {
+                if (selesai[0] || cadangan[0] == null) return;
+                selesai[0] = true;
+                h.removeCallbacksAndMessages(null);
+                lm.removeUpdates(pendengar);
+                call.resolve(keJs(cadangan[0]));
+            }, 6000L);
+        }
         h.postDelayed(() -> {
             if (selesai[0]) return;
             selesai[0] = true;
             lm.removeUpdates(pendengar);
-            call.reject("Posisi belum didapat.", "WAKTU_HABIS");
+            if (cadangan[0] != null) {
+                call.resolve(keJs(cadangan[0]));
+            } else {
+                call.reject("Posisi belum didapat.", "WAKTU_HABIS");
+            }
         }, batasMs);
     }
 
-    private String pilihPenyedia(LocationManager lm) {
+    private List<String> pilihSemuaPenyedia(LocationManager lm) {
+        List<String> hasil = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.hasProvider(LocationManager.FUSED_PROVIDER) && lm.isProviderEnabled(LocationManager.FUSED_PROVIDER)) {
-            return LocationManager.FUSED_PROVIDER;
+            hasil.add(LocationManager.FUSED_PROVIDER);
+            return hasil;
         }
-        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) return LocationManager.GPS_PROVIDER;
-        if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) return LocationManager.NETWORK_PROVIDER;
-        return null;
+        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) hasil.add(LocationManager.GPS_PROVIDER);
+        if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) hasil.add(LocationManager.NETWORK_PROVIDER);
+        return hasil;
     }
 
     private static long umurMs(Location loc) {

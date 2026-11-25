@@ -2,9 +2,12 @@ import { KlienApi } from '@erapor-cbt/exam-core'
 import { Capacitor } from '@capacitor/core'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchDemo, TOKEN_DEMO } from './demo'
+import { aturProteksiKontenNative, aturTetapMenyalaNative, lepasKunciLayar } from './native'
+import { queryClient } from './queryClient'
 import { sesi } from './sesi'
 
 let demo = false
+let memprosesKeluarPaksa = false
 
 /** Deteksi apakah aplikasi berjalan di dalam Tauri Desktop (Windows / macOS) */
 const isTauri = typeof window !== 'undefined' && Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)
@@ -25,8 +28,18 @@ export const api = new KlienApi({
     ambilToken: () => sesi.token(),
     ambilPerangkatId: () => sesi.perangkatId(),
     saatTidakSah: () => {
+        if (memprosesKeluarPaksa) return
+        memprosesKeluarPaksa = true
         sesi.catatKeluarPaksa()
-        void sesi.keluar().then(() => window.location.assign('/masuk'))
+        void Promise.allSettled([
+            lepasKunciLayar(),
+            aturProteksiKontenNative(false),
+            aturTetapMenyalaNative(false),
+            sesi.keluar(),
+        ]).finally(() => {
+            queryClient.clear()
+            window.location.assign('/masuk')
+        })
     },
     fetch: (url, init) => {
         if ((import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && (demo || sesi.token() === TOKEN_DEMO)) {

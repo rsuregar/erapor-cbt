@@ -24,9 +24,16 @@ export type SesiUjian = {
     selisihJam: number
 }
 
-export const simpanPaket = (ujianId: number, paket: PaketTerenkripsi) => penyimpanan.simpan(`paket:${ujianId}`, paket)
+const kunciPaket = (ujianId: number) => {
+    const u = akun.uuid()
 
-export const ambilPaket = (ujianId: number) => penyimpanan.ambil<PaketTerenkripsi>(`paket:${ujianId}`)
+    return u ? `paket:${u}:${ujianId}` : `paket:${ujianId}`
+}
+
+export const simpanPaket = (ujianId: number, paket: PaketTerenkripsi) => penyimpanan.simpan(kunciPaket(ujianId), paket)
+
+export const ambilPaket = async (ujianId: number) =>
+    (await penyimpanan.ambil<PaketTerenkripsi>(kunciPaket(ujianId))) ?? penyimpanan.ambil<PaketTerenkripsi>(`paket:${ujianId}`)
 
 export async function simpanSesi(sesi: SesiUjian): Promise<void> {
     await penyimpanan.simpan(`attempt:${sesi.mulai.attempt_id}:sesi`, sesi)
@@ -82,6 +89,7 @@ export async function muatUjian(attemptId: number): Promise<{ sesi: SesiUjian; i
 /** Setelah kumpul: buang kunci, paket, & media lokal; jawaban sudah di server. */
 export async function bersihkan(attemptId: number, ujianId: number): Promise<void> {
     for (const k of await penyimpanan.daftarKunci(`attempt:${attemptId}:`)) await penyimpanan.hapus(k)
+    await penyimpanan.hapus(kunciPaket(ujianId))
     await penyimpanan.hapus(`paket:${ujianId}`)
     // Media bukan inti pengumpulan: gagal hapus berkas tidak boleh menahan layar selesai.
     await hapusMediaUjian(ujianId).catch(() => undefined)
@@ -107,8 +115,9 @@ export const urlAbsolut = (url: string) => new URL(url, new URL(URL_API, globalT
  *   "opaque" — tetap bisa ditampilkan <img>.
  */
 export async function unduhMedia(ujianId: number, urls: string[], onProgres: (selesai: number, total: number) => void): Promise<void> {
-    onProgres(0, urls.length)
-    if (urls.length === 0) return
+    const unik = [...new Set(urls)]
+    onProgres(0, unik.length)
+    if (unik.length === 0) return
 
     let simpanAkhir: (() => Promise<void>) | undefined
     let unduhSatu: (url: string) => Promise<void>
@@ -134,18 +143,18 @@ export async function unduhMedia(ujianId: number, urls: string[], onProgres: (se
             await cache.put(url, r)
         }
     } else {
-        onProgres(urls.length, urls.length)
+        onProgres(unik.length, unik.length)
 
         return
     }
 
     let selesai = 0
     // Tiga sekaligus: cukup cepat tanpa membanjiri jaringan sekolah.
-    const antre = [...urls]
+    const antre = [...unik]
     const pekerja = Array.from({ length: Math.min(3, antre.length) }, async () => {
         for (let url = antre.shift(); url; url = antre.shift()) {
             await unduhSatu(url)
-            onProgres(++selesai, urls.length)
+            onProgres(++selesai, unik.length)
         }
     })
     try {
