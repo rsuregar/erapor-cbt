@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { bisaBukaPengaturanWifi, isShortcutPengawas, jumlahMonitor, keluarAplikasi, keluarAplikasiTauri, validasiPinPengawas } from './native'
+import {
+    bisaBukaPengaturanWifi,
+    isShortcutPengawas,
+    jumlahMonitor,
+    keluarAplikasi,
+    keluarAplikasiTauri,
+    sha256Hex,
+    validasiPinPengawas,
+    verifikasiPinPengawas,
+} from './native'
 
 const tombol = (code: string, mod: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>>) => ({
     ctrlKey: false,
@@ -72,5 +81,20 @@ describe('Utilitas Keluar Aplikasi', () => {
         globalThis.screen = { isExtended: false }
         expect(await jumlahMonitor()).toBe(1)
         globalThis.screen = asli
+    })
+
+    it('verifikasiPinPengawas memeriksa hash per sesi, hash global, dan fallback lokal', async () => {
+        const hashSesi = await sha256Hex('cbt-pin:12:482910')
+        const hashGlobal = await sha256Hex('cbt-pin-global:918273')
+
+        expect(await verifikasiPinPengawas('482910', { ujianId: 12, hashSesi, hashGlobal: null })).toBe(true)
+        expect(await verifikasiPinPengawas('778899', { ujianId: 12, hashSesi, hashGlobal: null })).toBe(false)
+        expect(await verifikasiPinPengawas('alakhyar', { ujianId: 12, hashSesi, hashGlobal: null })).toBe(false)
+
+        expect(await verifikasiPinPengawas('918273', { hashGlobal })).toBe(true)
+        expect(await verifikasiPinPengawas('778899', { hashGlobal })).toBe(false)
+
+        expect(await verifikasiPinPengawas('778899', { hashGlobal: null })).toBe(true)
+        expect(await verifikasiPinPengawas('salah', { hashGlobal: null })).toBe(false)
     })
 })

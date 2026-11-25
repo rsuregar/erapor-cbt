@@ -4,7 +4,7 @@ import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
-import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, verifikasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -113,7 +113,7 @@ export default function Masuk() {
 
     const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!validasiPinPengawas(pinPengawas)) {
+        if (!(await verifikasiPinPengawas(pinPengawas))) {
             setGalatPin("PIN pengawas salah. Hubungi tim IT sekolah.");
             return;
         }

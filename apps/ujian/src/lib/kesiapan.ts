@@ -56,7 +56,8 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     )
 
     const p = platform()
-    const minimum = p !== 'pwa' ? t.aplikasi?.versi_minimum[p] : null
+    const minimum = p !== 'pwa' ? (t.aplikasi?.versi_minimum[p] ?? null) : null
+    const tautan = p !== 'pwa' ? (t.aplikasi?.tautan_pembaruan[p] ?? null) : null
     daftar.push(
         versiUsang(__VERSI_APP__, minimum)
             ? {
@@ -64,8 +65,8 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
                   judul: 'Versi aplikasi',
                   hasil: 'gagal',
                   wajib: true,
-                  aksi: t.aplikasi?.tautan_pembaruan[p as 'android' | 'ios'] ? 'perbarui' : undefined,
-                  keterangan: `Versi ${__VERSI_APP__} sudah usang (minimum ${minimum}). Perbarui aplikasi sebelum ujian${t.aplikasi?.tautan_pembaruan[p as 'android' | 'ios'] ? '.' : ' — minta tautan pembaruan ke pengawas.'}`,
+                  aksi: tautan ? 'perbarui' : undefined,
+                  keterangan: `Versi ${__VERSI_APP__} sudah usang (minimum ${minimum}). Perbarui aplikasi sebelum ujian${tautan ? '.' : ' — minta tautan pembaruan ke pengawas.'}`,
               }
             : t.pembaruanTersedia
               ? { kunci: 'versi', judul: 'Versi aplikasi', hasil: 'peringatan', aksi: 'perbarui', keterangan: 'Versi baru tersedia. Perbarui sekarang, sebelum ujian dimulai.' }
@@ -75,16 +76,35 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
     if (asli) {
         daftar.push({ kunci: 'tampilan', judul: 'Cara membuka aplikasi', hasil: 'lulus', keterangan: 'Aplikasi ujian terpasang.' })
         if (level !== 'dasar') {
-            daftar.push({ kunci: 'kunci_os', judul: 'Kunci layar', hasil: 'info', keterangan: 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.' })
+            daftar.push({
+                kunci: 'kunci_os',
+                judul: 'Kunci layar',
+                hasil: 'info',
+                keterangan:
+                    jenis === 'desktop'
+                        ? 'Layar dikunci otomatis dalam mode Exam Browser layar penuh.'
+                        : 'Layar disematkan otomatis saat kamu menekan Mulai — ketuk "Mengerti" / "Sematkan" bila diminta.',
+            })
         }
     } else if (jenis === 'desktop') {
-        daftar.push(
-            layarPenuhAktif()
-                ? { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'lulus', keterangan: 'Layar penuh aktif.' }
-                : document.fullscreenEnabled
-                  ? { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'lulus', aksi: 'layar_penuh', keterangan: level === 'dasar' ? 'Disarankan. Layar penuh menyala saat kamu menekan Mulai.' : 'Wajib. Layar penuh menyala saat kamu menekan Mulai — izinkan bila diminta.' }
-                  : { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'gagal', keterangan: 'Browser ini tidak bisa masuk layar penuh. Pakai Chrome, Edge, atau Firefox terbaru.' },
-        )
+        if (t.aplikasi?.wajib_app_desktop) {
+            daftar.push({
+                kunci: 'tampilan',
+                judul: 'Aplikasi CBT Desktop',
+                hasil: 'gagal',
+                wajib: true,
+                aksi: 'panduan',
+                keterangan: 'Ujian di komputer/laptop wajib memakai aplikasi CBT Al Akhyar (Windows/macOS), bukan browser web.',
+            })
+        } else {
+            daftar.push(
+                layarPenuhAktif()
+                    ? { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'lulus', keterangan: 'Layar penuh aktif.' }
+                    : document.fullscreenEnabled
+                      ? { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'lulus', aksi: 'layar_penuh', keterangan: level === 'dasar' ? 'Disarankan. Layar penuh menyala saat kamu menekan Mulai.' : 'Wajib. Layar penuh menyala saat kamu menekan Mulai — izinkan bila diminta.' }
+                      : { kunci: 'tampilan', judul: 'Layar penuh', hasil: 'gagal', keterangan: 'Browser ini tidak bisa masuk layar penuh. Pakai Chrome, Edge, atau Firefox terbaru.' },
+            )
+        }
     } else {
         // Mode web_ios_only: web hanya sah sebagai PWA terpasang, jadi tab Safari biasa
         // menghalangi Mulai di semua level keamanan.

@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
-import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
+import { adaNative, isTauri, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { PenulisJawaban } from '@/lib/penulisJawaban'
 import { bersihkan, muatUjian, penyimpanan, type PetaMedia, type SesiUjian } from '@/lib/ujian'
 import { GalatApi, JamServer, Outbox, Penyinkron, type AlasanDitolak, type AlasanSelesai, type IsiPaket, type Jawaban } from '@erapor-cbt/exam-core'
@@ -200,10 +200,10 @@ export function useSesiUjian(attemptId: number) {
         return () => clearInterval(t)
     }, [lokasiWajib, status])
 
-    // App native: sematkan layar selama mengerjakan (juga setelah app dibuka ulang), laporkan statusnya.
+    // App native (Android / Desktop Tauri): sematkan layar selama mengerjakan (juga setelah app dibuka ulang), laporkan statusnya.
     const levelUjian = data?.sesi.ujian.level_keamanan
     useEffect(() => {
-        if (!adaNative() || status !== 'mengerjakan' || !levelUjian) return
+        if ((!adaNative() && !isTauri()) || status !== 'mengerjakan' || !levelUjian) return
         let batal = false
         const baca = async () => {
             const aktif = await statusKunciLayar()

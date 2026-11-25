@@ -9,7 +9,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { Tombol } from '@/komponen/Tombol'
 import { api, platform } from '@/lib/api'
 import { ukuranBerkas } from '@/lib/format'
-import { kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
+import { bukaTautanLuar, kunciLayar, lepasKunciLayar, simpanHashPinGlobal, statusKunciLayar } from '@/lib/native'
 import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
@@ -40,6 +40,7 @@ const PESAN_MULAI: Record<string, string> = {
     LOKASI_PALSU: 'Terdeteksi aplikasi lokasi palsu. Matikan aplikasi tersebut lalu coba lagi.',
     LOKASI_BELUM_DIATUR: 'Lokasi sekolah belum diatur untuk ujian ini. Hubungi pengawas.',
     VERSI_USANG: 'Versi aplikasi sudah usang. Perbarui aplikasi lalu coba lagi.',
+    WAJIB_APP_DESKTOP: 'Ujian di komputer/laptop wajib memakai aplikasi CBT Al Akhyar (Windows/macOS), bukan browser web.',
     TIDAK_ELIGIBLE: 'Belum memenuhi batas minimum pembayaran SPP/iuran untuk Ujian Akhir Semester. Harap lunasi tunggakan atau ajukan dispensasi ujian ke admin/kepala sekolah.',
 }
 
@@ -113,6 +114,11 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         lanjutLokal()
     }
     const aplikasi = ujian.data?.aplikasi
+    useEffect(() => {
+        if (aplikasi !== undefined) {
+            simpanHashPinGlobal(aplikasi.pin_pengawas_hash)
+        }
+    }, [aplikasi])
     const { status, unduh } = useUnduhPaket(u)
     const wajibLokasi = !!u?.lokasi?.wajib
     const lokasi = useLokasi(wajibLokasi)
@@ -361,8 +367,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                                             daftar={kesiapan.daftar}
                                             penghalang={kesiapan.penghalang}
                                             onAksi={(a) => {
-                                                const tautan = platform() !== 'pwa' ? aplikasi?.tautan_pembaruan[platform() as 'android' | 'ios'] : null
-                                                if (a === 'perbarui') void (tautan ? location.assign(tautan) : terapkanPembaruan())
+                                                const p = platform()
+                                                const tautan = p !== 'pwa' ? aplikasi?.tautan_pembaruan[p] : null
+                                                if (a === 'perbarui') void (tautan ? bukaTautanLuar(tautan) : terapkanPembaruan())
                                                 else if (a === 'layar_penuh') void masukLayarPenuh()
                                                 else if (a === 'panduan') void navigate({ to: '/panduan' })
                                             }}

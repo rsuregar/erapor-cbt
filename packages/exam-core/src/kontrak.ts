@@ -5,7 +5,7 @@
 
 export type StatusPengerjaan = 'belum_mulai' | 'mengerjakan' | 'terkunci' | 'menunggu_sinkron' | 'selesai'
 
-export type Platform = 'android' | 'ios' | 'pwa'
+export type Platform = 'android' | 'ios' | 'windows' | 'macos' | 'pwa'
 
 export type JenisSoal =
     | 'pilihan_ganda'
@@ -57,8 +57,10 @@ export type UjianRingkas = {
 
 /** Versi app native (kontrak § Versi aplikasi). null = tidak dicek / belum ada. */
 export type InfoAplikasi = {
-    versi_minimum: { android: string | null; ios: string | null }
-    tautan_pembaruan: { android: string | null; ios: string | null }
+    versi_minimum: { android: string | null; ios: string | null; windows?: string | null; macos?: string | null }
+    tautan_pembaruan: { android: string | null; ios: string | null; windows?: string | null; macos?: string | null }
+    wajib_app_desktop?: boolean
+    pin_pengawas_hash?: string | null
 }
 
 /** GET /ujian — `aplikasi` berlaku global, bukan per ujian. */
@@ -127,6 +129,8 @@ export type MulaiRespons = {
     level_keamanan: UjianRingkas['level_keamanan']
     /** true = sertakan `detak.lokasi` di setiap sinkron */
     lokasi_wajib: boolean
+    /** Hash SHA-256 bersalt dari PIN pengawas per ujian untuk verifikasi offline. */
+    pin_pengawas_hash?: string | null
     jawaban_tersimpan: Record<string, { jawaban: Jawaban; seq: number; ragu: boolean }>
 }
 
@@ -240,6 +244,7 @@ export type KodeGalat =
     | 'LOKASI_PALSU'
     | 'DI_LUAR_LOKASI'
     | 'LOKASI_BELUM_DIATUR'
-    // Versi app native lebih lama dari minimum (426)
+    // Versi app native lebih lama dari minimum (426) atau wajib app desktop
     | 'VERSI_USANG'
+    | 'WAJIB_APP_DESKTOP'
     | (string & {})
