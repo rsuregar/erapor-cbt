@@ -1,5 +1,6 @@
 import type {
     AlasanSelesai,
+    DaftarJawabanServerRespons,
     EntriJawaban,
     EntriPelanggaran,
     DaftarUjianRespons,
@@ -123,7 +124,11 @@ export class KlienApi {
         return this.minta('POST', `/cbt/attempt/${attemptId}/pelanggaran`, form)
     }
 
-    async kumpul(attemptId: number, waktuKlienMs?: number, perangkatId?: string): Promise<{ status: string; alasan_selesai?: AlasanSelesai | null }> {
+    async kumpul(
+        attemptId: number,
+        waktuKlienMs?: number,
+        perangkatId?: string,
+    ): Promise<{ status: string; alasan_selesai?: AlasanSelesai | null; jumlah_terjawab?: number }> {
         const id = await this.idPerangkat(perangkatId)
         return this.minta('POST', `/cbt/attempt/${attemptId}/kumpul`, {
             ...(id ? { perangkat_id: id } : {}),
@@ -133,6 +138,11 @@ export class KlienApi {
 
     hasil(attemptId: number): Promise<HasilRespons> {
         return this.minta('GET', `/cbt/attempt/${attemptId}/hasil`)
+    }
+
+    /** Bukti daftar jawaban di server (tersedia setelah selesai, sebelum nilai dirilis). */
+    jawabanAttempt(attemptId: number): Promise<DaftarJawabanServerRespons> {
+        return this.minta('GET', `/cbt/attempt/${attemptId}/jawaban`)
     }
 
     private async minta<T>(
@@ -171,9 +181,19 @@ export class KlienApi {
 
             let data: Record<string, unknown>
             try {
-                data = (respons.ok && onProgres ? await bacaDenganProgres(respons, onProgres) : await respons.json().catch(() => ({}))) as Record<string, unknown>
+                if (respons.ok) {
+                    if (respons.status === 204) {
+                        data = {}
+                    } else if (onProgres) {
+                        data = (await bacaDenganProgres(respons, onProgres)) as Record<string, unknown>
+                    } else {
+                        data = (await respons.json()) as Record<string, unknown>
+                    }
+                } else {
+                    data = (await respons.json().catch(() => ({}))) as Record<string, unknown>
+                }
             } catch {
-                throw new GalatApi('JARINGAN', 'Jawaban server terputus.', 0)
+                throw new GalatApi('JARINGAN', 'Respons jaringan tidak valid (periksa koneksi atau login Wi-Fi).', 0)
             }
             // Badan yang terpotong karena batas waktu bukan jawaban kosong yang sah.
             if (pembatal.signal.aborted) throw new GalatApi('JARINGAN', 'Server tidak menjawab tepat waktu.', 0)

@@ -114,16 +114,18 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     // Jika status ujian menjadi selesai (dikumpulkan murid, waktu habis,
     // atau diakhiri pengawas dari dashboard e-Rapor), arahkan murid kembali ke
-    // beranda. Pesan dari pengawas ditahan lebih lama supaya sempat terbaca.
+    // beranda — KECUALI bila ada jawaban yang ditolak server agar murid/pengawas
+    // sempat melihat daftar nomor soal yang ditolak.
+    const adaJawabanDitolak = Object.keys(u.ditolak).length > 0
     useEffect(() => {
-        if (u.status === 'selesai') {
+        if (u.status === 'selesai' && !adaJawabanDitolak) {
             const timer = setTimeout(() => {
                 void navigate({ to: '/', replace: true })
             }, u.alasanSelesai ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS)
 
             return () => clearTimeout(timer)
         }
-    }, [u.status, u.alasanSelesai, navigate])
+    }, [u.status, u.alasanSelesai, adaJawabanDitolak, navigate])
     useTetapMenyala(u.status === 'mengerjakan' || u.status === 'mengumpulkan' || u.status === 'menunggu_sinkron')
 
     const [modeModalPengawas, setModeModalPengawas] = useState<'wifi' | 'menu' | null>(null)
@@ -279,9 +281,11 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         withResolver: true,
     })
 
-    // Pelanggaran yang belum terkirim ikut dikirim sebelum kumpul (antreannya dibuang setelah selesai).
+    // Pelanggaran yang belum terkirim coba dikirim singkat saat online tanpa menahan tombol Kumpul hingga 20 detik.
     const kumpul = async () => {
-        await p.kirim().catch(() => undefined)
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+            await Promise.race([p.kirim().catch(() => undefined), new Promise<void>((r) => setTimeout(r, 1500))])
+        }
         await u.kumpul()
     }
 
@@ -543,38 +547,67 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     }
     if (u.status === 'selesai') {
         const olehPengawas = u.alasanSelesai !== null
+        const adaDitolak = ditolak.length > 0
 
         return (
             <Layar
                 ikon={
-                    olehPengawas ? (
+                    adaDitolak ? (
+                        <AlertTriangle className="size-12 text-amber-500" />
+                    ) : olehPengawas ? (
                         <Megaphone className="size-12 text-amber-500" />
                     ) : (
                         <CheckCircle2 className="size-12 text-green-500 animate-turun" />
                     )
                 }
                 judul={
-                    u.alasanSelesai === 'sesi_dihentikan'
-                        ? 'Sesi Ujian Dihentikan Pengawas'
-                        : u.alasanSelesai === 'dikumpulkan_pengawas'
-                          ? 'Ujian Dikumpulkan Pengawas'
-                          : 'Ujian Selesai & Jawaban Terkumpul'
+                    adaDitolak
+                        ? 'Ujian Selesai — Sebagian Jawaban Ditolak Server'
+                        : u.alasanSelesai === 'sesi_dihentikan'
+                          ? 'Sesi Ujian Dihentikan Pengawas'
+                          : u.alasanSelesai === 'dikumpulkan_pengawas'
+                            ? 'Ujian Dikumpulkan Pengawas'
+                            : 'Ujian Selesai & Jawaban Terkumpul'
                 }
                 isi={
-                    u.alasanSelesai === 'sesi_dihentikan'
-                        ? 'Sesi ujian dihentikan oleh pengawas/guru. Semua jawabanmu sudah dikumpulkan otomatis dan tersimpan aman di server.'
-                        : u.alasanSelesai === 'dikumpulkan_pengawas'
-                          ? 'Pengawas/guru sudah mengumpulkan ujianmu. Jawaban yang terkirim tersimpan aman di server — aplikasimu tidak bermasalah.'
-                          : 'Terima kasih sudah mengerjakan dengan jujur. Jawabanmu sudah terkirim dan tersimpan aman. Nilai bisa dilihat setelah dirilis guru.'
+                    adaDitolak
+                        ? 'Sebagian jawabanmu tidak dapat disimpan server. Jangan tutup layar ini dan segera tunjukkan kepada pengawas sebelum meninggalkan ruangan.'
+                        : u.alasanSelesai === 'sesi_dihentikan'
+                          ? 'Sesi ujian dihentikan oleh pengawas/guru. Semua jawabanmu sudah dikumpulkan otomatis dan tersimpan aman di server.'
+                          : u.alasanSelesai === 'dikumpulkan_pengawas'
+                            ? 'Pengawas/guru sudah mengumpulkan ujianmu. Jawaban yang terkirim tersimpan aman di server — aplikasimu tidak bermasalah.'
+                            : 'Terima kasih sudah mengerjakan dengan jujur. Jawabanmu sudah terkirim dan tersimpan aman. Nilai bisa dilihat setelah dirilis guru.'
                 }
             >
-                <div className="mt-4 flex flex-col items-center gap-2">
-                    <Link to="/" className={kelasTombol('primary')} replace>
-                        Kembali ke beranda sekarang
-                    </Link>
-                    <p className="text-[11px] text-slate-400">
-                        {`Otomatis kembali ke beranda dalam ${(olehPengawas ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS) / 1000} detik…`}
-                    </p>
+                <div className="mt-4 flex flex-col items-center gap-3">
+                    {adaDitolak && (
+                        <div role="alert" className="w-full max-w-md rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-left text-xs text-coral-800 space-y-1">
+                            <p className="font-bold">Rincian jawaban yang tidak diterima server:</p>
+                            {ditolak.map((d) => (
+                                <p key={d.alasan}>
+                                    • Nomor {d.nomor.join(', ')}: {ALASAN_DITOLAK[d.alasan] ?? d.alasan}
+                                </p>
+                            ))}
+                        </div>
+                    )}
+                    {u.jumlahTerjawabServer !== null && (
+                        <p className={cn('text-xs font-semibold', adaDitolak ? 'text-slate-700' : 'text-emerald-700')}>
+                            Tercatat {u.jumlahTerjawabServer} dari {soal.length} soal tersimpan di server.
+                        </p>
+                    )}
+                    <div className="flex flex-wrap justify-center gap-2">
+                        <Link to="/jawaban/$attemptId" params={{ attemptId }} className={kelasTombol('outline')}>
+                            Lihat Bukti Jawaban (Client vs Server)
+                        </Link>
+                        <Link to="/" className={kelasTombol('primary')} replace>
+                            Kembali ke beranda sekarang
+                        </Link>
+                    </div>
+                    {!adaDitolak && (
+                        <p className="text-[11px] text-slate-400">
+                            {`Otomatis kembali ke beranda dalam ${(olehPengawas ? JEDA_PESAN_PENGAWAS_MS : JEDA_SELESAI_MS) / 1000} detik…`}
+                        </p>
+                    )}
                 </div>
             </Layar>
         )
@@ -695,6 +728,15 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             )}
 
+            {u.galatKumpul && !tinjau && (
+                <div role="alert" className="border-b border-coral-200 bg-coral-50">
+                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-coral-700">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <p>{u.galatKumpul}</p>
+                    </div>
+                </div>
+            )}
+
             {jedaJaringan && (
                 <div role="status" className="border-b border-sky-200 bg-sky-50">
                     <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-sky-900">
@@ -717,7 +759,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             <div>
                                 <p>
                                     <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
-                                    {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung — paling lambat 15 menit setelah waktu ujian habis. Tidak perlu memuat ulang halaman.
+                                    {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung — paling lambat 2 jam setelah waktu ujian habis. Tidak perlu memuat ulang halaman.
                                 </p>
                                 {galatWifi && <p className="mt-1 text-xs font-semibold text-coral-700">{galatWifi}</p>}
                             </div>

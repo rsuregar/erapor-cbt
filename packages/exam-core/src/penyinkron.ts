@@ -30,7 +30,7 @@ export type OpsiPenyinkron = {
 export class Penyinkron {
     private timer?: ReturnType<typeof setTimeout>
     private jalan = false
-    private sedangKirim = false
+    private janjiKirim: Promise<SinkronRespons | null> | null = null
     private ulangSetelahKirim = false
     private offlineSejak: number | null = null
     private offlineMs = 0
@@ -61,14 +61,23 @@ export class Penyinkron {
         this.jadwalkan(this.o.jedaMs ?? 1500)
     }
 
-    /** Kirim sekarang (event online, app kembali terlihat, sebelum kumpul). */
+    /** Kirim sekarang (event online, app kembali terlihat, sebelum kumpul). Bila sedang mengirim, tunggu putaran aktif selesai. */
     async kirim(): Promise<SinkronRespons | null> {
-        if (this.sedangKirim) {
+        if (this.janjiKirim) {
             this.ulangSetelahKirim = true
 
-            return null
+            return this.janjiKirim
         }
-        this.sedangKirim = true
+        const janji = this.lakukanKirim()
+        this.janjiKirim = janji
+        try {
+            return await janji
+        } finally {
+            if (this.janjiKirim === janji) this.janjiKirim = null
+        }
+    }
+
+    private async lakukanKirim(): Promise<SinkronRespons | null> {
         if (this.timer) this.ct(this.timer)
 
         try {
@@ -92,7 +101,6 @@ export class Penyinkron {
 
             return null
         } finally {
-            this.sedangKirim = false
             if (this.ulangSetelahKirim) {
                 this.ulangSetelahKirim = false
                 this.jadwalkan(0)

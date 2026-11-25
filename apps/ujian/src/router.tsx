@@ -3,6 +3,7 @@ import { sesi } from '@/lib/sesi'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { NotifikasiKoneksiGlobal } from '@/komponen/IndikatorKoneksi'
 import Beranda from './halaman/Beranda'
+import DaftarJawaban from './halaman/DaftarJawaban'
 import Hasil from './halaman/Hasil'
 import Kerjakan from './halaman/Kerjakan'
 import Masuk from './halaman/Masuk'
@@ -77,6 +78,15 @@ const kerjakan = createRoute({
     },
 })
 
+const jawaban = createRoute({
+    getParentRoute: () => terlindungi,
+    path: '/jawaban/$attemptId',
+    params: { parse: (p) => ({ attemptId: Number(p.attemptId) }), stringify: (p) => ({ attemptId: String(p.attemptId) }) },
+    component: function HalamanJawaban() {
+        return <DaftarJawaban attemptId={jawaban.useParams().attemptId} />
+    },
+})
+
 const hasil = createRoute({
     getParentRoute: () => terlindungi,
     path: '/hasil/$attemptId',
@@ -87,7 +97,7 @@ const hasil = createRoute({
 })
 
 export const router = createRouter({
-    routeTree: akar.addChildren([masuk, panduan, terlindungi.addChildren([beranda, persiapan, kerjakan, hasil])]),
+    routeTree: akar.addChildren([masuk, panduan, terlindungi.addChildren([beranda, persiapan, kerjakan, jawaban, hasil])]),
 })
 
 declare module '@tanstack/react-router' {
