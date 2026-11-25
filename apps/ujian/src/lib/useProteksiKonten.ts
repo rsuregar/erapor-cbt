@@ -1,5 +1,5 @@
 import { buatPelapor, perkirakanSumber, type KirimInfo } from '@/lib/laporProteksi'
-import { adaNative, aturProteksiKontenNative } from '@/lib/native'
+import { adaNative, aturProteksiKontenNative, isShortcutPengawas } from '@/lib/native'
 import { adalahInputTypeTempel, adalahPintasanCopas, adalahTargetIsian, terdeteksiTempel } from '@/lib/proteksiSalin'
 import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -28,6 +28,9 @@ export function useProteksiKonten(
     const opsiRef = useRef(opsi)
     opsiRef.current = opsi
     const pelaporRef = useRef<ReturnType<typeof buatPelapor> | null>(null)
+    const terakhirUndoRef = useRef(0)
+
+    const baruSajaUndo = useCallback(() => performance.now() - terakhirUndoRef.current < 300, [])
 
     const kabari = useCallback((teks: string) => {
         setPesan(teks)
@@ -95,6 +98,10 @@ export function useProteksiKonten(
 
         const sebelumInput = (e: Event) => {
             const ie = e as InputEvent
+            if (ie.inputType === 'historyUndo' || ie.inputType === 'historyRedo') {
+                terakhirUndoRef.current = performance.now()
+                return
+            }
             if (adalahInputTypeTempel(ie.inputType)) {
                 e.preventDefault()
                 e.stopImmediatePropagation?.()
@@ -107,7 +114,7 @@ export function useProteksiKonten(
                 })
                 return
             }
-            if ((ie.inputType === 'insertText' || ie.inputType === 'insertCompositionText') && typeof ie.data === 'string' && ie.data.length >= 12) {
+            if (ie.inputType === 'insertText' && typeof ie.data === 'string' && ie.data.length >= 12) {
                 const cek = terdeteksiTempel({
                     sebelum: '',
                     sesudah: ie.data,
@@ -133,6 +140,7 @@ export function useProteksiKonten(
         }
 
         const tombol = (e: KeyboardEvent) => {
+            if (isShortcutPengawas(e)) return
             const aksiCopas = adalahPintasanCopas(e)
             if (aksiCopas) {
                 terakhirPapanKetik = performance.now()
@@ -221,5 +229,5 @@ export function useProteksiKonten(
         }
     }, [aktif, kabari, laporTempelDiblokir])
 
-    return { pesan, laporTempelDiblokir }
+    return { pesan, laporTempelDiblokir, baruSajaUndo }
 }

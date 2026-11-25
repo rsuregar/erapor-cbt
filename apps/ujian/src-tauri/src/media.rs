@@ -9,8 +9,12 @@
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_http::reqwest;
+
+static URUTAN_UNDUH: AtomicU64 = AtomicU64::new(0);
 
 fn folder_media(app: &AppHandle) -> Result<PathBuf, String> {
     let folder = app.path().app_data_dir().map_err(|e| e.to_string())?.join("media");
@@ -47,16 +51,32 @@ pub async fn unduh_media(app: AppHandle, url: String) -> Result<String, String> 
         return Ok(tujuan.to_string_lossy().into_owned());
     }
 
-    let res = reqwest::get(url).await.map_err(|_| "Gagal mengunduh media. Periksa internet lalu coba lagi.".to_string())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|_| "Gagal mengunduh media. Periksa internet lalu coba lagi.".to_string())?;
     if !res.status().is_success() {
         return Err(format!("Gagal mengunduh media ({}).", res.status().as_u16()));
     }
     let isi = res.bytes().await.map_err(|_| "Unduhan media terputus. Coba lagi.".to_string())?;
 
-    // Tulis ke berkas sementara lalu ganti nama: berkas setengah jadi tidak pernah dianggap lengkap.
-    let sementara = tujuan.with_extension("unduh");
-    fs::write(&sementara, &isi).map_err(|e| e.to_string())?;
-    fs::rename(&sementara, &tujuan).map_err(|e| e.to_string())?;
+    // Tulis ke berkas sementara unik lalu ganti nama: berkas setengah jadi tidak pernah dianggap lengkap.
+    let urutan = URUTAN_UNDUH.fetch_add(1, Ordering::Relaxed);
+    let sementara = tujuan.with_extension(format!("{}.{}.unduh", std::process::id(), urutan));
+    fs::write(&sementara, &isi).map_err(|e| {
+        let _ = fs::remove_file(&sementara);
+        e.to_string()
+    })?;
+    fs::rename(&sementara, &tujuan).map_err(|e| {
+        let _ = fs::remove_file(&sementara);
+        e.to_string()
+    })?;
     Ok(tujuan.to_string_lossy().into_owned())
 }
 

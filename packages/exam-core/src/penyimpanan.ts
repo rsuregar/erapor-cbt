@@ -47,8 +47,21 @@ export class PenyimpananIndexedDb implements Penyimpanan {
         this.db ??= new Promise((selesai, gagal) => {
             const minta = indexedDB.open(this.namaDb, 1)
             minta.onupgradeneeded = () => minta.result.createObjectStore(this.store)
-            minta.onsuccess = () => selesai(minta.result)
-            minta.onerror = () => gagal(minta.error)
+            minta.onsuccess = () => {
+                const db = minta.result
+                db.onclose = () => {
+                    this.db = undefined
+                }
+                db.onversionchange = () => {
+                    db.close()
+                    this.db = undefined
+                }
+                selesai(db)
+            }
+            minta.onerror = () => {
+                this.db = undefined
+                gagal(minta.error)
+            }
         })
 
         return this.db

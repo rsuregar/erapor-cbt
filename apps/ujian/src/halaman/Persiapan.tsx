@@ -14,7 +14,7 @@ import { masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { BATAS_AKURASI_M, kodeGalatLokasi, petunjukIzin, tanpaWaktu } from '@/lib/lokasi'
 import { sesi } from '@/lib/sesi'
 import { durasiLengkap, hariTanggal, jamMenit } from '@/lib/tanggal'
-import { ambilPaket, daftarUjian, sesiLokalUjian, simpanPaket, simpanSesi } from '@/lib/ujian'
+import { ambilPaket, daftarUjian, sesiLokalUjian, simpanPaket, simpanSesi, unduhMedia } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
 import { terapkanPembaruan, useKesiapan } from '@/lib/useKesiapan'
 import { useLokasi, type TahapLokasi } from '@/lib/useLokasi'
@@ -52,7 +52,11 @@ const PESAN_LOKASI_PERANGKAT: Record<string, string> = {
 
 function pesanGalatMulai(e: Error): string {
     // Galat GPS perangkat (ditolak, waktu habis) membawa `kode` sendiri.
-    if (!(e instanceof GalatApi)) return 'kode' in e ? PESAN_LOKASI_PERANGKAT[kodeGalatLokasi(e)] : e.message
+    if (!(e instanceof GalatApi)) {
+        return 'kode' in e
+            ? PESAN_LOKASI_PERANGKAT[kodeGalatLokasi(e)]
+            : e.message || 'Gagal membuka paket soal. Muat ulang atau hubungi pengawas.'
+    }
     const m = (k: string) => Math.round(Number(e.data[k] ?? 0))
     if (e.kode === 'DI_LUAR_LOKASI') {
         return `Kamu berada ±${jarak(m('jarak_meter'))} dari sekolah (batas ${m('radius_meter')} m). Ujian ini hanya bisa dikerjakan di area sekolah — bila kamu mendapat izin, minta pengawas memberi izin dari luar sekolah.`
@@ -87,8 +91,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     }, [])
 
     const online = useOnline()
+    const uuidMurid = sesi.uuid()
     const ujian = useQuery({
-        queryKey: ['ujian'],
+        queryKey: ['ujian', uuidMurid],
         queryFn: daftarUjian,
         staleTime: 60_000,
         gcTime: 10 * 60_000,
@@ -103,7 +108,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         refetchInterval: (q) => (q.state.data?.data.find((x) => x.id === ujianId)?.status === 'terkunci' ? 15_000 : false),
     })
     // Sudah dimulai di perangkat ini? Offline tetap bisa dilanjutkan tanpa /mulai.
-    const lokal = useQuery({ queryKey: ['sesi-lokal', ujianId], queryFn: () => sesiLokalUjian(ujianId), networkMode: 'always' })
+    const lokal = useQuery({ queryKey: ['sesi-lokal', uuidMurid, ujianId], queryFn: () => sesiLokalUjian(ujianId), networkMode: 'always' })
     const lanjutLokal = () => lokal.data && navigate({ to: '/kerjakan/$attemptId', params: { attemptId: lokal.data.mulai.attempt_id }, replace: true })
     const u = ujian.data?.u
     /** Masuk ke layar ujian dari sesi di perangkat ini (tanpa /mulai), dengan layar penuh & kunci seperti Mulai. */
@@ -147,15 +152,25 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                 if (e instanceof GalatApi && e.sementara && lokal.data) return lokal.data.mulai
                 throw e
             }
-            // Paket bisa hilang setelah kartu "siap" tampil (mis. tab lain menyelesaikan /
-            // membersihkan ujian yang sama). Jangan buntu: unduh ulang — paketnya terenkripsi
-            // dan kecocokannya diperiksa saat dekripsi di bawah.
+            // Paket lokal bisa berasal dari sesi/varian/versi sebelumnya; bila dekripsi
+            // gagal, unduh ulang paket terbaru sekali sebelum menyerah.
             let paket = await ambilPaket(ujianId)
             if (!paket) {
                 paket = await api.paket(ujianId)
                 await simpanPaket(ujianId, paket)
             }
-            await dekripsiPaket(paket, r.kunci) // pastikan paket cocok sebelum masuk layar ujian
+            try {
+                await dekripsiPaket(paket, r.kunci)
+            } catch {
+                paket = await api.paket(ujianId)
+                await simpanPaket(ujianId, paket)
+                await unduhMedia(ujianId, paket.media, () => undefined).catch(() => undefined)
+                try {
+                    await dekripsiPaket(paket, r.kunci)
+                } catch {
+                    throw new Error('Paket soal tidak cocok dengan sesi ujianmu. Muat ulang halaman atau hubungi pengawas.')
+                }
+            }
             await simpanSesi({
                 mulai: r,
                 ujian: { id: ujianId, nama: u!.nama, mapel: u!.mapel, level_keamanan: u!.level_keamanan },
@@ -189,11 +204,11 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
     }
 
     const buka = Date.parse(u.dibuka_pada)
-    const tutup = Date.parse(u.ditutup_pada)
+    const tutup = Date.parse(u.ditutup_pada) + u.tambahan_waktu_menit * 60_000
     const siap = status.tahap === 'siap'
-    const dibuka = sekarang >= buka && sekarang <= tutup
     const selesai = u.status === 'selesai'
     const melanjutkan = u.status === 'mengerjakan'
+    const dibuka = melanjutkan || (sekarang >= buka && sekarang <= tutup)
     const lockdown = u.level_keamanan === 'lockdown'
     // Terkunci / jawaban belum terkirim: bukan saatnya token — layar ujian (Kerjakan) yang menangani.
     const tertahan = u.status === 'terkunci' || u.status === 'menunggu_sinkron'
@@ -219,9 +234,9 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         'Ujian ini terkunci karena belum memenuhi syarat eligible Ujian Akhir Semester.'
     ) : selesai ? (
         'Ujian ini sudah dikumpulkan.'
-    ) : sekarang > tutup ? (
+    ) : !melanjutkan && sekarang > tutup ? (
         'Ujian sudah ditutup.'
-    ) : sekarang < buka ? (
+    ) : !melanjutkan && sekarang < buka ? (
         `Ujian dibuka pukul ${jamMenit(u.dibuka_pada)} WITA (${durasiLengkap(buka - sekarang)}).`
     ) : belumSiap.length ? (
         <>
@@ -476,7 +491,7 @@ function tuju(id: string) {
 /** Jam tutup, bukan hitung mundur per detik — sisa waktu baru muncul saat tinggal 15 menit. */
 function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
     const buka = Date.parse(u.dibuka_pada)
-    const tutup = Date.parse(u.ditutup_pada)
+    const tutup = Date.parse(u.ditutup_pada) + u.tambahan_waktu_menit * 60_000
     const kelas = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold'
 
     if (u.eligible === false) {
@@ -499,6 +514,13 @@ function ChipWaktu({ u, sekarang }: { u: UjianRingkas; sekarang: number }) {
         return (
             <span className={cn(kelas, 'border-sky-300/40 bg-sky-500/20 text-sky-50')}>
                 <RefreshCw className="size-3.5" /> Jawaban sedang dikirim
+            </span>
+        )
+    }
+    if (u.status === 'mengerjakan' && sekarang > tutup) {
+        return (
+            <span className={cn(kelas, 'border-green-500/40 bg-green-500/15 text-green-100')}>
+                <span className="size-1.5 rounded-full bg-green-500" aria-hidden /> Berlangsung · waktu tambahan pengawas
             </span>
         )
     }

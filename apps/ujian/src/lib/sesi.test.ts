@@ -89,4 +89,28 @@ describe('Sesi Murid', () => {
         expect(sesi.foto()).toBeNull()
         expect(sesi.sekolah()).toBeNull()
     })
+
+    it('menghapus atribut opsional murid sebelumnya saat akun baru tidak memilikinya', async () => {
+        await sesi.masuk(
+            'token-1',
+            'Murid Lama',
+            'uuid-1',
+            '1001',
+            'Kelas 9A',
+            '009111',
+            'https://contoh.sch.id/1.jpg',
+            'SMP Al Akhyar',
+        )
+
+        await sesi.masuk('token-2', 'Murid Baru', 'uuid-2', '1002', null, null, null, null)
+
+        expect(sesi.kelas()).toBeNull()
+        expect(sesi.nisn()).toBeNull()
+        expect(sesi.foto()).toBeNull()
+        expect(sesi.sekolah()).toBeNull()
+        expect(memori['kelas']).toBeUndefined()
+        expect(memori['nisn']).toBeUndefined()
+        expect(memori['foto']).toBeUndefined()
+        expect(memori['sekolah']).toBeUndefined()
+    })
 })

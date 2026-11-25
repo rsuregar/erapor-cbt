@@ -7,6 +7,7 @@ import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { bersihkanArsipKadaluarsa, daftarArsipJawaban, type ArsipJawaban } from '@/lib/arsipJawaban'
 import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas } from '@/lib/native'
+import { queryClient } from '@/lib/queryClient'
 import { sesi } from '@/lib/sesi'
 import { daftarOutboxTertunda, sinkronSemuaTertunda, type HasilSinkronItem, type OutboxTertunda } from '@/lib/sinkronLokal'
 import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
@@ -54,18 +55,19 @@ const STATUS: Record<UjianRingkas['status'], [string, NadaLencana]> = {
 
 type KategoriTab = 'Semua' | 'Hari Ini' | 'Mendatang' | 'Riwayat'
 
-function kelompokkan(daftar: UjianRingkas[], sekarang: number): Record<'Hari Ini' | 'Mendatang' | 'Riwayat', UjianRingkas[]> {
+export function kelompokkan(daftar: UjianRingkas[], sekarang: number): Record<'Hari Ini' | 'Mendatang' | 'Riwayat', UjianRingkas[]> {
     const hasil: Record<'Hari Ini' | 'Mendatang' | 'Riwayat', UjianRingkas[]> = { 'Hari Ini': [], Mendatang: [], Riwayat: [] }
     const hariIniWita = tanggalKunciWita(sekarang)
 
     for (const u of daftar) {
         const buka = Date.parse(u.dibuka_pada)
-        const tutup = Date.parse(u.ditutup_pada)
+        const tutup = Date.parse(u.ditutup_pada) + u.tambahan_waktu_menit * 60_000
         const hariBukaWita = tanggalKunciWita(u.dibuka_pada)
+        const masihAktif = u.status === 'mengerjakan' || u.status === 'terkunci' || u.status === 'menunggu_sinkron'
 
-        if (u.status === 'selesai' || tutup < sekarang) {
+        if (u.status === 'selesai' || (!masihAktif && tutup < sekarang)) {
             hasil.Riwayat.push(u)
-        } else if (buka <= sekarang || hariBukaWita === hariIniWita) {
+        } else if (masihAktif || buka <= sekarang || hariBukaWita === hariIniWita) {
             hasil['Hari Ini'].push(u)
         } else {
             hasil.Mendatang.push(u)
@@ -98,8 +100,9 @@ export default function Beranda() {
 
     // networkMode always: offline tetap menjalankan queryFn, yang jatuh ke salinan lokal
     // staleTime 60_000: data dianggap segar selama 1 menit, tidak refetch saat berpindah ke/dari dashboard
+    const uuidMurid = sesi.uuid()
     const ujian = useQuery({
-        queryKey: ['ujian'],
+        queryKey: ['ujian', uuidMurid],
         queryFn: daftarUjian,
         staleTime: 60_000,
         gcTime: 10 * 60_000,
@@ -193,6 +196,7 @@ export default function Beranda() {
     const totalJawabanTertunda = outboxTertunda.reduce((n, o) => n + o.jumlahTertunda, 0)
     const hasilDitolak = (hasilSinkronLokal ?? []).filter((h) => h.ditolak.length > 0)
     const hasilPerangkatLain = (hasilSinkronLokal ?? []).filter((h) => h.status === 'perangkat_lain')
+    const hasilGalat = (hasilSinkronLokal ?? []).filter((h) => h.status === 'galat')
     const totalTerkirimBeranda = (hasilSinkronLokal ?? []).reduce((n, h) => n + h.terkirim, 0)
     const adaTerkirimSelesai = (hasilSinkronLokal ?? []).some((h) => h.status === 'terkirim')
 
@@ -224,6 +228,7 @@ export default function Beranda() {
         try {
             await api.keluar().catch(() => undefined)
             await sesi.keluar().catch(() => undefined)
+            queryClient.clear()
             setModalKeluarAkun(false)
             await navigate({ to: '/masuk' })
         } finally {
@@ -424,7 +429,7 @@ export default function Beranda() {
                     </div>
                 )}
 
-                {outboxTertunda.length === 0 && hasilDitolak.length === 0 && hasilPerangkatLain.length > 0 && (
+                {hasilPerangkatLain.length > 0 && (
                     <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-sm text-coral-800 shadow-xs">
                         <Lock className="mt-0.5 size-5 shrink-0 text-coral-600" />
                         <div className="min-w-0 flex-1 text-xs space-y-1">
@@ -444,7 +449,29 @@ export default function Beranda() {
                     </div>
                 )}
 
-                {outboxTertunda.length === 0 && hasilDitolak.length === 0 && hasilPerangkatLain.length === 0 && (totalTerkirimBeranda > 0 || adaTerkirimSelesai) && (
+                {hasilGalat.length > 0 && (
+                    <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-sm text-coral-800 shadow-xs">
+                        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-coral-600" />
+                        <div className="min-w-0 flex-1 text-xs space-y-1">
+                            <p className="text-sm font-bold">Pengiriman jawaban offline belum berhasil</p>
+                            {hasilGalat.map((h) => (
+                                <p key={h.attemptId}>
+                                    <b>{h.namaUjian}</b>: {h.pesan || 'Hubungi pengawas sebelum meninggalkan ruangan.'}
+                                </p>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Tutup pemberitahuan galat"
+                            onClick={() => setHasilSinkronLokal(null)}
+                            className="-m-1 inline-flex size-8 items-center justify-center rounded-md text-coral-600 hover:bg-coral-100"
+                        >
+                            <X className="size-4" />
+                        </button>
+                    </div>
+                )}
+
+                {outboxTertunda.length === 0 && hasilDitolak.length === 0 && hasilPerangkatLain.length === 0 && hasilGalat.length === 0 && (totalTerkirimBeranda > 0 || adaTerkirimSelesai) && (
                     <div role="status" className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 shadow-xs">
                         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
                         <p className="min-w-0 flex-1 font-semibold">
@@ -589,7 +616,9 @@ export default function Beranda() {
                         <span>&bull;</span>
                         <span>
                             {isTauri()
-                                ? 'Exam Browser (Windows)'
+                                ? typeof navigator !== 'undefined' && /Macintosh|Mac OS X/i.test(navigator.userAgent)
+                                    ? 'Exam Browser (macOS)'
+                                    : 'Exam Browser (Windows)'
                                 : isNative()
                                   ? Capacitor.getPlatform() === 'ios'
                                       ? 'Aplikasi iOS'
@@ -614,6 +643,16 @@ export default function Beranda() {
                                 Kamu akan keluar dari akun ini dan kembali ke halaman Masuk. Aplikasi tetap dalam mode aman.
                             </p>
                         </div>
+                        {outboxTertunda.length > 0 && (
+                            <div role="alert" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+                                <p>
+                                    Masih ada{' '}
+                                    <b>{totalJawabanTertunda > 0 ? `${totalJawabanTertunda} jawaban offline` : 'pengumpulan ujian offline'}</b>{' '}
+                                    yang belum terkirim di perangkat ini. Sebaiknya tekan <b>Kirim Sekarang</b> terlebih dahulu agar jawaban masuk ke server.
+                                </p>
+                            </div>
+                        )}
                         <div className="flex items-center justify-end gap-2.5 pt-1">
                             <Tombol varian="outline" ukuran="sm" onClick={() => setModalKeluarAkun(false)} disabled={prosesKeluarAkun}>
                                 Batal
@@ -933,7 +972,7 @@ function KartuUjian({
 }) {
     const [label, nada] = STATUS[u.status]
     const buka = Date.parse(u.dibuka_pada)
-    const tutup = Date.parse(u.ditutup_pada)
+    const tutup = Date.parse(u.ditutup_pada) + u.tambahan_waktu_menit * 60_000
     const sedangDibuka = buka <= sekarang && sekarang <= tutup
     const durasi = u.durasi_menit + u.tambahan_waktu_menit
     const tidakEligible = u.eligible === false

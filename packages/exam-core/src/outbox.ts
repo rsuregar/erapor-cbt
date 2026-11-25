@@ -11,11 +11,19 @@ type Baris = { jawaban: Jawaban; ragu: boolean; seq: number; diakui: number; wak
  */
 export class Outbox {
     private cache?: Record<string, Baris>
+    private antreanTulis: Promise<unknown> = Promise.resolve()
 
     constructor(
         private readonly simpan: Penyimpanan,
         private readonly attemptId: number,
     ) {}
+
+    private urutkan<T>(fn: () => Promise<T>): Promise<T> {
+        const p = this.antreanTulis.then(fn)
+        this.antreanTulis = p.catch(() => undefined)
+
+        return p
+    }
 
     private get kunci() {
         return `attempt:${this.attemptId}:jawaban`
@@ -28,31 +36,35 @@ export class Outbox {
     }
 
     private async tulis(data: Record<string, Baris>) {
-        this.cache = data
         await this.simpan.simpan(this.kunci, data)
+        this.cache = data
     }
 
     /** Muat jawaban yang sudah ada di server (lanjut di perangkat lain). */
     async muatDariServer(tersimpan: MulaiRespons['jawaban_tersimpan']): Promise<void> {
-        const data = { ...(await this.baris()) }
-        for (const [soalId, s] of Object.entries(tersimpan)) {
-            const lokal = data[soalId]
-            // Jawaban lokal yang lebih baru (belum terkirim) tetap menang.
-            if (!lokal || lokal.seq <= s.seq) {
-                data[soalId] = { jawaban: s.jawaban, ragu: s.ragu, seq: s.seq, diakui: s.seq }
+        return this.urutkan(async () => {
+            const data = { ...(await this.baris()) }
+            for (const [soalId, s] of Object.entries(tersimpan)) {
+                const lokal = data[soalId]
+                // Jawaban lokal yang lebih baru (belum terkirim) tetap menang.
+                if (!lokal || lokal.seq <= s.seq) {
+                    data[soalId] = { jawaban: s.jawaban, ragu: s.ragu, seq: s.seq, diakui: s.seq }
+                }
             }
-        }
-        await this.tulis(data)
+            await this.tulis(data)
+        })
     }
 
     async catat(soalId: number, jawaban: Jawaban, ragu: boolean, waktuKlienMs?: number): Promise<number> {
-        const data = { ...(await this.baris()) }
-        const lama = data[soalId]
-        const seq = (lama?.seq ?? 0) + 1
-        data[soalId] = { jawaban, ragu, seq, diakui: lama?.diakui ?? 0, waktu_klien_ms: waktuKlienMs }
-        await this.tulis(data)
+        return this.urutkan(async () => {
+            const data = { ...(await this.baris()) }
+            const lama = data[soalId]
+            const seq = (lama?.seq ?? 0) + 1
+            data[soalId] = { jawaban, ragu, seq, diakui: lama?.diakui ?? 0, waktu_klien_ms: waktuKlienMs }
+            await this.tulis(data)
 
-        return seq
+            return seq
+        })
     }
 
     async jawaban(): Promise<Record<string, { jawaban: Jawaban; ragu: boolean }>> {
@@ -71,11 +83,13 @@ export class Outbox {
     }
 
     async akui(diakui: Record<string, number>): Promise<void> {
-        const data = { ...(await this.baris()) }
-        for (const [id, seq] of Object.entries(diakui)) {
-            if (data[id]) data[id] = { ...data[id], diakui: Math.max(data[id].diakui, seq) }
-        }
-        await this.tulis(data)
+        return this.urutkan(async () => {
+            const data = { ...(await this.baris()) }
+            for (const [id, seq] of Object.entries(diakui)) {
+                if (data[id]) data[id] = { ...data[id], diakui: Math.max(data[id].diakui, seq) }
+            }
+            await this.tulis(data)
+        })
     }
 
     async jumlahTertunda(): Promise<number> {

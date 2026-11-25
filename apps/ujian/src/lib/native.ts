@@ -26,7 +26,7 @@ interface UjianNativePlugin {
     bukaPengaturanWifi(): Promise<{ mode: 'panel' | 'pengaturan' }>
     aturProteksiKonten(opsi: { aktif: boolean }): Promise<void>
     aturTetapMenyala(opsi: { aktif: boolean }): Promise<void>
-    statusLayar(): Promise<{ interaktif: boolean; layarMati: boolean }>
+    statusLayar(opsi?: { reset?: boolean }): Promise<{ interaktif: boolean; layarMati: boolean }>
     addListener(event: 'progresPembaruan', cb: (p: ProgresPembaruan) => void): Promise<PluginListenerHandle>
     addListener(event: 'statusLayar', cb: (s: { interaktif: boolean; aksi: string }) => void): Promise<PluginListenerHandle>
 }
@@ -127,6 +127,10 @@ export async function keluarAplikasi(): Promise<void> {
         if (sesi && typeof sesi.keluar === 'function') {
             await sesi.keluar().catch(() => undefined)
         }
+
+        // Kosongkan cache React Query agar akun berikutnya di komputer yang sama tidak melihat data lama
+        const { queryClient } = await import('@/lib/queryClient')
+        queryClient.clear()
     } catch {
         // Abaikan jika modul sesi belum diinisialisasi atau di lingkungan non-browser
     }
@@ -286,7 +290,7 @@ export function ambilLokasiNative(opsi: { maksUmurMs?: number; batasMs?: number 
 
 /** Jendela Exam Browser dikembalikan ke kios bila pengguna tidak kembali dalam waktu ini. */
 const BATAS_PULIH_KIOS_MS = 15_000
-const BATAS_PULIH_WIFI_MS = 30_000
+const BATAS_PULIH_WIFI_MS = 90_000
 
 export function validasiPinPengawas(pin: string): boolean {
     const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || 'alakhyar'
@@ -312,9 +316,9 @@ export async function aturTetapMenyalaNative(aktif: boolean): Promise<void> {
 }
 
 /** Periksa apakah layar Android sedang mati atau baru saja mati (tombol power / flip cover). */
-export async function apakahLayarMatiNative(): Promise<boolean> {
+export async function apakahLayarMatiNative(reset = false): Promise<boolean> {
     if (!adaNative()) return false
-    const status = await UjianNative.statusLayar().catch(() => null)
+    const status = await UjianNative.statusLayar({ reset }).catch(() => null)
     return Boolean(status && (status.layarMati || !status.interaktif))
 }
 
@@ -404,15 +408,6 @@ export async function bukaPengaturanWifi(
         void jendela.setAlwaysOnTop(true)
     }
 
-    await jendela.setAlwaysOnTop(false)
-    await jendela.setFullscreen(false)
-    try {
-        await invoke('buka_pengaturan_wifi')
-    } catch (e) {
-        pulihkan()
-        throw e
-    }
-
     let pernahKeluarFokus = false
     let selesai = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -435,6 +430,21 @@ export async function bukaPengaturanWifi(
             opsi.onKembali?.()
         }
     }, BATAS_PULIH_WIFI_MS)
+
+    await jendela.setAlwaysOnTop(false)
+    await jendela.setFullscreen(false)
+    try {
+        await invoke('buka_pengaturan_wifi')
+        if (!(await jendela.isFocused().catch(() => true))) {
+            pernahKeluarFokus = true
+        }
+    } catch (e) {
+        selesai = true
+        if (timer) clearTimeout(timer)
+        lepas()
+        pulihkan()
+        throw e
+    }
 }
 
 /**
@@ -458,28 +468,39 @@ export async function bukaTautanLuar(url: string): Promise<void> {
         void jendela.setAlwaysOnTop(true)
     }
 
-    await jendela.setAlwaysOnTop(false)
-    await jendela.setFullscreen(false)
-    try {
-        await openUrl(url)
-    } catch (e) {
-        pulihkan()
-        throw e
-    }
-
     let pernahKeluarFokus = false
+    let selesai = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
         if (!fokus) {
             pernahKeluarFokus = true
-        } else if (pernahKeluarFokus) {
+        } else if (pernahKeluarFokus && !selesai) {
+            selesai = true
+            if (timer) clearTimeout(timer)
             lepas()
             pulihkan()
         }
     })
-    setTimeout(() => {
-        if (!pernahKeluarFokus) {
+    timer = setTimeout(() => {
+        if (!selesai) {
+            selesai = true
             lepas()
             pulihkan()
         }
     }, BATAS_PULIH_KIOS_MS)
+
+    await jendela.setAlwaysOnTop(false)
+    await jendela.setFullscreen(false)
+    try {
+        await openUrl(url)
+        if (!(await jendela.isFocused().catch(() => true))) {
+            pernahKeluarFokus = true
+        }
+    } catch (e) {
+        selesai = true
+        if (timer) clearTimeout(timer)
+        lepas()
+        pulihkan()
+        throw e
+    }
 }

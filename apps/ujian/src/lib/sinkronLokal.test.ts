@@ -179,4 +179,38 @@ describe('sinkronLokal', () => {
         expect(hasilPerangkatLain[0]).toMatchObject({ attemptId: 14, status: 'perangkat_lain', sisaTertunda: 1 })
         expect(bersihkanAttempt).not.toHaveBeenCalled()
     })
+
+    it('tidak menghapus sesi lokal saat kumpul ditolak BELUM_MINIMAL atau TERKUNCI', async () => {
+        const simpan = new PenyimpananMemori()
+        await simpan.simpan('attempt:15:sesi', buatSesi(15, 105, 'Biologi'))
+        await simpan.simpan('attempt:15:kumpul', true)
+
+        const bersihkanAttempt = vi.fn(async () => {})
+        const okSinkron = async (): Promise<SinkronRespons> => ({
+            diakui: {},
+            ditolak: [],
+            waktu_server: '2026-11-25T07:35:00+08:00',
+            berakhir_pada: '2026-11-25T08:30:00+08:00',
+            status: 'mengerjakan',
+            pesan_pengawas: null,
+            pesan_pada: null,
+        })
+
+        const hasilMinimal = await sinkronSemuaTertunda({
+            simpan,
+            pemilik: 'murid-1',
+            bersihkanAttempt,
+            klienApi: {
+                sinkron: vi.fn(okSinkron),
+                kumpul: vi.fn(async () => {
+                    throw new GalatApi('BELUM_MINIMAL', 'Ujian baru bisa dikumpulkan setelah 10 menit.', 409)
+                }),
+            },
+        })
+
+        expect(hasilMinimal[0]).toMatchObject({ attemptId: 15, status: 'galat' })
+        expect(bersihkanAttempt).not.toHaveBeenCalled()
+        expect(await simpan.ambil('attempt:15:sesi')).toBeDefined()
+        expect(await simpan.ambil('attempt:15:kumpul')).toBeUndefined()
+    })
 })

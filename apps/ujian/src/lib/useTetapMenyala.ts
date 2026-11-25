@@ -1,7 +1,10 @@
 import { aturTetapMenyalaNative } from '@/lib/native'
 import { useEffect } from 'react'
 
-type WakeLockSentinelLike = { release: () => Promise<void> }
+type WakeLockSentinelLike = {
+    release: () => Promise<void>
+    addEventListener?: (type: 'release', listener: () => void) => void
+}
 type NavigatorWakeLock = Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } }
 
 /**
@@ -26,6 +29,9 @@ export function useTetapMenyala(aktif: boolean): void {
                     void s.release().catch(() => undefined)
                     return
                 }
+                s.addEventListener?.('release', () => {
+                    if (sentinel === s) sentinel = null
+                })
                 sentinel = s
             } catch {
                 // Sebagian webview/browser menolak wakeLock tanpa interaksi pengguna; native flag tetap aktif.
@@ -39,12 +45,20 @@ export function useTetapMenyala(aktif: boolean): void {
             }
         }
 
+        const saatInteraksi = () => {
+            if (!sentinel) void mintaWakeLock()
+        }
+
         void mintaWakeLock()
         document.addEventListener('visibilitychange', saatTerlihat)
+        window.addEventListener('pointerdown', saatInteraksi, { passive: true })
+        window.addEventListener('keydown', saatInteraksi, { passive: true })
 
         return () => {
             batal = true
             document.removeEventListener('visibilitychange', saatTerlihat)
+            window.removeEventListener('pointerdown', saatInteraksi)
+            window.removeEventListener('keydown', saatInteraksi)
             void sentinel?.release().catch(() => undefined)
             sentinel = null
             void aturTetapMenyalaNative(false)

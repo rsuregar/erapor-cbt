@@ -161,7 +161,7 @@ export function usePelanggaran(opsi: {
             sejakDinding = Date.now()
             mulaiMs = ref.current.msSejakMulai()
             if (pakaiNative) {
-                void apakahLayarMatiNative().then((mati) => {
+                void apakahLayarMatiNative(false).then((mati) => {
                     if (mati && sejakMono !== null) pernahLayarMati = true
                 })
             }
@@ -172,7 +172,9 @@ export function usePelanggaran(opsi: {
             const selisihMonotonikMs = performance.now() - sejakMono
             const selisihDindingMs = Date.now() - sejakDinding
             const layarMatiNative = pernahLayarMati
+            const mulaiSaatPergi = mulaiMs
             sejakMono = null
+            mulaiMs = undefined
             pernahLayarMati = false
 
             const catatDenganStatus = (mati: boolean) => {
@@ -183,12 +185,13 @@ export function usePelanggaran(opsi: {
                     selisihMonotonikMs,
                     minPergiMs: MIN_PERGI_MS,
                 })
-                if (hasil) void catat(hasil.jenis, mulaiMs, hasil.durasiMs)
+                if (hasil) void catat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
             }
 
             if (pakaiNative && !layarMatiNative) {
-                void apakahLayarMatiNative().then(catatDenganStatus)
+                void apakahLayarMatiNative(true).then(catatDenganStatus)
             } else {
+                if (pakaiNative) void apakahLayarMatiNative(true)
                 catatDenganStatus(layarMatiNative)
             }
         }

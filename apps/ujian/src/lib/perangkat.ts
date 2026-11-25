@@ -1,4 +1,5 @@
 import { platform } from '@/lib/api'
+import { isTauri } from '@/lib/native'
 
 /**
  * Info perangkat untuk cek kesiapan dan aturan layar (PRD § Jalur cadangan:
@@ -45,9 +46,9 @@ export function standalone(): boolean {
 
 export const layarPenuhAktif = () => !!document.fullscreenElement
 
-/** Laptop/PC wajib layar penuh di level Ketat/Lockdown; HP/tablet memakai mode standalone. */
+/** Laptop/PC wajib layar penuh di level Ketat/Lockdown; HP/tablet & Tauri memakai mode kiosk/standalone. */
 export function wajibLayarPenuh(level: 'dasar' | 'ketat' | 'lockdown'): boolean {
-    return level !== 'dasar' && platform() === 'pwa' && jenisPerangkat() === 'desktop' && !!document.fullscreenEnabled
+    return level !== 'dasar' && !isTauri() && platform() === 'pwa' && jenisPerangkat() === 'desktop' && !!document.fullscreenEnabled
 }
 
 /** Harus dipanggil langsung dari klik (aturan browser). */
@@ -68,13 +69,22 @@ export async function masukLayarPenuh(): Promise<boolean> {
     }
 }
 
+/** Baca orientasi fisik layar dari Screen Orientation API / ukuran layar (tidak tertipu keyboard virtual). */
+function apakahLanskap(): boolean {
+    const tipe = typeof screen !== 'undefined' ? screen.orientation?.type : undefined
+    if (tipe) return tipe.startsWith('landscape')
+    if (typeof screen !== 'undefined' && screen.width && screen.height) return screen.width > screen.height
+
+    return innerWidth > innerHeight
+}
+
 /**
  * Layar dibagi (Split View / jendela mengambang): viewport jauh lebih sempit
  * dari layar. Hanya untuk HP/tablet — jendela browser laptop memang bebas ukuran.
  */
 export function layarDibagi(): boolean {
     if (jenisPerangkat() === 'desktop') return false
-    const lanskap = innerWidth > innerHeight
+    const lanskap = apakahLanskap()
     const lebarLayar = lanskap ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
 
     return innerWidth / lebarLayar < 0.8
@@ -82,5 +92,5 @@ export function layarDibagi(): boolean {
 
 /** HP (bukan tablet) dalam posisi miring: soal jadi sempit. */
 export function hpMiring(): boolean {
-    return jenisPerangkat() !== 'desktop' && Math.min(screen.width, screen.height) < 600 && innerWidth > innerHeight
+    return jenisPerangkat() !== 'desktop' && Math.min(screen.width, screen.height) < 600 && apakahLanskap()
 }

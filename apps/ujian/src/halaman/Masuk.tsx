@@ -4,7 +4,8 @@ import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
-import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
+import { bisaBukaPengaturanWifi, isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
+import { queryClient } from "@/lib/queryClient";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -134,6 +135,7 @@ export default function Masuk() {
         },
         onSuccess: async ({ data }) => {
             const user = data.user
+            queryClient.clear()
             await sesi.masuk(
                 data.access_token,
                 user?.name ?? null,
@@ -235,7 +237,7 @@ export default function Masuk() {
                         className="relative space-y-5 rounded-lg border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            if (online) masuk.mutate();
+                            masuk.mutate();
                         }}
                     >
                         {/* Form Title Header */}
@@ -270,7 +272,7 @@ export default function Masuk() {
                                         )}
                                     </div>
                                 </div>
-                                {isTauri() && (
+                                {bisaBukaPengaturanWifi() && (
                                     <Tombol
                                         type="button"
                                         varian="outline"
@@ -358,13 +360,11 @@ export default function Masuk() {
                             type="submit"
                             ukuran="lg"
                             penuh
-                            disabled={masuk.isPending || !online}
+                            disabled={masuk.isPending}
                             className="h-12 shadow-md transition-all active:scale-[0.98]"
                         >
                             {masuk.isPending ? (
                                 "Memeriksa akun…"
-                            ) : !online ? (
-                                "Butuh internet untuk masuk"
                             ) : (
                                 <span className="flex items-center justify-center gap-2">
                                     <span>Masuk Ujian</span>
@@ -438,7 +438,9 @@ export default function Masuk() {
                             <span>&bull;</span>
                             <span>
                                 {isTauri()
-                                    ? 'Exam Browser (Windows)'
+                                    ? typeof navigator !== 'undefined' && /Macintosh|Mac OS X/i.test(navigator.userAgent)
+                                        ? 'Exam Browser (macOS)'
+                                        : 'Exam Browser (Windows)'
                                     : isNative()
                                       ? Capacitor.getPlatform() === 'ios'
                                           ? 'Aplikasi iOS'

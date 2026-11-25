@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import 'katex/dist/katex.min.css'
 import { StrictMode } from 'react'
@@ -10,19 +10,7 @@ import './lib/pasang'
 import './lib/kunciZoom'
 import { router } from './router'
 import { alihkanKeHalamanNonaktif, webDitolak } from './lib/aksesWeb'
-
-const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            // Galat aturan (4xx) tidak perlu dicoba ulang; jaringan ya.
-            retry: (n, e) => n < 2 && !(e as { status?: number }).status,
-            // Cache data tetap segar selama 1 menit agar tidak refetch berulang saat berpindah ke/dari dashboard
-            staleTime: 60_000,
-            gcTime: 10 * 60_000,
-            refetchOnWindowFocus: false,
-        },
-    },
-})
+import { queryClient } from './lib/queryClient'
 
 if (webDitolak()) {
     // Mode web_ios_only: laptop & Android wajib aplikasi resmi.

@@ -23,6 +23,14 @@ function alasanDariGalat(g: GalatApi | null): AlasanSelesai | null {
     return a === 'sesi_dihentikan' || a === 'dikumpulkan_pengawas' ? a : null
 }
 
+/** Hanya kode terminal eksplisit yang menandakan sesi sudah selesai di server (bukan 409/BELUM_MINIMAL/TERKUNCI). */
+export function adalahGalatSelesai(g: GalatApi | null, izinkan404 = false): boolean {
+    if (!g) return false
+    const kode = (g.kode || '').toUpperCase()
+
+    return kode === 'SUDAH_SELESAI' || kode === 'SELESAI' || kode === 'SUDAH_DITUTUP' || (izinkan404 && g.status === 404)
+}
+
 /**
  * Satu sesi mengerjakan: jawaban (outbox lokal dulu, PRD "offline-first"),
  * jam server, sinkron 15 detik, kunci/buka dari pengawas, pesan pengawas,
@@ -46,6 +54,8 @@ export function useSesiUjian(attemptId: number) {
     const [perangkatLain, setPerangkatLain] = useState(false)
     /** Jumlah soal terjawab yang dikonfirmasi server saat kumpul berhasil. */
     const [jumlahTerjawabServer, setJumlahTerjawabServer] = useState<number | null>(null)
+    /** Murid sudah melepas kios lewat "Ganti Wi-Fi / Hotspot" saat menunggu sinkron — tidak boleh kembali mengedit soal. */
+    const [kumpulFinal, setKumpulFinal] = useState(false)
 
     const outbox = useRef<Outbox>()
     const jam = useRef<JamServer>()
@@ -61,6 +71,7 @@ export function useSesiUjian(attemptId: number) {
     const ditolakRef = useRef<Record<string, AlasanDitolak | string>>({})
     ditolakRef.current = ditolak
     const batalKumpulRef = useRef(false)
+    const kumpulFinalRef = useRef(false)
     const bangunTungguRef = useRef<(() => void) | null>(null)
     const kumpulRef = useRef<() => Promise<void>>(async () => {})
 
@@ -112,6 +123,9 @@ export function useSesiUjian(attemptId: number) {
             setData(hasil)
 
             const kumpulTertunda = await penyimpanan.ambil<boolean>(`attempt:${attemptId}:kumpul`)
+            const kumpulTerkunci = Boolean(await penyimpanan.ambil<boolean>(`attempt:${attemptId}:kumpul_final`))
+            kumpulFinalRef.current = kumpulTerkunci
+            setKumpulFinal(kumpulTerkunci)
             setStatus(kumpulTertunda ? 'menunggu_sinkron' : 'mengerjakan')
 
             const p = new Penyinkron({
@@ -146,7 +160,6 @@ export function useSesiUjian(attemptId: number) {
                 },
                 saatStatusKoneksi: (online, tertunda) => setKoneksi({ online, tertunda }),
                 saatGalat: (g) => {
-                    const pesan = (g.message || '').toLowerCase()
                     const kode = (g.kode || '').toUpperCase()
                     if (kode === 'PERANGKAT_LAIN') {
                         // Ujian sudah dibuka di perangkat lain: hentikan kirim, jangan dianggap selesai (409).
@@ -157,16 +170,7 @@ export function useSesiUjian(attemptId: number) {
                     }
                     if (kode === 'TERKUNCI') {
                         setStatus('terkunci')
-                    } else if (
-                        kode === 'SUDAH_SELESAI' ||
-                        kode === 'SELESAI' ||
-                        kode === 'SUDAH_DITUTUP' ||
-                        g.status === 409 ||
-                        // 404: pengerjaan sudah tidak ada di server (jadwal dihapus pengelola) — jangan mencoba selamanya.
-                        g.status === 404 ||
-                        pesan.includes('selesai') ||
-                        pesan.includes('dikumpulkan')
-                    ) {
+                    } else if (adalahGalatSelesai(g, true)) {
                         setAlasanSelesai(alasanDariGalat(g))
                         void selesai()
                     }
@@ -324,7 +328,6 @@ export function useSesiUjian(attemptId: number) {
                         return
                     } catch (e) {
                         const g = e instanceof GalatApi ? e : null
-                        const pesan = (g?.message || '').toLowerCase()
                         const kode = (g?.kode || '').toUpperCase()
                         if (kode === 'PERANGKAT_LAIN') {
                             await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
@@ -333,14 +336,13 @@ export function useSesiUjian(attemptId: number) {
 
                             return
                         }
-                        if (
-                            kode === 'SUDAH_SELESAI' ||
-                            kode === 'SELESAI' ||
-                            kode === 'SUDAH_DITUTUP' ||
-                            g?.status === 409 ||
-                            pesan.includes('selesai') ||
-                            pesan.includes('dikumpulkan')
-                        ) {
+                        if (kode === 'TERKUNCI') {
+                            await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
+                            setStatus('terkunci')
+
+                            return
+                        }
+                        if (adalahGalatSelesai(g, false)) {
                             setAlasanSelesai(alasanDariGalat(g))
                             await selesai()
 
@@ -349,7 +351,7 @@ export function useSesiUjian(attemptId: number) {
                         if (!g?.sementara) {
                             await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
                             setGalatKumpul(g?.message ?? 'Gagal mengumpulkan.')
-                            setStatus(g?.kode === 'TERKUNCI' ? 'terkunci' : 'mengerjakan')
+                            setStatus('mengerjakan')
 
                             return
                         }
@@ -367,13 +369,6 @@ export function useSesiUjian(attemptId: number) {
 
     kumpulRef.current = kumpul
 
-    // Kumpul yang tertunda sebelum app ditutup: lanjutkan otomatis.
-    useEffect(() => {
-        if (status === 'menunggu_sinkron' && data && penyinkron.current) {
-            void kumpul()
-        }
-    }, [status, data, kumpul])
-
     return {
         data,
         status,
@@ -387,11 +382,18 @@ export function useSesiUjian(attemptId: number) {
         alasanSelesai,
         perangkatLain,
         jumlahTerjawabServer,
+        kumpulFinal,
         jam: jam.current,
         msSejakMulai,
         jawab,
         kumpul,
+        tandaiKumpulFinal: async () => {
+            kumpulFinalRef.current = true
+            setKumpulFinal(true)
+            await penyimpanan.simpan(`attempt:${attemptId}:kumpul_final`, true)
+        },
         batalKumpul: async () => {
+            if (kumpulFinalRef.current) return
             batalKumpulRef.current = true
             bangunTungguRef.current?.()
             await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)

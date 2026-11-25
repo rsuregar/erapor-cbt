@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { deteksiJenisPerangkat } from './perangkat'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { deteksiJenisPerangkat, hpMiring, layarDibagi, wajibLayarPenuh } from './perangkat'
 
 describe('deteksiJenisPerangkat', () => {
     it('mengenali platform native Android dan iOS langsung', () => {
@@ -43,5 +43,41 @@ describe('deteksiJenisPerangkat', () => {
                 maxTouchPoints: 0,
             }),
         ).toBe('desktop')
+    })
+})
+
+describe('wajibLayarPenuh & layarDibagi', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    it('wajibLayarPenuh mengembalikan false di Exam Browser Tauri desktop', () => {
+        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+        vi.stubGlobal('document', { fullscreenEnabled: true, fullscreenElement: null })
+        vi.stubGlobal('navigator', {
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            maxTouchPoints: 0,
+        })
+
+        expect(wajibLayarPenuh('ketat')).toBe(false)
+        expect(wajibLayarPenuh('lockdown')).toBe(false)
+    })
+
+    it('keyboard virtual di HP potret tidak memicu false positive layarDibagi atau hpMiring', () => {
+        vi.stubGlobal('navigator', {
+            userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Mobile Safari/537.36',
+            maxTouchPoints: 5,
+        })
+        vi.stubGlobal('screen', {
+            width: 390,
+            height: 844,
+            orientation: { type: 'portrait-primary' },
+        })
+        // Keyboard virtual mengecilkan innerHeight hingga lebih kecil dari innerWidth.
+        vi.stubGlobal('innerWidth', 390)
+        vi.stubGlobal('innerHeight', 360)
+
+        expect(layarDibagi()).toBe(false)
+        expect(hpMiring()).toBe(false)
     })
 })

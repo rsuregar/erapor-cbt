@@ -90,4 +90,20 @@ describe('Media soal di penyimpanan app native', () => {
         expect(progres).toEqual([0, 0])
         expect(await tiruan.penyimpanan.daftarKunci('media:')).toEqual([])
     })
+
+    it('mendeduplikasi URL ganda agar tidak mengunduh berkas yang sama bersamaan', async () => {
+        const progres: [number, number][] = []
+        await unduhMedia(
+            1,
+            ['https://erapor.test/storage/sama.png', 'https://erapor.test/storage/sama.png', '/storage/unik.jpg'],
+            (s, t) => progres.push([s, t]),
+        )
+
+        expect(tiruan.unduhan).toHaveLength(2)
+        expect(progres).toEqual([
+            [0, 2],
+            [1, 2],
+            [2, 2],
+        ])
+    })
 })
