@@ -5,7 +5,7 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
-import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from '@/lib/native'
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
 import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian } from '@/lib/ujian'
@@ -177,9 +177,7 @@ export default function Beranda() {
 
     const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
         if (e) e.preventDefault()
-        const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || 'alakhyar'
-        const pinValid = pinPengawas.trim() === pinTarget || pinPengawas.trim() === '778899'
-        if (!pinValid) {
+        if (!validasiPinPengawas(pinPengawas)) {
             setGalatPin('PIN Pengawas salah. Hubungi proctor / tim IT.')
             return
         }

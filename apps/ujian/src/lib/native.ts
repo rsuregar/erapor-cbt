@@ -23,6 +23,9 @@ interface UjianNativePlugin {
     unduhMedia(opsi: { url: string }): Promise<{ path: string }>
     hapusMedia(opsi: { path: string[] }): Promise<void>
     pasangApk(opsi: { url: string }): Promise<void>
+    bukaPengaturanWifi(): Promise<{ mode: 'panel' | 'pengaturan' }>
+    aturProteksiKonten(opsi: { aktif: boolean }): Promise<void>
+    aturTetapMenyala(opsi: { aktif: boolean }): Promise<void>
     addListener(event: 'progresPembaruan', cb: (p: ProgresPembaruan) => void): Promise<PluginListenerHandle>
 }
 
@@ -281,6 +284,143 @@ export function ambilLokasiNative(opsi: { maksUmurMs?: number; batasMs?: number 
 
 /** Jendela Exam Browser dikembalikan ke kios bila pengguna tidak kembali dalam waktu ini. */
 const BATAS_PULIH_KIOS_MS = 15_000
+const BATAS_PULIH_WIFI_MS = 30_000
+
+export function validasiPinPengawas(pin: string): boolean {
+    const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || 'alakhyar'
+    const bersih = pin.trim()
+    return bersih === pinTarget || bersih === '778899'
+}
+
+export const bisaBukaPengaturanWifi = (): boolean => adaNative() || isTauri()
+
+export async function aturProteksiKontenNative(aktif: boolean): Promise<void> {
+    if (!adaNative()) return
+    await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
+}
+
+export async function aturTetapMenyalaNative(aktif: boolean): Promise<void> {
+    if (adaNative()) {
+        await UjianNative.aturTetapMenyala({ aktif }).catch(() => undefined)
+        return
+    }
+    if (!isTauri()) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('atur_tetap_menyala', { aktif }).catch(() => undefined)
+}
+
+export async function jumlahMonitor(): Promise<number> {
+    if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        return await invoke<number>('jumlah_monitor').catch(() => 1)
+    }
+    const layar = globalThis.screen as (Screen & { isExtended?: boolean }) | undefined
+    return layar?.isExtended === true ? 2 : 1
+}
+
+/**
+ * Buka panel / pengaturan Wi-Fi OS tanpa melogout murid.
+ * - Android: melepas Screen Pinning sementara lalu membuka Internet Panel / Wi-Fi Settings.
+ * - Desktop Tauri: menurunkan alwaysOnTop + fullscreen sementara lalu memulihkannya saat fokus kembali.
+ */
+export async function bukaPengaturanWifi(
+    opsi: { pulihkanKiosk?: boolean; onKembali?: () => void } = {},
+): Promise<void> {
+    if (adaNative()) {
+        let selesai = false
+        let pernahKeluar = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        let appHandle: PluginListenerHandle | undefined
+
+        const bersihkan = () => {
+            if (timer) clearTimeout(timer)
+            window.removeEventListener('blur', tandaiKeluar)
+            window.removeEventListener('focus', cekKembali)
+            document.removeEventListener('visibilitychange', cekVisibilitas)
+            void appHandle?.remove()
+        }
+        const akhiri = () => {
+            if (selesai) return
+            selesai = true
+            bersihkan()
+            opsi.onKembali?.()
+        }
+        const tandaiKeluar = () => {
+            pernahKeluar = true
+        }
+        const cekKembali = () => {
+            if (pernahKeluar && document.visibilityState === 'visible') akhiri()
+        }
+        const cekVisibilitas = () => {
+            if (document.visibilityState === 'hidden') tandaiKeluar()
+            else cekKembali()
+        }
+
+        if (opsi.onKembali) {
+            window.addEventListener('blur', tandaiKeluar)
+            window.addEventListener('focus', cekKembali)
+            document.addEventListener('visibilitychange', cekVisibilitas)
+            const { App } = await import('@capacitor/app')
+            appHandle = await App.addListener('appStateChange', ({ isActive }) => {
+                if (!isActive) tandaiKeluar()
+                else if (pernahKeluar) akhiri()
+            })
+            timer = setTimeout(akhiri, BATAS_PULIH_WIFI_MS)
+        }
+
+        try {
+            await UjianNative.bukaPengaturanWifi()
+        } catch (e) {
+            selesai = true
+            bersihkan()
+            throw e
+        }
+        return
+    }
+
+    if (!isTauri()) return
+
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    const { invoke } = await import('@tauri-apps/api/core')
+    const jendela = getCurrentWindow()
+    const pulihkan = () => {
+        if (opsi.pulihkanKiosk === false) return
+        void jendela.setFullscreen(true)
+        void jendela.setAlwaysOnTop(true)
+    }
+
+    await jendela.setAlwaysOnTop(false)
+    await jendela.setFullscreen(false)
+    try {
+        await invoke('buka_pengaturan_wifi')
+    } catch (e) {
+        pulihkan()
+        throw e
+    }
+
+    let pernahKeluarFokus = false
+    let selesai = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
+        if (!fokus) {
+            pernahKeluarFokus = true
+        } else if (pernahKeluarFokus && !selesai) {
+            selesai = true
+            if (timer) clearTimeout(timer)
+            lepas()
+            pulihkan()
+            opsi.onKembali?.()
+        }
+    })
+    timer = setTimeout(() => {
+        if (!selesai) {
+            selesai = true
+            lepas()
+            pulihkan()
+            opsi.onKembali?.()
+        }
+    }, BATAS_PULIH_WIFI_MS)
+}
 
 /**
  * Buka tautan di browser sistem (mis. unduh pembaruan). Di Exam Browser desktop,
