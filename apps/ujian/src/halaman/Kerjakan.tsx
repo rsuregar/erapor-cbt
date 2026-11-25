@@ -3,10 +3,13 @@ import { kelasTombol, Tombol } from '@/komponen/Tombol'
 import { waktuMundur } from '@/lib/format'
 import { kelompokkanPerSection } from '@/lib/sectionSoal'
 import { sesi as sesiAkun } from '@/lib/sesi'
+import { adaNative, bisaBukaPengaturanWifi, bukaPengaturanWifi, isShortcutPengawas, keluarAplikasi, kunciLayar, validasiPinPengawas } from '@/lib/native'
+import { ekstrakTeksDokumen, terdeteksiTempel } from '@/lib/proteksiSalin'
 import { layarPenuhAktif, masukLayarPenuh, wajibLayarPenuh } from '@/lib/perangkat'
 import { useOnline } from '@/lib/useOnline'
 import { usePelanggaran } from '@/lib/usePelanggaran'
 import { useProteksiKonten } from '@/lib/useProteksiKonten'
+import { useTetapMenyala } from '@/lib/useTetapMenyala'
 import { srcLokal } from '@/lib/ujian'
 import { useSesiUjian, type IsiJawaban } from '@/lib/useSesiUjian'
 import { cn } from '@/lib/utils'
@@ -31,7 +34,9 @@ import {
     Lock,
     Maximize,
     Megaphone,
+    Power,
     Unlock,
+    Wifi,
     X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -119,10 +124,35 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
             return () => clearTimeout(timer)
         }
     }, [u.status, u.alasanSelesai, navigate])
+    useTetapMenyala(u.status === 'mengerjakan' || u.status === 'mengumpulkan' || u.status === 'menunggu_sinkron')
+
+    const [modeModalPengawas, setModeModalPengawas] = useState<'wifi' | 'menu' | null>(null)
+    const [pinWifi, setPinWifi] = useState('')
+    const [galatPinWifi, setGalatPinWifi] = useState<string | null>(null)
+    const [membukaWifi, setMembukaWifi] = useState(false)
+    const [prosesTutupApp, setProsesTutupApp] = useState(false)
+    const [galatWifi, setGalatWifi] = useState<string | null>(null)
+    const [jedaJaringan, setJedaJaringan] = useState(false)
+    const timerJedaRef = useRef<ReturnType<typeof setTimeout>>()
+    useEffect(() => () => clearTimeout(timerJedaRef.current), [])
+
+    useEffect(() => {
+        const tanganiKeydown = (e: KeyboardEvent) => {
+            if (isShortcutPengawas(e)) {
+                e.preventDefault()
+                setPinWifi('')
+                setGalatPinWifi(null)
+                setModeModalPengawas('menu')
+            }
+        }
+        window.addEventListener('keydown', tanganiKeydown)
+        return () => window.removeEventListener('keydown', tanganiKeydown)
+    }, [])
+
     const p = usePelanggaran({
         pantauLayarPenuh: wajibLp,
         attemptId,
-        aktif: u.status === 'mengerjakan',
+        aktif: u.status === 'mengerjakan' && !jedaJaringan,
         ambangAwal: u.data?.sesi.mulai.ambang_pelanggaran ?? 0,
         level: u.data?.sesi.ujian.level_keamanan,
         msSejakMulai: u.msSejakMulai,
@@ -154,10 +184,93 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     const soal = u.data?.isi.soal ?? []
     const aktif = soal[indeks]
+    const teksSoalAktif = useMemo(() => {
+        if (!aktif) return ''
+        const st = aktif.stimulus_id ? u.data?.isi.stimulus[String(aktif.stimulus_id)] : null
+        return [ekstrakTeksDokumen(aktif.pertanyaan), ekstrakTeksDokumen(st?.konten as Parameters<typeof ekstrakTeksDokumen>[0])]
+            .filter(Boolean)
+            .join(' ')
+    }, [aktif, u.data?.isi.stimulus])
+    const teksSoalRef = useRef('')
+    teksSoalRef.current = teksSoalAktif
 
     // Percobaan salin/tempel/klik kanan yang diblokir dilaporkan sebagai informasi untuk pengawas,
     // lengkap dengan nomor soal yang sedang dibuka.
-    const pesanProteksi = useProteksiKonten(u.status === 'mengerjakan', { lapor: p.laporInfo, soalAktif: () => indeks + 1 })
+    const proteksi = useProteksiKonten(u.status === 'mengerjakan', {
+        lapor: p.laporInfo,
+        soalAktif: () => indeks + 1,
+        teksSoalAktif: () => teksSoalRef.current,
+    })
+    const pesanProteksi = proteksi.pesan
+
+    const pulihkanSetelahWifi = useCallback(async () => {
+        if (adaNative() && level && level !== 'dasar') {
+            await kunciLayar()
+        }
+        clearTimeout(timerJedaRef.current)
+        timerJedaRef.current = setTimeout(() => {
+            setJedaJaringan(false)
+        }, 2000)
+    }, [level])
+
+    const bukaWifiTanpaPin = async () => {
+        setMembukaWifi(true)
+        setGalatWifi(null)
+        try {
+            await bukaPengaturanWifi({
+                pulihkanKiosk: true,
+                onKembali: () => {
+                    void u.kumpul()
+                },
+            })
+        } catch {
+            setGalatWifi('Tidak bisa membuka pengaturan Wi-Fi. Minta bantuan pengawas.')
+        } finally {
+            setMembukaWifi(false)
+        }
+    }
+
+    const tanganiBukaWifiPengawas = async (e?: React.FormEvent) => {
+        e?.preventDefault()
+        if (!validasiPinPengawas(pinWifi)) {
+            setGalatPinWifi('PIN pengawas salah. Hubungi proctor / tim IT.')
+            return
+        }
+        setModeModalPengawas(null)
+        setPinWifi('')
+        setGalatPinWifi(null)
+        setGalatWifi(null)
+        setJedaJaringan(true)
+        setMembukaWifi(true)
+        try {
+            await bukaPengaturanWifi({
+                pulihkanKiosk: true,
+                onKembali: () => {
+                    void pulihkanSetelahWifi()
+                },
+            })
+        } catch {
+            setJedaJaringan(false)
+            setGalatWifi('Tidak bisa membuka pengaturan Wi-Fi. Coba lagi atau hubungi tim IT.')
+        } finally {
+            setMembukaWifi(false)
+        }
+    }
+
+    const tanganiTutupAppPengawas = async () => {
+        if (!validasiPinPengawas(pinWifi)) {
+            setGalatPinWifi('PIN pengawas salah. Hubungi proctor / tim IT.')
+            return
+        }
+        setGalatPinWifi(null)
+        setProsesTutupApp(true)
+        try {
+            setModeModalPengawas(null)
+            await keluarAplikasi()
+        } finally {
+            setProsesTutupApp(false)
+        }
+    }
 
     // Jangan sampai keluar layar ujian tanpa sengaja (tombol kembali / tutup tab).
     const blokir = useBlocker({
@@ -276,7 +389,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     })
     pintasan.current = {
         aktif: u.status === 'mengerjakan' && !tinjau,
-        terhalang: bantuanPintasan || panel || konfirmasi || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh),
+        terhalang: bantuanPintasan || panel || konfirmasi || modeModalPengawas !== null || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh),
         soal: aktif,
         jawaban: aktif ? u.jawaban[aktif.id] : undefined,
         indeks,
@@ -329,6 +442,95 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         return () => document.removeEventListener('keydown', tekan)
     }, [])
 
+    const tutupModalPengawas = () => {
+        setModeModalPengawas(null)
+        setPinWifi('')
+        setGalatPinWifi(null)
+    }
+
+    const adaJawabanTertunda = u.koneksi.tertunda > 0 || u.gagalSimpan > 0
+
+    const dialogPengawas = modeModalPengawas && (
+        <Dialog onTutup={tutupModalPengawas}>
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault()
+                    if (modeModalPengawas === 'menu' && !bisaBukaPengaturanWifi()) {
+                        void tanganiTutupAppPengawas()
+                    } else {
+                        void tanganiBukaWifiPengawas(e)
+                    }
+                }}
+                className="space-y-4"
+            >
+                <div>
+                    <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+                        Khusus Pengawas / Proktor
+                    </span>
+                    <h2 id="judul-dialog" className="mt-1 text-title">
+                        {modeModalPengawas === 'menu' ? 'Menu Darurat Pengawas' : 'Ganti Jaringan / Hotspot'}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                        {modeModalPengawas === 'menu'
+                            ? 'Masukkan PIN pengawas untuk mengganti Wi-Fi tanpa logout atau menutup aplikasi CBT.'
+                            : 'Masukkan PIN pengawas untuk membuka pengaturan Wi-Fi sementara. Murid tidak keluar akun dan semua jawaban tetap tersimpan.'}
+                    </p>
+                </div>
+                {modeModalPengawas === 'menu' && adaJawabanTertunda && (
+                    <div role="alert" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+                        <p>
+                            Masih ada <b>{u.koneksi.tertunda + u.gagalSimpan} jawaban</b> belum terkirim ke server (tersimpan lokal di perangkat). Sebaiknya pilih <b>Ganti Wi-Fi</b> agar terkirim terlebih dahulu sebelum menutup aplikasi.
+                        </p>
+                    </div>
+                )}
+                <div className="space-y-1.5">
+                    <label htmlFor="pin-pengawas-wifi" className="text-xs font-semibold text-slate-700">
+                        PIN Pengawas
+                    </label>
+                    <input
+                        id="pin-pengawas-wifi"
+                        type="password"
+                        autoFocus
+                        value={pinWifi}
+                        onChange={(e) => {
+                            setPinWifi(e.target.value)
+                            setGalatPinWifi(null)
+                        }}
+                        placeholder="Masukkan PIN pengawas…"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    {galatPinWifi && <p className="text-xs font-medium text-coral-700">{galatPinWifi}</p>}
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                    <Tombol type="button" varian="outline" onClick={tutupModalPengawas} disabled={prosesTutupApp}>
+                        Batal
+                    </Tombol>
+                    {bisaBukaPengaturanWifi() && (
+                        <Tombol
+                            type="submit"
+                            ikonKiri={<Wifi className="size-4" />}
+                            disabled={membukaWifi || prosesTutupApp || !pinWifi.trim()}
+                        >
+                            {membukaWifi ? 'Membuka…' : 'Ganti Wi-Fi / Hotspot'}
+                        </Tombol>
+                    )}
+                    {modeModalPengawas === 'menu' && (
+                        <Tombol
+                            type="button"
+                            varian="danger"
+                            ikonKiri={<Power className="size-4" />}
+                            disabled={membukaWifi || prosesTutupApp || !pinWifi.trim()}
+                            onClick={() => void tanganiTutupAppPengawas()}
+                        >
+                            {prosesTutupApp ? 'Menutup…' : 'Tutup Aplikasi'}
+                        </Tombol>
+                    )}
+                </div>
+            </form>
+        </Dialog>
+    )
+
     if (u.status === 'memuat') return <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Membuka ujian…" />
     if (u.status === 'tidak_ada') {
         return (
@@ -378,23 +580,39 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         )
     }
     if (u.status === 'mengumpulkan' || u.status === 'menunggu_sinkron') {
-        return u.status === 'mengumpulkan' ? (
-            <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Mengumpulkan jawaban…" />
-        ) : (
-            <Layar
-                ikon={<CloudOff className="size-9 text-amber-500" />}
-                judul="Menunggu internet"
-                isi={`${u.koneksi.tertunda > 0 ? `${u.koneksi.tertunda} jawaban tersimpan di perangkat` : 'Semua jawaban sudah tersimpan'} — pengumpulan dikirim otomatis begitu tersambung. Jangan tutup aplikasi atau hapus datanya.`}
-            >
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <Tombol onClick={() => void kumpul()}>
-                        Coba kirim sekarang
-                    </Tombol>
-                    <Tombol varian="outline" onClick={() => void u.batalKumpul()}>
-                        Kembali ke soal
-                    </Tombol>
-                </div>
-            </Layar>
+        return (
+            <>
+                {u.status === 'mengumpulkan' ? (
+                    <Layar ikon={<Loader2 className="size-8 animate-spin text-primary" />} judul="Mengumpulkan jawaban…" />
+                ) : (
+                    <Layar
+                        ikon={<CloudOff className="size-9 text-amber-500" />}
+                        judul="Menunggu internet"
+                        isi={`${u.koneksi.tertunda > 0 ? `${u.koneksi.tertunda} jawaban tersimpan di perangkat` : 'Semua jawaban sudah tersimpan'} — pengumpulan dikirim otomatis begitu tersambung. Jangan tutup aplikasi atau hapus datanya.`}
+                    >
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <Tombol onClick={() => void kumpul()}>
+                                Coba kirim sekarang
+                            </Tombol>
+                            {bisaBukaPengaturanWifi() && (
+                                <Tombol
+                                    varian="secondary"
+                                    disabled={membukaWifi}
+                                    ikonKiri={<Wifi className="size-4" />}
+                                    onClick={() => void bukaWifiTanpaPin()}
+                                >
+                                    {membukaWifi ? 'Membuka Wi-Fi…' : 'Ganti Wi-Fi / Hotspot'}
+                                </Tombol>
+                            )}
+                            <Tombol varian="outline" onClick={() => void u.batalKumpul()}>
+                                Kembali ke soal
+                            </Tombol>
+                        </div>
+                        {galatWifi && <p role="alert" className="mt-3 text-xs font-semibold text-coral-700">{galatWifi}</p>}
+                    </Layar>
+                )}
+                {dialogPengawas}
+            </>
         )
     }
 
@@ -477,14 +695,49 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </div>
             )}
 
+            {jedaJaringan && (
+                <div role="status" className="border-b border-sky-200 bg-sky-50">
+                    <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-sky-900">
+                        <p className="flex items-center gap-2 font-medium">
+                            <Wifi className="size-4 shrink-0 text-sky-700" />
+                            <span>Mode ganti jaringan aktif — pengawasan dijeda sementara.</span>
+                        </p>
+                        <Tombol varian="outline" ukuran="sm" onClick={() => void pulihkanSetelahWifi()}>
+                            Selesai &amp; Kunci Lagi
+                        </Tombol>
+                    </div>
+                </div>
+            )}
+
             {offline ? (
                 <div role="status" className="border-b border-amber-100 bg-amber-100">
-                    <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2.5 text-sm text-amber-900">
-                        <CloudOff className="mt-0.5 size-4 shrink-0" />
-                        <p>
-                            <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
-                            {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung — paling lambat 15 menit setelah waktu ujian habis. Tidak perlu memuat ulang halaman.
-                        </p>
+                    <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm text-amber-900">
+                        <div className="flex flex-1 items-start gap-2">
+                            <CloudOff className="mt-0.5 size-4 shrink-0" />
+                            <div>
+                                <p>
+                                    <b>Kamu sedang offline — tetap kerjakan.</b> Jawaban tersimpan di perangkat
+                                    {u.koneksi.tertunda > 0 ? ` (${u.koneksi.tertunda} menunggu dikirim)` : ''} dan terkirim otomatis saat tersambung — paling lambat 15 menit setelah waktu ujian habis. Tidak perlu memuat ulang halaman.
+                                </p>
+                                {galatWifi && <p className="mt-1 text-xs font-semibold text-coral-700">{galatWifi}</p>}
+                            </div>
+                        </div>
+                        {bisaBukaPengaturanWifi() && !jedaJaringan && (
+                            <Tombol
+                                varian="outline"
+                                ukuran="sm"
+                                disabled={membukaWifi}
+                                ikonKiri={<Wifi className="size-3.5" />}
+                                className="shrink-0 bg-white/90"
+                                onClick={() => {
+                                    setPinWifi('')
+                                    setGalatPinWifi(null)
+                                    setModeModalPengawas('wifi')
+                                }}
+                            >
+                                Ganti Jaringan (PIN Pengawas)
+                            </Tombol>
+                        )}
                     </div>
                 </div>
             ) : lambat && !sempatOffline ? (
@@ -555,7 +808,17 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     section={aktif.section}
                                     jawaban={(j?.jawaban ?? null) as Jawaban}
                                     ragu={j?.ragu ?? false}
-                                    onJawab={(isi) => u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })}
+                                    onJawab={(isi) => {
+                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string') {
+                                            const sebelum = typeof j?.jawaban === 'string' ? j.jawaban : ''
+                                            const cek = terdeteksiTempel({ sebelum, sesudah: isi, teksSoal: teksSoalRef.current })
+                                            if (cek.diblokir) {
+                                                proteksi.laporTempelDiblokir(cek.alasan)
+                                                return
+                                            }
+                                        }
+                                        u.jawab(aktif.id, isi, j?.ragu ?? false, { teks: TEKS.has(aktif.jenis) })
+                                    }}
                                     onRagu={(r) => !waktuHabis && u.jawab(aktif.id, j?.jawaban ?? null, r)}
                                     nonaktif={waktuHabis}
                                     skalaFont={skalaFont}
@@ -801,7 +1064,9 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                 </Dialog>
             )}
 
-            {wajibLp && !layarPenuh && u.status === 'mengerjakan' && (
+            {dialogPengawas}
+
+            {wajibLp && !layarPenuh && u.status === 'mengerjakan' && !jedaJaringan && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/80 p-6 backdrop-blur-md">
                     <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
                         <span className="mx-auto inline-flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">

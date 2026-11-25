@@ -3,11 +3,45 @@ use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
+use tauri_plugin_opener::OpenerExt;
 
 mod media;
 mod pembaruan;
 
 struct DbState(Mutex<Connection>);
+struct WakeLockState(Mutex<Option<std::process::Child>>);
+
+#[cfg(target_os = "windows")]
+const ES_CONTINUOUS: u32 = 0x8000_0000;
+#[cfg(target_os = "windows")]
+const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+#[cfg(target_os = "windows")]
+const ES_DISPLAY_REQUIRED: u32 = 0x0000_0002;
+
+#[cfg(target_os = "windows")]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn SetThreadExecutionState(es_flags: u32) -> u32;
+}
+
+fn lepas_wake_lock(state: &WakeLockState) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = state;
+        unsafe {
+            SetThreadExecutionState(ES_CONTINUOUS);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let _ = state;
+}
 
 /// Hanya `keluar_aplikasi` (setelah PIN pengawas) yang boleh menutup aplikasi di mode
 /// Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
@@ -15,12 +49,90 @@ static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 fn keluar_aplikasi(app_handle: tauri::AppHandle) {
+    if let Some(wl) = app_handle.try_state::<WakeLockState>() {
+        lepas_wake_lock(&wl);
+    }
     KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
     app_handle.exit(0);
 }
 
+#[tauri::command]
+fn atur_tetap_menyala(state: tauri::State<'_, WakeLockState>, aktif: bool) -> Result<(), String> {
+    if !aktif {
+        lepas_wake_lock(&state);
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = state;
+        unsafe {
+            SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+        if let Some(child) = guard.as_mut() {
+            if matches!(child.try_wait(), Ok(None)) {
+                return Ok(());
+            }
+            *guard = None;
+        }
+        let child = std::process::Command::new("/usr/bin/caffeinate")
+            .args(["-d", "-i", "-w", &std::process::id().to_string()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        *guard = Some(child);
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = state;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn jumlah_monitor(window: tauri::WebviewWindow) -> usize {
+    window.available_monitors().map(|m| m.len()).unwrap_or(1)
+}
+
+#[tauri::command]
+fn buka_pengaturan_wifi(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if app.opener().open_url("ms-availablenetworks:", None::<&str>).is_ok() {
+            return Ok(());
+        }
+        return app
+            .opener()
+            .open_url("ms-settings:network-wifi", None::<&str>)
+            .map_err(|e| e.to_string());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if app
+            .opener()
+            .open_url("x-apple.systempreferences:com.apple.wifi-settings-extension", None::<&str>)
+            .is_ok()
+        {
+            return Ok(());
+        }
+        return app
+            .opener()
+            .open_url("x-apple.systempreferences:com.apple.preference.network", None::<&str>)
+            .map_err(|e| e.to_string());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = app;
+        Err("Pengaturan Wi-Fi otomatis belum didukung di sistem operasi ini.".to_string())
+    }
+}
+
 /// Menu default Tauri di macOS berisi "Quit" (Cmd+Q) yang menutup aplikasi tanpa PIN.
-/// Ganti dengan menu tanpa Quit/Close, tapi tetap sertakan Edit agar Cmd+C/V/Z di input jalan.
+/// Ganti dengan menu tanpa Quit/Close serta tanpa Cut/Copy/Paste, tetap sertakan Undo/Redo/Select All.
 #[cfg(all(target_os = "macos", not(debug_assertions)))]
 fn pasang_menu_macos(app: &tauri::AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
@@ -39,9 +151,6 @@ fn pasang_menu_macos(app: &tauri::AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::undo(app, None)?,
             &PredefinedMenuItem::redo(app, None)?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::cut(app, None)?,
-            &PredefinedMenuItem::copy(app, None)?,
-            &PredefinedMenuItem::paste(app, None)?,
             &PredefinedMenuItem::select_all(app, None)?,
         ],
     )?;
@@ -145,6 +254,7 @@ pub fn run() {
             .map_err(|e| e.to_string())?;
 
             app.manage(DbState(Mutex::new(conn)));
+            app.manage(WakeLockState(Mutex::new(None)));
 
             #[cfg(all(target_os = "macos", not(debug_assertions)))]
             pasang_menu_macos(app.handle())?;
@@ -155,6 +265,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
+            atur_tetap_menyala,
+            jumlah_monitor,
+            buka_pengaturan_wifi,
             media::unduh_media,
             media::hapus_media,
             pembaruan::pembaruan_tersedia,

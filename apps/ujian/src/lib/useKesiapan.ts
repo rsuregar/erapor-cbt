@@ -1,4 +1,5 @@
 import { menghalangi, periksa, type KeadaanTambahan } from '@/lib/kesiapan'
+import { jumlahMonitor } from '@/lib/native'
 import { penyimpanan } from '@/lib/penyimpanan'
 import type { InfoAplikasi, UjianRingkas } from '@erapor-cbt/exam-core'
 import { useEffect, useMemo, useState } from 'react'
@@ -47,6 +48,9 @@ export function useKesiapan(level: UjianRingkas['level_keamanan'] | undefined, a
             bacaBaterai()
             baterai?.addEventListener('levelchange', bacaBaterai)
             baterai?.addEventListener('chargingchange', bacaBaterai)
+
+            const monitor = await jumlahMonitor().catch(() => 1)
+            setTambahan((t) => ({ ...t, jumlahMonitor: monitor }))
         })()
 
         return () => {

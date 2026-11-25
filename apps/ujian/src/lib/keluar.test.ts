@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isShortcutPengawas, keluarAplikasi, keluarAplikasiTauri } from './native'
+import { bisaBukaPengaturanWifi, isShortcutPengawas, jumlahMonitor, keluarAplikasi, keluarAplikasiTauri, validasiPinPengawas } from './native'
 
 const tombol = (code: string, mod: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>>) => ({
     ctrlKey: false,
@@ -45,5 +45,32 @@ describe('Utilitas Keluar Aplikasi', () => {
 
         // @ts-expect-error cleanup
         delete globalThis.window
+    })
+
+    it('memvalidasi PIN pengawas dengan trim dan menolak PIN salah', () => {
+        expect(validasiPinPengawas('778899')).toBe(true)
+        expect(validasiPinPengawas(' alakhyar ')).toBe(true)
+        expect(validasiPinPengawas('salah')).toBe(false)
+        expect(validasiPinPengawas('')).toBe(false)
+    })
+
+    it('bisaBukaPengaturanWifi bernilai false di browser biasa dan true di Tauri', () => {
+        expect(bisaBukaPengaturanWifi()).toBe(false)
+        // @ts-expect-error mock tauri internals in node environment
+        globalThis.window = { __TAURI_INTERNALS__: {} }
+        expect(bisaBukaPengaturanWifi()).toBe(true)
+        // @ts-expect-error cleanup
+        delete globalThis.window
+    })
+
+    it('jumlahMonitor mendeteksi screen.isExtended di browser', async () => {
+        const asli = globalThis.screen
+        // @ts-expect-error mock screen in node environment
+        globalThis.screen = { isExtended: true }
+        expect(await jumlahMonitor()).toBe(2)
+        // @ts-expect-error mock screen in node environment
+        globalThis.screen = { isExtended: false }
+        expect(await jumlahMonitor()).toBe(1)
+        globalThis.screen = asli
     })
 })

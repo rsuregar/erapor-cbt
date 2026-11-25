@@ -4,7 +4,7 @@ import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
-import { isNative, isShortcutPengawas, isTauri, keluarAplikasi } from "@/lib/native";
+import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
 import { Capacitor } from "@capacitor/core";
@@ -23,6 +23,7 @@ import {
     Power,
     ShieldCheck,
     Sparkles,
+    Wifi,
     WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -66,6 +67,8 @@ export default function Masuk() {
     const [pinPengawas, setPinPengawas] = useState("");
     const [galatPin, setGalatPin] = useState<string | null>(null);
     const [prosesTutupApp, setProsesTutupApp] = useState(false);
+    const [membukaWifi, setMembukaWifi] = useState(false);
+    const [galatWifi, setGalatWifi] = useState(false);
     const klikAdminRef = useRef(0);
     const timerKlikRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -96,11 +99,21 @@ export default function Masuk() {
         }
     };
 
+    const bukaWifi = async () => {
+        setMembukaWifi(true);
+        setGalatWifi(false);
+        try {
+            await bukaPengaturanWifi({ pulihkanKiosk: true });
+        } catch {
+            setGalatWifi(true);
+        } finally {
+            setMembukaWifi(false);
+        }
+    };
+
     const tanganiTutupAppPengawas = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        const pinTarget = (import.meta.env.VITE_PIN_PENGAWAS as string | undefined) || "alakhyar";
-        const pinValid = pinPengawas.trim() === pinTarget || pinPengawas.trim() === "778899";
-        if (!pinValid) {
+        if (!validasiPinPengawas(pinPengawas)) {
             setGalatPin("PIN pengawas salah. Hubungi tim IT sekolah.");
             return;
         }
@@ -239,17 +252,37 @@ export default function Masuk() {
                         {!online && (
                             <div
                                 role="status"
-                                className="flex items-start gap-3 rounded-lg bg-amber-100 p-3.5 text-sm text-amber-900"
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-100 p-3.5 text-sm text-amber-900"
                             >
-                                <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-700" />
-                                <div className="space-y-0.5">
-                                    <p className="font-bold">
-                                        Perangkat sedang offline
-                                    </p>
-                                    <p className="leading-normal">
-                                        Sambungkan perangkat ke Wi-Fi atau data seluler untuk masuk ke akun CBT.
-                                    </p>
+                                <div className="flex flex-1 items-start gap-3">
+                                    <WifiOff className="mt-0.5 size-4 shrink-0 text-amber-700" />
+                                    <div className="space-y-0.5">
+                                        <p className="font-bold">
+                                            Perangkat sedang offline
+                                        </p>
+                                        <p className="leading-normal">
+                                            Sambungkan perangkat ke Wi-Fi atau data seluler untuk masuk ke akun CBT.
+                                        </p>
+                                        {galatWifi && (
+                                            <p className="pt-0.5 text-xs font-semibold text-coral-700">
+                                                Tidak bisa membuka pengaturan Wi-Fi.
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
+                                {isTauri() && (
+                                    <Tombol
+                                        type="button"
+                                        varian="outline"
+                                        ukuran="sm"
+                                        disabled={membukaWifi}
+                                        ikonKiri={<Wifi className="size-3.5" />}
+                                        className="shrink-0 bg-white/90"
+                                        onClick={() => void bukaWifi()}
+                                    >
+                                        {membukaWifi ? "Membuka…" : "Ganti Wi-Fi"}
+                                    </Tombol>
+                                )}
                             </div>
                         )}
 

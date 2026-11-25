@@ -76,17 +76,19 @@ body.ujian-berjalan {
  * (aksi salinnya sendiri sudah dibatalkan di useProteksiKonten). Kolom jawaban tetap bisa
  * diketik dan diseleksi: iOS Safari tidak mengizinkan mengetik bila user-select dimatikan.
  */
-body.ujian-berjalan #app {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
+body.ujian-berjalan,
+body.ujian-berjalan * {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
 }
 
-body.ujian-berjalan #app input,
+body.ujian-berjalan #app input:not([type='radio']):not([type='checkbox']),
 body.ujian-berjalan #app textarea,
 body.ujian-berjalan #app [contenteditable='true'] {
-    -webkit-user-select: text;
-    user-select: text;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    -webkit-touch-callout: none !important;
 }
 
 /* Story 7.5: layar ujian tidak bisa dicetak (Ctrl+P juga dicegat di useProteksiKonten). */

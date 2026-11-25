@@ -104,6 +104,62 @@ public class UjianNativePlugin extends Plugin {
         return o;
     }
 
+    @PluginMethod
+    public void bukaPengaturanWifi(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                try {
+                    getActivity().stopLockTask();
+                } catch (Exception ignored) {
+                    // Tidak sedang terkunci.
+                }
+                PackageManager pm = getContext().getPackageManager();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Intent panel = new Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY);
+                    if (panel.resolveActivity(pm) != null) {
+                        getActivity().startActivity(panel);
+                        JSObject o = new JSObject();
+                        o.put("mode", "panel");
+                        call.resolve(o);
+                        return;
+                    }
+                }
+                Intent wifi = new Intent(Settings.ACTION_WIFI_SETTINGS);
+                if (wifi.resolveActivity(pm) == null) {
+                    wifi = new Intent(Settings.ACTION_SETTINGS);
+                }
+                getActivity().startActivity(wifi);
+                JSObject o = new JSObject();
+                o.put("mode", "pengaturan");
+                call.resolve(o);
+            } catch (Exception e) {
+                call.reject("Gagal membuka pengaturan Wi-Fi: " + e.getMessage(), "WIFI_GAGAL");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void aturProteksiKonten(PluginCall call) {
+        boolean aktif = Boolean.TRUE.equals(call.getBoolean("aktif", false));
+        getActivity().runOnUiThread(() -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).setProteksiKontenAktif(aktif);
+            }
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void aturTetapMenyala(PluginCall call) {
+        boolean aktif = Boolean.TRUE.equals(call.getBoolean("aktif", false));
+        getActivity().runOnUiThread(() -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).setTetapMenyala(aktif);
+            }
+            call.resolve();
+        });
+    }
+
     // ——— Lokasi ——————————————————————————————————————————————————————
 
     @PluginMethod

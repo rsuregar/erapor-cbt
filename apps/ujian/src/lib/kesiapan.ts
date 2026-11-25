@@ -33,6 +33,8 @@ export type KeadaanTambahan = {
     /** Backend penyimpanan sesi ini (lib/penyimpanan.ts) — app native wajib SQLite. */
     penyimpanan?: StatusPenyimpanan
     baterai: { level: number; mengisi: boolean } | null
+    /** Jumlah layar terpasang (desktop) — > 1 memicu peringatan non-blocking. */
+    jumlahMonitor?: number
 }
 
 const MB = 1024 * 1024
@@ -150,6 +152,15 @@ export function periksa(level: UjianRingkas['level_keamanan'], t: KeadaanTambaha
                 ? { kunci: 'baterai', judul: 'Baterai', hasil: 'peringatan', keterangan: `Baterai ${persen}%. Isi daya atau sambungkan charger sebelum mulai.` }
                 : { kunci: 'baterai', judul: 'Baterai', hasil: 'lulus', keterangan: `Baterai ${persen}%${t.baterai.mengisi ? ' · sedang diisi' : ''}.` },
         )
+    }
+
+    if (jenis === 'desktop' && (t.jumlahMonitor ?? 1) > 1) {
+        daftar.push({
+            kunci: 'monitor',
+            judul: 'Layar tambahan',
+            hasil: 'peringatan',
+            keterangan: `Terdeteksi ${t.jumlahMonitor} layar tersambung. Lepas monitor atau proyektor tambahan sebelum ujian dimulai.`,
+        })
     }
 
     return daftar
