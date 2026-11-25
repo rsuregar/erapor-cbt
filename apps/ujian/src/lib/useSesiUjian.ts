@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { buatArsipDariSesi, simpanArsipJawaban } from '@/lib/arsipJawaban'
 import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { PenulisJawaban } from '@/lib/penulisJawaban'
@@ -43,6 +44,8 @@ export function useSesiUjian(attemptId: number) {
     const [alasanSelesai, setAlasanSelesai] = useState<AlasanSelesai | null>(null)
     /** Server menolak karena attempt ini sudah dipegang perangkat lain (akun dipakai bersama / pindah perangkat). */
     const [perangkatLain, setPerangkatLain] = useState(false)
+    /** Jumlah soal terjawab yang dikonfirmasi server saat kumpul berhasil. */
+    const [jumlahTerjawabServer, setJumlahTerjawabServer] = useState<number | null>(null)
 
     const outbox = useRef<Outbox>()
     const jam = useRef<JamServer>()
@@ -55,7 +58,25 @@ export function useSesiUjian(attemptId: number) {
     const statusRef = useRef<StatusUjian>('memuat')
     statusRef.current = status
     const sedangKumpul = useRef(false)
+    const ditolakRef = useRef<Record<string, AlasanDitolak | string>>({})
+    ditolakRef.current = ditolak
+    const batalKumpulRef = useRef(false)
+    const bangunTungguRef = useRef<(() => void) | null>(null)
     const kumpulRef = useRef<() => Promise<void>>(async () => {})
+
+    const tungguDenganBangun = useCallback((ms: number) => {
+        return new Promise<void>((resolve) => {
+            const timer = setTimeout(() => {
+                bangunTungguRef.current = null
+                resolve()
+            }, ms)
+            bangunTungguRef.current = () => {
+                clearTimeout(timer)
+                bangunTungguRef.current = null
+                resolve()
+            }
+        })
+    }, [])
 
     const msSejakMulai = useCallback(() => {
         if (!jam.current || !data) return undefined
@@ -108,12 +129,11 @@ export function useSesiUjian(attemptId: number) {
                     if (r.pesan_pengawas && r.pesan_pada) setPesan({ teks: r.pesan_pengawas, pada: r.pesan_pada })
                     const tolak = r.ditolak ?? []
                     if (tolak.length > 0 || Object.keys(r.diakui).length > 0) {
-                        setDitolak((d) => {
-                            const baru = { ...d }
-                            for (const id of Object.keys(r.diakui)) delete baru[id]
-                            for (const t of tolak) baru[String(t.soal_id)] = t.alasan
-                            return baru
-                        })
+                        const baru = { ...ditolakRef.current }
+                        for (const id of Object.keys(r.diakui)) delete baru[id]
+                        for (const t of tolak) baru[String(t.soal_id)] = t.alasan
+                        ditolakRef.current = baru
+                        setDitolak(baru)
                     }
                     // Diakhiri pengawas / waktu habis: server masih menerima jawaban offline yang
                     // dibuat sebelumnya, jadi kirim habis antrean dulu baru bersihkan data lokal.
@@ -165,7 +185,10 @@ export function useSesiUjian(attemptId: number) {
             }
         })()
 
-        const segarkan = () => void penyinkron.current?.kirim()
+        const segarkan = () => {
+            bangunTungguRef.current?.()
+            void penyinkron.current?.kirim()
+        }
         // App ke latar / halaman ditutup: OS bisa mematikan app kapan saja, jadi ketikan yang
         // masih ditunda ditulis sekarang dan dikirim selagi bisa.
         const amankan = () => void penulis.current?.tulisSemua().then(segarkan)
@@ -176,6 +199,8 @@ export function useSesiUjian(attemptId: number) {
 
         return () => {
             batal = true
+            batalKumpulRef.current = true
+            bangunTungguRef.current?.()
             // Layar ujian ditutup: tulis yang tertunda dulu, baru sinkron dihentikan.
             void penulis.current?.henti()
             penyinkron.current?.henti()
@@ -225,7 +250,23 @@ export function useSesiUjian(attemptId: number) {
         penyinkron.current?.henti()
         penulis.current?.buang()
         await lepasKunciLayar()
-        const ujianId = data?.sesi.ujian.id ?? (await muatUjian(attemptId).catch(() => null))?.sesi.ujian.id
+        const muatLokal = data ? null : await muatUjian(attemptId).catch(() => null)
+        const sesiArsip = data?.sesi ?? muatLokal?.sesi
+        const soalArsip = data?.isi.soal ?? muatLokal?.isi.soal
+        const jawabanArsip =
+            (await outbox.current?.jawaban().catch(() => undefined)) ??
+            (await new Outbox(penyimpanan, attemptId).jawaban().catch(() => undefined))
+        if (sesiArsip && soalArsip && jawabanArsip) {
+            await simpanArsipJawaban(
+                buatArsipDariSesi({
+                    sesi: sesiArsip,
+                    soal: soalArsip,
+                    jawaban: jawabanArsip,
+                    ditolak: ditolakRef.current,
+                }),
+            ).catch(() => undefined)
+        }
+        const ujianId = sesiArsip?.ujian.id
         if (ujianId) await bersihkan(attemptId, ujianId)
         setStatus('selesai')
     }, [attemptId, data])
@@ -245,8 +286,15 @@ export function useSesiUjian(attemptId: number) {
      * "menunggu sinkron" (tersimpan, bertahan muat ulang) dan coba terus.
      */
     const kumpul = useCallback(async () => {
-        if (!outbox.current || !penyinkron.current || sedangKumpul.current) return
+        if (!outbox.current || !penyinkron.current) return
+        if (sedangKumpul.current) {
+            setStatus('mengumpulkan')
+            bangunTungguRef.current?.()
+
+            return
+        }
         sedangKumpul.current = true
+        batalKumpulRef.current = false
         try {
             setGalatKumpul(null)
             setStatus('mengumpulkan')
@@ -261,10 +309,15 @@ export function useSesiUjian(attemptId: number) {
             const ms = msSejakMulai()
 
             for (;;) {
+                const sudahSelesai = () => statusRef.current === 'selesai'
+                if (batalKumpulRef.current || sudahSelesai()) return
+                setStatus('mengumpulkan')
                 await penyinkron.current.kirim()
+                if (batalKumpulRef.current || sudahSelesai()) return
                 if ((await outbox.current.jumlahTertunda()) === 0) {
                     try {
                         const hasil = await api.kumpul(attemptId, ms)
+                        if (typeof hasil.jumlah_terjawab === 'number') setJumlahTerjawabServer(hasil.jumlah_terjawab)
                         setAlasanSelesai(hasil.alasan_selesai ?? null)
                         await selesai()
 
@@ -302,13 +355,15 @@ export function useSesiUjian(attemptId: number) {
                         }
                     }
                 }
+                if (batalKumpulRef.current || sudahSelesai()) return
                 setStatus('menunggu_sinkron')
-                await new Promise((r) => setTimeout(r, 5000))
+                await tungguDenganBangun(5000)
+                if (batalKumpulRef.current || sudahSelesai()) return
             }
         } finally {
             sedangKumpul.current = false
         }
-    }, [attemptId, msSejakMulai, selesai])
+    }, [attemptId, msSejakMulai, selesai, tungguDenganBangun])
 
     kumpulRef.current = kumpul
 
@@ -331,11 +386,14 @@ export function useSesiUjian(attemptId: number) {
         ditolak,
         alasanSelesai,
         perangkatLain,
+        jumlahTerjawabServer,
         jam: jam.current,
         msSejakMulai,
         jawab,
         kumpul,
         batalKumpul: async () => {
+            batalKumpulRef.current = true
+            bangunTungguRef.current?.()
             await penyimpanan.hapus(`attempt:${attemptId}:kumpul`)
             setStatus('mengerjakan')
         },

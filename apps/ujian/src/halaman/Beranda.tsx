@@ -5,8 +5,10 @@ import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
+import { bersihkanArsipKadaluarsa, daftarArsipJawaban, type ArsipJawaban } from '@/lib/arsipJawaban'
 import { isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas } from '@/lib/native'
 import { sesi } from '@/lib/sesi'
+import { daftarOutboxTertunda, sinkronSemuaTertunda, type HasilSinkronItem, type OutboxTertunda } from '@/lib/sinkronLokal'
 import { durasiTenang, hariTanggal, jamMenit, tanggalGanda, tanggalKunciWita } from '@/lib/tanggal'
 import { daftarUjian } from '@/lib/ujian'
 import { useOnline } from '@/lib/useOnline'
@@ -16,13 +18,18 @@ import type { UjianRingkas } from '@erapor-cbt/exam-core'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
+    AlertTriangle,
     ArrowRight,
     BookOpenCheck,
     CalendarClock,
+    CheckCircle2,
     ChevronRight,
     Clock,
+    CloudOff,
+    FileCheck2,
     Info,
     ListChecks,
+    Loader2,
     Lock,
     LogOut,
     MapPin,
@@ -34,7 +41,7 @@ import {
     Trophy,
     X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { LencanaStaging } from '@/komponen/PenandaStaging'
 
 const STATUS: Record<UjianRingkas['status'], [string, NadaLencana]> = {
@@ -83,6 +90,11 @@ export default function Beranda() {
     const [pinPengawas, setPinPengawas] = useState('')
     const [galatPin, setGalatPin] = useState<string | null>(null)
     const [prosesTutupApp, setProsesTutupApp] = useState(false)
+    const [outboxTertunda, setOutboxTertunda] = useState<OutboxTertunda[]>([])
+    const [arsipByAttempt, setArsipByAttempt] = useState<Map<number, ArsipJawaban>>(() => new Map())
+    const [sedangSinkronLokal, setSedangSinkronLokal] = useState(false)
+    const [hasilSinkronLokal, setHasilSinkronLokal] = useState<HasilSinkronItem[] | null>(null)
+    const sinkronBerjalanRef = useRef(false)
 
     // networkMode always: offline tetap menjalankan queryFn, yang jatuh ke salinan lokal
     // staleTime 60_000: data dianggap segar selama 1 menit, tidak refetch saat berpindah ke/dari dashboard
@@ -95,14 +107,52 @@ export default function Beranda() {
         networkMode: 'always',
     })
 
+    const refetchUjianRef = useRef(ujian.refetch)
+    refetchUjianRef.current = ujian.refetch
+
+    const muatArsipLokal = useCallback(async () => {
+        await bersihkanArsipKadaluarsa().catch(() => undefined)
+        const arsip = await daftarArsipJawaban().catch(() => [])
+        setArsipByAttempt(new Map(arsip.map((a) => [a.attemptId, a])))
+    }, [])
+
+    const jalankanSinkronLokal = useCallback(async () => {
+        const daftar = await daftarOutboxTertunda()
+        setOutboxTertunda(daftar)
+        if (daftar.length === 0 || (typeof navigator !== 'undefined' && !navigator.onLine) || sinkronBerjalanRef.current) {
+            return
+        }
+        sinkronBerjalanRef.current = true
+        setSedangSinkronLokal(true)
+        try {
+            const hasil = await sinkronSemuaTertunda()
+            setHasilSinkronLokal(hasil)
+            const sisa = await daftarOutboxTertunda()
+            setOutboxTertunda(sisa)
+            await muatArsipLokal()
+            if (hasil.some((h) => h.terkirim > 0 || h.status === 'terkirim' || h.status === 'sebagian_ditolak')) {
+                void refetchUjianRef.current()
+            }
+        } finally {
+            sinkronBerjalanRef.current = false
+            setSedangSinkronLokal(false)
+        }
+    }, [muatArsipLokal])
+
+    useEffect(() => {
+        void muatArsipLokal()
+        void jalankanSinkronLokal()
+    }, [muatArsipLokal, jalankanSinkronLokal])
+
     // Tersambung lagi: segarkan daftar HANYA saat transisi dari offline ke online (bukan tiap render/mount)
     const prevOnlineRef = useRef(online)
     useEffect(() => {
         if (!prevOnlineRef.current && online) {
             void ujian.refetch()
+            void jalankanSinkronLokal()
         }
         prevOnlineRef.current = online
-    }, [online, ujian])
+    }, [online, ujian, jalankanSinkronLokal])
 
     // Hitung mundur realtime setiap 1 detik
     const [sekarang, setSekarang] = useState(Date.now())
@@ -139,6 +189,12 @@ export default function Beranda() {
     const nisn = murid?.nisn ?? sesi.nisn()
     const foto = murid?.foto ?? sesi.foto()
     const sekolah = murid?.sekolah ?? sesi.sekolah()
+    const tertundaByUjian = new Map(outboxTertunda.map((o) => [o.ujianId, o]))
+    const totalJawabanTertunda = outboxTertunda.reduce((n, o) => n + o.jumlahTertunda, 0)
+    const hasilDitolak = (hasilSinkronLokal ?? []).filter((h) => h.ditolak.length > 0)
+    const hasilPerangkatLain = (hasilSinkronLokal ?? []).filter((h) => h.status === 'perangkat_lain')
+    const totalTerkirimBeranda = (hasilSinkronLokal ?? []).reduce((n, h) => n + h.terkirim, 0)
+    const adaTerkirimSelesai = (hasilSinkronLokal ?? []).some((h) => h.status === 'terkirim')
 
     // Sinkronkan data profil terbaru dari API ke sesi penyimpanan lokal
     useEffect(() => {
@@ -309,6 +365,104 @@ export default function Beranda() {
                     </SpanduOffline>
                 )}
 
+                {outboxTertunda.length > 0 && (
+                    <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-950 shadow-xs space-y-2">
+                        <div className="flex items-start gap-2.5">
+                            <CloudOff className="mt-0.5 size-5 shrink-0 text-amber-700" />
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <p className="font-bold">
+                                    {totalJawabanTertunda > 0
+                                        ? `Ada ${totalJawabanTertunda} jawaban offline belum terkirim ke server`
+                                        : 'Ada pengumpulan ujian offline yang menunggu dikirim'}
+                                </p>
+                                <p className="text-xs text-amber-900">
+                                    Ujian: {outboxTertunda.map((o) => o.namaUjian).join(', ')}. Jangan hapus data aplikasi sebelum semua terkirim.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pl-7">
+                            <Tombol
+                                ukuran="sm"
+                                disabled={!online || sedangSinkronLokal}
+                                onClick={() => void jalankanSinkronLokal()}
+                                ikonKiri={sedangSinkronLokal ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                            >
+                                {sedangSinkronLokal ? 'Mengirim…' : online ? 'Kirim Sekarang' : 'Menunggu Internet'}
+                            </Tombol>
+                            {outboxTertunda.length === 1 && (
+                                <Link
+                                    to="/kerjakan/$attemptId"
+                                    params={{ attemptId: outboxTertunda[0].attemptId }}
+                                    className="inline-flex min-h-9 items-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 hover:bg-amber-100/60"
+                                >
+                                    Buka Layar Pengumpulan
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {outboxTertunda.length === 0 && hasilDitolak.length > 0 && (
+                    <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-sm text-coral-800 shadow-xs">
+                        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-coral-600" />
+                        <div className="min-w-0 flex-1 space-y-1">
+                            <p className="font-bold">Sebagian jawaban offline ditolak server</p>
+                            {hasilDitolak.map((h) => (
+                                <p key={h.attemptId} className="text-xs">
+                                    <b>{h.namaUjian}</b>: {h.ditolak.length} jawaban tidak diterima ({[...new Set(h.ditolak.map((d) => d.alasan))].join(', ')}). Segera lapor pengawas.
+                                </p>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Tutup pemberitahuan jawaban ditolak"
+                            onClick={() => setHasilSinkronLokal(null)}
+                            className="-m-1 inline-flex size-8 items-center justify-center rounded-md text-coral-600 hover:bg-coral-100"
+                        >
+                            <X className="size-4" />
+                        </button>
+                    </div>
+                )}
+
+                {outboxTertunda.length === 0 && hasilDitolak.length === 0 && hasilPerangkatLain.length > 0 && (
+                    <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-coral-200 bg-coral-50 p-3.5 text-sm text-coral-800 shadow-xs">
+                        <Lock className="mt-0.5 size-5 shrink-0 text-coral-600" />
+                        <div className="min-w-0 flex-1 text-xs space-y-1">
+                            <p className="text-sm font-bold">Ujian dibuka di perangkat lain</p>
+                            <p>
+                                Jawaban offline untuk {hasilPerangkatLain.map((h) => h.namaUjian).join(', ')} tidak dapat dikirim karena sesi diambil perangkat lain. Hubungi pengawas.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Tutup pemberitahuan"
+                            onClick={() => setHasilSinkronLokal(null)}
+                            className="-m-1 inline-flex size-8 items-center justify-center rounded-md text-coral-600 hover:bg-coral-100"
+                        >
+                            <X className="size-4" />
+                        </button>
+                    </div>
+                )}
+
+                {outboxTertunda.length === 0 && hasilDitolak.length === 0 && hasilPerangkatLain.length === 0 && (totalTerkirimBeranda > 0 || adaTerkirimSelesai) && (
+                    <div role="status" className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 shadow-xs">
+                        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                        <p className="min-w-0 flex-1 font-semibold">
+                            {totalTerkirimBeranda > 0
+                                ? `${totalTerkirimBeranda} jawaban offline berhasil dikirim ke server.`
+                                : 'Pengumpulan ujian offline berhasil dikirim ke server.'}
+                        </p>
+                        <button
+                            type="button"
+                            aria-label="Tutup pemberitahuan"
+                            onClick={() => setHasilSinkronLokal(null)}
+                            className="-m-1 inline-flex size-8 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-100"
+                        >
+                            <X className="size-4" />
+                        </button>
+                    </div>
+                )}
+
                 {/* Full-width Balanced Filter Tabs Navigation */}
                 <div role="tablist" aria-label="Saring ujian" className="grid grid-cols-4 gap-1 rounded-lg bg-white p-1 shadow-sm border border-slate-200/80">
                     {[
@@ -370,6 +524,8 @@ export default function Beranda() {
                                 ujian={u}
                                 sekarang={sekarang}
                                 riwayat={tabAktif === 'Riwayat' || u.status === 'selesai'}
+                                tertundaLokal={tertundaByUjian.get(u.id)}
+                                arsipLokal={u.attempt_id ? arsipByAttempt.get(u.attempt_id) : undefined}
                                 onInfoEligible={setUjianInfoEligible}
                             />
                         ))}
@@ -764,11 +920,15 @@ function KartuUjian({
     ujian: u,
     sekarang,
     riwayat,
+    tertundaLokal,
+    arsipLokal,
     onInfoEligible,
 }: {
     ujian: UjianRingkas
     sekarang: number
     riwayat: boolean
+    tertundaLokal?: OutboxTertunda
+    arsipLokal?: ArsipJawaban
     onInfoEligible?: (u: UjianRingkas) => void
 }) {
     const [label, nada] = STATUS[u.status]
@@ -819,6 +979,16 @@ function KartuUjian({
                         <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">
                             <Lock className="size-3" />
                             <span>Ketat</span>
+                        </span>
+                    )}
+                    {tertundaLokal && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-xs font-bold text-amber-800">
+                            <CloudOff className="size-3" />
+                            <span>
+                                {tertundaLokal.jumlahTertunda > 0
+                                    ? `${tertundaLokal.jumlahTertunda} jawaban belum terkirim`
+                                    : 'Menunggu pengumpulan'}
+                            </span>
                         </span>
                     )}
                 </div>
@@ -896,7 +1066,20 @@ function KartuUjian({
                         )
                     )}
                     {!tidakEligible && (riwayat || u.status === 'selesai') && (
-                        <span className="text-slate-600">Ujian sudah dikumpulkan</span>
+                        (() => {
+                            const jmlServer = u.jumlah_terjawab_server
+                            const jmlClient = arsipLokal?.jumlahTerjawab
+                            const beda = jmlServer !== undefined && jmlServer !== null && jmlClient !== undefined && jmlServer !== jmlClient
+                            const rincian: string[] = []
+                            if (jmlServer !== undefined && jmlServer !== null) rincian.push(`Server: ${jmlServer}/${u.jumlah_soal}`)
+                            if (jmlClient !== undefined) rincian.push(`Perangkat: ${jmlClient}/${arsipLokal!.totalSoal}`)
+
+                            return (
+                                <span className={cn('text-slate-600', beda && 'font-semibold text-amber-800')}>
+                                    {rincian.length > 0 ? rincian.join(' · ') : 'Ujian sudah dikumpulkan'}
+                                </span>
+                            )
+                        })()
                     )}
                 </div>
 
@@ -912,6 +1095,17 @@ function KartuUjian({
                         </Link>
                     )}
 
+                    {u.status === 'selesai' && u.attempt_id && !tertundaLokal && !tidakEligible && (
+                        <Link
+                            to="/jawaban/$attemptId"
+                            params={{ attemptId: u.attempt_id }}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95"
+                        >
+                            <FileCheck2 className="size-4 text-primary" />
+                            <span>Bukti Jawaban</span>
+                        </Link>
+                    )}
+
                     {tidakEligible ? (
                         <button
                             type="button"
@@ -922,6 +1116,15 @@ function KartuUjian({
                             <Info className="size-4 shrink-0 text-rose-700" />
                             <span>Info Syarat Ujian</span>
                         </button>
+                    ) : tertundaLokal ? (
+                        <Link
+                            to="/kerjakan/$attemptId"
+                            params={{ attemptId: tertundaLokal.attemptId }}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-amber-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-amber-700 transition active:scale-95"
+                        >
+                            <span>Kirim Jawaban</span>
+                            <ArrowRight className="size-4 opacity-90" />
+                        </Link>
                     ) : (
                         !riwayat && u.status !== 'selesai' && (
                             <Link

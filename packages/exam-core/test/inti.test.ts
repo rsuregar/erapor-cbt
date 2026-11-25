@@ -255,5 +255,44 @@ describe('KlienApi', () => {
         const formData = initPelanggaran.body as FormData
         expect(formData.get('perangkat_id')).toBe('device-uuid-123')
     })
+
+    it('menolak respons 200 OK non-JSON (captive portal Wi-Fi) sebagai galat JARINGAN sementara', async () => {
+        const fetch = vi.fn(async () => new Response('<html><body>Login Wi-Fi</body></html>', { status: 200, headers: { 'Content-Type': 'text/html' } }))
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', fetch })
+        await expect(api.kumpul(10, 1000)).rejects.toMatchObject({ kode: 'JARINGAN', status: 0, sementara: true })
+    })
+
+    it('kirim() bersamaan menunggu kiriman yang sedang berjalan dan mengembalikan responsnya', async () => {
+        const o = new Outbox(new PenyimpananMemori(), 7)
+        await o.catat(501, 'o2', false)
+        const respOk: SinkronRespons = {
+            diakui: { 501: 1 },
+            waktu_server: '2026-10-20T07:31:00+08:00',
+            berakhir_pada: '2026-10-20T09:00:00+08:00',
+            status: 'mengerjakan',
+            pesan_pengawas: null,
+            pesan_pada: null,
+        }
+
+        const tunda = Promise.withResolvers<Response>()
+        let panggilan = 0
+        const fetch = vi.fn(() => {
+            panggilan++
+            if (panggilan === 1) return tunda.promise
+            return Promise.resolve(new Response(JSON.stringify(respOk), { status: 200 }))
+        })
+        const api = new KlienApi({ baseUrl: '/api', ambilToken: () => 't', fetch })
+        const p = new Penyinkron({ api, outbox: o, attemptId: 7, jam: new JamServer('2026-10-20T07:30:00+08:00') })
+
+        const p1 = p.kirim()
+        const p2 = p.kirim()
+        await vi.waitFor(() => expect(panggilan).toBe(1))
+
+        tunda.resolve(new Response(JSON.stringify(respOk), { status: 200 }))
+        const [r1, r2] = await Promise.all([p1, p2])
+        expect(r1?.diakui).toEqual({ 501: 1 })
+        expect(r2).toEqual(r1)
+        p.henti()
+    })
 })
 

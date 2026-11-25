@@ -53,6 +53,8 @@ export type UjianRingkas = {
     attempt_id: number | null
     bisa_unduh: boolean
     hasil_tersedia: boolean
+    /** Jumlah soal yang sudah tercatat terjawab di server (diisi bila tersedia dari API). */
+    jumlah_terjawab_server?: number | null
 }
 
 /** Versi app native (kontrak § Versi aplikasi). null = tidak dicek / belum ada. */
@@ -189,6 +191,30 @@ export type EntriPelanggaran = {
 }
 
 export type PelanggaranRespons = { status: 'mengerjakan' | 'terkunci'; jumlah_dihitung: number; ambang: number }
+
+/** Satu baris bukti jawaban yang tersimpan di server (tanpa soal/kunci/nilai). */
+export type ButirJawabanServer = {
+    nomor: number
+    soal_id: number
+    jenis: JenisSoal | string
+    terjawab: boolean
+    ragu: boolean
+    ringkasan: string | null
+    diperbarui_pada: string | null
+}
+
+/** GET /attempt/{attempt}/jawaban */
+export type DaftarJawabanServerRespons = {
+    attempt_id: number
+    status: StatusPengerjaan
+    dikumpulkan_pada: string | null
+    kumpul_otomatis: boolean
+    alasan_selesai: AlasanSelesai | null
+    ujian: { id: number; nama: string; mapel: string | null }
+    total_soal: number
+    jumlah_terjawab: number
+    butir: ButirJawabanServer[]
+}
 
 /** GET /attempt/{attempt}/hasil */
 export type HasilRespons = {
