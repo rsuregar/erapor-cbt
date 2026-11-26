@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core'
  * Cek pembaruan app dari GitHub Releases (repo rilis PUBLIK, bukan repo kode).
  *
  * Tag rilis (dibuat CI, lihat docs/panduan-build-dan-cicd.md):
+ *   vX.Y.Z / release-all-X.Y.Z / release-universal-X.Y.Z → Semua platform
  *   release-desktop-X.Y.Z  → Windows + macOS
  *   release-win-X.Y.Z / release-macos-X.Y.Z
  *   release-mobile-X.Y.Z   → Android + iOS
@@ -50,16 +51,16 @@ export const TTL_CEK_PEMBARUAN_MS = 60 * 60 * 1000
 const KUNCI_CACHE = STAGING ? 'cbt:cek-pembaruan:staging' : 'cbt:cek-pembaruan'
 
 const JENIS_TAG: Record<PlatformRilis, string[]> = {
-    windows: ['desktop', 'win'],
-    macos: ['desktop', 'macos'],
-    android: ['mobile', 'android'],
-    ios: ['mobile', 'ios'],
+    windows: ['all', 'universal', 'desktop', 'win'],
+    macos: ['all', 'universal', 'desktop', 'macos'],
+    android: ['all', 'universal', 'mobile', 'android'],
+    ios: ['all', 'universal', 'mobile', 'ios'],
 }
 
 /** Urutan = prioritas pemasang bila rilis memuat lebih dari satu berkas. */
 const BERKAS: Record<PlatformRilis, RegExp[]> = {
     windows: [/\.exe$/i, /\.msi$/i],
-    macos: [/\.dmg$/i],
+    macos: [/arm64\.dmg$/i, /universal\.dmg$/i, /\.dmg$/i],
     android: [/\.apk$/i],
     ios: [/\.xcarchive\.zip$/i],
 }
@@ -70,7 +71,8 @@ const MANIFES: Partial<Record<PlatformRilis, RegExp>> = {
     macos: /macos.*-updater\.json$/i,
 }
 
-const POLA_TAG = /^release-(desktop|win|macos|mobile|android|ios)-v?(\d+(?:\.\d+){0,2})(?:-.+)?$/
+const POLA_SEMVER_TAG = /^v(\d+(?:\.\d+){0,2})(?:-.+)?$/
+const POLA_RELEASE_TAG = /^release-(?:(all|universal|desktop|win|macos|mobile|android|ios)-)?v?(\d+(?:\.\d+){0,2})(?:-.+)?$/
 /** Satu tag staging memuat berkas semua platform yang dibuild pada nomor build itu. */
 const POLA_STAGING = /^staging-(\d+\.\d+\.\d+)-b(\d+)$/
 
@@ -139,6 +141,17 @@ function normalkan(versi: string): string {
     return bagian.join('.')
 }
 
+function uraiTagProduksi(tag: string): { jenis: string; versi: string } | null {
+    const t = tag.trim()
+    const mSemver = POLA_SEMVER_TAG.exec(t)
+    if (mSemver) return { jenis: 'all', versi: normalkan(mSemver[1]) }
+
+    const mRelease = POLA_RELEASE_TAG.exec(t)
+    if (mRelease) return { jenis: mRelease[1] || 'all', versi: normalkan(mRelease[2]) }
+
+    return null
+}
+
 /**
  * Rilis terbaru (menurut nomor versi pada tag, bukan tanggal) yang memuat berkas
  * pemasang untuk `platform`, bila lebih baru dari `versiApp`. Draft dan pra-rilis
@@ -156,9 +169,9 @@ export function pilihPembaruan(
 
     for (const r of rilis) {
         if (r.draft || r.prerelease) continue
-        const m = POLA_TAG.exec(r.tag_name)
-        if (!m || !JENIS_TAG[platform].includes(m[1])) continue
-        const versi = normalkan(m[2])
+        const u = uraiTagProduksi(r.tag_name)
+        if (!u || !JENIS_TAG[platform].includes(u.jenis)) continue
+        const versi = u.versi
         if (terbaik && (bandingkanVersi(versi, terbaik.versi) ?? 0) <= 0) continue
 
         const aset = asetPlatform(r, platform)
@@ -226,21 +239,44 @@ export function pilihUnduhan(rilis: RilisGithub[], saluran: Saluran = { staging:
     }
 
     // Ekstrak rilis macOS Intel (x64) bila tersedia berdampingan dengan Apple Silicon
+    let terbaikIntel: (UnduhanPlatform & { build?: number; dasar?: string }) | null = null
     for (const r of rilis) {
-        if (r.draft || (r.prerelease !== saluran.staging)) continue
-        if (!r.tag_name.startsWith('release-desktop-') && !r.tag_name.startsWith('release-macos-')) continue
+        if (r.draft) continue
         const asetIntel = r.assets?.find((a) => /x64\.dmg$/i.test(a.name) || /x86_64\.dmg$/i.test(a.name))
-        if (asetIntel) {
-            const m = r.tag_name.match(/(\d+\.\d+\.\d+)/)
-            const v = m ? m[1] : '0.0.0'
-            hasil.macos_intel = {
-                versi: v,
+        if (!asetIntel) continue
+
+        if (saluran.staging) {
+            const m = POLA_STAGING.exec(r.tag_name)
+            if (!m) continue
+            const [dasar, build] = [m[1], Number(m[2])]
+            const banding = terbaikIntel ? (bandingkanVersi(dasar, terbaikIntel.dasar!) ?? 0) : 1
+            if (terbaikIntel && !(banding > 0 || (banding === 0 && build > (terbaikIntel.build ?? 0)))) continue
+            terbaikIntel = {
+                versi: `${dasar}-b${build}`,
                 unduh: asetIntel.browser_download_url,
                 halaman: r.html_url,
                 ...(asetIntel.size ? { ukuran: asetIntel.size } : {}),
+                dasar,
+                build,
             }
-            break
+            continue
         }
+
+        if (r.prerelease) continue
+        const u = uraiTagProduksi(r.tag_name)
+        if (!u || !JENIS_TAG.macos.includes(u.jenis)) continue
+        if (terbaikIntel && (bandingkanVersi(u.versi, terbaikIntel.versi) ?? 0) <= 0) continue
+
+        terbaikIntel = {
+            versi: u.versi,
+            unduh: asetIntel.browser_download_url,
+            halaman: r.html_url,
+            ...(asetIntel.size ? { ukuran: asetIntel.size } : {}),
+        }
+    }
+    if (terbaikIntel) {
+        const { build: _build, dasar: _dasar, ...intel } = terbaikIntel
+        hasil.macos_intel = intel
     }
 
     return hasil

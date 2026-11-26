@@ -51,14 +51,52 @@ describe('pilihPembaruan', () => {
         expect(pilihPembaruan(r, 'macos', '1.1.0')).toBeNull()
     })
 
-    it('melewati draft, pra-rilis, dan tag di luar skema release-*', () => {
+    it('melewati draft, pra-rilis, dan tag di luar skema rilis', () => {
         const r = [
             rilis('release-desktop-9.0.0', ['x.dmg'], { draft: true }),
             rilis('release-desktop-8.0.0-staging', ['x.dmg'], { prerelease: true }),
-            rilis('v7.0.0', ['x.dmg']),
+            rilis('beta-7.0.0', ['x.dmg']),
+            rilis('7.0.0', ['x.dmg']),
             rilis('macos-6.0.0', ['x.dmg']),
         ]
         expect(pilihPembaruan(r, 'macos', '1.0.0')).toBeNull()
+    })
+
+    it('mengenali tag gabungan vX.Y.Z untuk Windows, macOS (prioritas arm64), dan Android beserta manifes', () => {
+        const aset0101 = [
+            'cbt-al-akhyar-android-v0.10.1-b8-release.apk',
+            'cbt-al-akhyar-macos-v0.10.1-b8-x64.dmg',
+            'cbt-al-akhyar-macos-v0.10.1-b8-arm64.dmg',
+            'cbt-al-akhyar-macos-v0.10.1-b8-updater.json',
+            'cbt-al-akhyar-windows-v0.10.1-b8-x64-setup.exe',
+            'cbt-al-akhyar-windows-v0.10.1-b8-updater.json',
+        ]
+        const aset090 = [
+            'cbt-al-akhyar-android-v0.9.0-b6-release.apk',
+            'cbt-al-akhyar-macos-v0.9.0-b6-arm64.dmg',
+            'cbt-al-akhyar-windows-v0.9.0-b6-x64-setup.exe',
+        ]
+        const daftar = [rilis('v0.9.0', aset090), rilis('v0.10.1', aset0101), rilis('v0.10.0', aset090)]
+
+        const win = pilihPembaruan(daftar, 'windows', '0.9.0')
+        expect(win?.versi).toBe('0.10.1')
+        expect(win?.tag).toBe('v0.10.1')
+        expect(win?.manifes).toBe('https://dl/v0.10.1/cbt-al-akhyar-windows-v0.10.1-b8-updater.json')
+
+        const mac = pilihPembaruan(daftar, 'macos', '0.9.0')
+        expect(mac?.versi).toBe('0.10.1')
+        expect(mac?.unduh).toBe('https://dl/v0.10.1/cbt-al-akhyar-macos-v0.10.1-b8-arm64.dmg')
+        expect(mac?.manifes).toBe('https://dl/v0.10.1/cbt-al-akhyar-macos-v0.10.1-b8-updater.json')
+
+        const android = pilihPembaruan(daftar, 'android', '0.7.0')
+        expect(android?.versi).toBe('0.10.1')
+        expect(android?.unduh).toBe('https://dl/v0.10.1/cbt-al-akhyar-android-v0.10.1-b8-release.apk')
+    })
+
+    it('mengenali tag release-all-X.Y.Z, release-universal-X.Y.Z, dan release-X.Y.Z', () => {
+        expect(pilihPembaruan([rilis('release-all-1.2.0', ['a.apk'])], 'android', '1.0.0')?.versi).toBe('1.2.0')
+        expect(pilihPembaruan([rilis('release-universal-1.2.0', ['a.exe'])], 'windows', '1.0.0')?.versi).toBe('1.2.0')
+        expect(pilihPembaruan([rilis('release-1.2.0', ['a.dmg'])], 'macos', '1.0.0')?.versi).toBe('1.2.0')
     })
 
     it('Windows memilih .exe NSIS dulu, .msi bila exe tidak ada', () => {
@@ -150,5 +188,28 @@ describe('pilihUnduhan', () => {
     it('saluran staging memakai tag staging terbaru', () => {
         const hasil = pilihUnduhan([rilis('staging-0.4.0-b2', ['s.apk'], { prerelease: true }), rilis('release-android-0.5.0', ['a.apk'])], { staging: true, buildApp: 0 })
         expect(hasil.android?.versi).toBe('0.4.0-b2')
+    })
+
+    it('memilih versi tertinggi untuk tag vX.Y.Z termasuk macos (arm64) dan macos_intel (x64) meski urutan terbalik', () => {
+        const hasil = pilihUnduhan([
+            rilis('v0.9.0', [
+                'cbt-al-akhyar-windows-v0.9.0-b6-x64-setup.exe',
+                'cbt-al-akhyar-macos-v0.9.0-b6-arm64.dmg',
+                'cbt-al-akhyar-macos-v0.9.0-b6-x64.dmg',
+                'cbt-al-akhyar-android-v0.9.0-b6-release.apk',
+            ]),
+            rilis('v0.10.1', [
+                'cbt-al-akhyar-windows-v0.10.1-b8-x64-setup.exe',
+                'cbt-al-akhyar-macos-v0.10.1-b8-x64.dmg',
+                'cbt-al-akhyar-macos-v0.10.1-b8-arm64.dmg',
+                'cbt-al-akhyar-android-v0.10.1-b8-release.apk',
+            ]),
+        ])
+        expect(hasil.windows?.versi).toBe('0.10.1')
+        expect(hasil.macos?.versi).toBe('0.10.1')
+        expect(hasil.macos?.unduh).toBe('https://dl/v0.10.1/cbt-al-akhyar-macos-v0.10.1-b8-arm64.dmg')
+        expect(hasil.macos_intel?.versi).toBe('0.10.1')
+        expect(hasil.macos_intel?.unduh).toBe('https://dl/v0.10.1/cbt-al-akhyar-macos-v0.10.1-b8-x64.dmg')
+        expect(hasil.android?.versi).toBe('0.10.1')
     })
 })
