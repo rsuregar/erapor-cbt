@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { evaluasiKepergianSingkat, harusPantauBlurWindow, klasifikasiKepergian } from './deteksiKepergian'
+import {
+    evaluasiKepergianSingkat,
+    harusCatatKeluarLayarPenuh,
+    harusCatatMuatUlang,
+    harusPantauBlurWindow,
+    klasifikasiKepergian,
+} from './deteksiKepergian'
 
 describe('deteksiKepergian', () => {
     it('menonaktifkan pantauan window.blur pada Android/iOS/Tauri dan mengaktifkannya hanya pada browser desktop non-native', () => {
@@ -100,5 +106,19 @@ describe('deteksiKepergian', () => {
         // Di luar jendela 2 menit -> entri lama kedaluwarsa.
         const evLuar = evaluasiKepergianSingkat([t0, t0 + 10_000], t0 + 150_000)
         expect(evLuar).toEqual({ lewatiBatas: false, riwayatBaru: [t0 + 150_000] })
+    })
+
+    it('harusCatatKeluarLayarPenuh menghindari false positive dan hukuman ganda dengan pindah_tab', () => {
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: true, terlihat: true, sedangPergi: false, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: false, sedangPergi: false, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: true, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: false, punyaFokus: false })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: false, punyaFokus: true })).toBe(true)
+    })
+
+    it('harusCatatMuatUlang mengabaikan reload internal pembersihan SW dan pembukaan pertama', () => {
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: false, reloadInternal: false })).toBe(false)
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: true, reloadInternal: true })).toBe(false)
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: true, reloadInternal: false })).toBe(true)
     })
 })

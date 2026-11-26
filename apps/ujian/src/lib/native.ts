@@ -395,7 +395,9 @@ export async function bukaPengaturanWifi(
                 if (!isActive) tandaiKeluar()
                 else if (pernahKeluar) akhiri()
             })
-            timer = setTimeout(akhiri, BATAS_PULIH_WIFI_MS)
+            timer = setTimeout(() => {
+                if (document.visibilityState === 'visible') akhiri()
+            }, BATAS_PULIH_WIFI_MS)
         }
 
         try {
@@ -434,12 +436,17 @@ export async function bukaPengaturanWifi(
         }
     })
     timer = setTimeout(() => {
-        if (!selesai) {
-            selesai = true
-            lepas()
-            pulihkan()
-            opsi.onKembali?.()
-        }
+        if (selesai) return
+        void jendela
+            .isFocused()
+            .catch(() => false)
+            .then((fokus) => {
+                if (!fokus || selesai) return
+                selesai = true
+                lepas()
+                pulihkan()
+                opsi.onKembali?.()
+            })
     }, BATAS_PULIH_WIFI_MS)
 
     await jendela.setAlwaysOnTop(false)

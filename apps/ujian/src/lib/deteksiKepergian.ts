@@ -16,6 +16,27 @@ export function harusPantauBlurWindow(params: {
     return !params.adaNative && !params.isTauri && params.jenisPerangkat === 'desktop'
 }
 
+/**
+ * Catat `keluar_layar_penuh` hanya bila layar masih tidak fullscreen setelah masa tenggang
+ * dan murid memang berada di jendela ujian (bukan sedang pindah tab / blur yang sudah dipantau terpisah).
+ */
+export function harusCatatKeluarLayarPenuh(params: {
+    layarPenuhAktif: boolean
+    terlihat: boolean
+    sedangPergi: boolean
+    punyaFokus: boolean
+}): boolean {
+    return !params.layarPenuhAktif && params.terlihat && !params.sedangPergi && params.punyaFokus
+}
+
+/** Jangan laporkan `muat_ulang` bila reload dipicu pembersihan internal aplikasi (mis. SW lama). */
+export function harusCatatMuatUlang(params: {
+    pernahDibukaDiTab: boolean
+    reloadInternal: boolean
+}): boolean {
+    return params.pernahDibukaDiTab && !params.reloadInternal
+}
+
 export const MIN_KEPERGIAN_MS = 1000
 export const TOLERANSI_PERGI_MS = 5000
 export const JENDELA_INTIP_CEPAT_MS = 120_000

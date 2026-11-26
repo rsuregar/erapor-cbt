@@ -22,6 +22,7 @@ if (webDitolak()) {
         try {
             if (sessionStorage.getItem('cbt:sw-native-bersih') === '1') return
             sessionStorage.setItem('cbt:sw-native-bersih', '1')
+            sessionStorage.setItem('cbt:reload-internal', '1')
         } catch {
             // Abaikan bila sessionStorage dibatasi
         }

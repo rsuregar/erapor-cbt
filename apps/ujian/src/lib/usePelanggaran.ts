@@ -1,6 +1,8 @@
 import { api, platform } from '@/lib/api'
 import {
     evaluasiKepergianSingkat,
+    harusCatatKeluarLayarPenuh,
+    harusCatatMuatUlang,
     harusPantauBlurWindow,
     klasifikasiKepergian,
     MIN_KEPERGIAN_MS,
@@ -66,6 +68,7 @@ export function usePelanggaran(opsi: {
     jumlahRef.current = server + tertunda
     const antrean = useRef<Promise<unknown>>(Promise.resolve())
     const mengirim = useRef(false)
+    const sedangPergiRef = useRef(false)
 
     useEffect(() => setAmbang(opsi.ambangAwal), [opsi.ambangAwal])
 
@@ -144,7 +147,11 @@ export function usePelanggaran(opsi: {
         dibuka.add(attemptId)
         const k = `cbt-kerjakan-${attemptId}`
         try {
-            if (sessionStorage.getItem(k)) void catat('muat_ulang', ref.current.msSejakMulai(), 0)
+            const reloadInternal = sessionStorage.getItem('cbt:reload-internal') === '1'
+            if (reloadInternal) sessionStorage.removeItem('cbt:reload-internal')
+            if (harusCatatMuatUlang({ pernahDibukaDiTab: Boolean(sessionStorage.getItem(k)), reloadInternal })) {
+                void catat('muat_ulang', ref.current.msSejakMulai(), 0)
+            }
             sessionStorage.setItem(k, '1')
         } catch {
             // sessionStorage tidak tersedia (mode privat ketat): lewati deteksi ini.
@@ -166,6 +173,7 @@ export function usePelanggaran(opsi: {
 
         const pergi = () => {
             if (sejakMono !== null) return
+            sedangPergiRef.current = true
             sejakMono = performance.now()
             sejakDinding = Date.now()
             mulaiMs = ref.current.msSejakMulai()
@@ -179,6 +187,7 @@ export function usePelanggaran(opsi: {
             if (sejakMono === null || document.visibilityState !== 'visible') return
             if (pantauBlur && !document.hasFocus()) return
             if (pakaiTauri && !fokusTauri) return
+            sedangPergiRef.current = false
             const selisihMonotonikMs = performance.now() - sejakMono
             const selisihDindingMs = Date.now() - sejakDinding
             const layarMatiNative = pernahLayarMati
@@ -251,6 +260,7 @@ export function usePelanggaran(opsi: {
         window.addEventListener('pagehide', pergi)
 
         return () => {
+            sedangPergiRef.current = false
             batalTauri = true
             lepasFokusTauri?.()
             document.removeEventListener('visibilitychange', visibilitas)
@@ -264,16 +274,41 @@ export function usePelanggaran(opsi: {
         }
     }, [aktif, catat])
 
-    // Keluar layar penuh (Esc, F11, gestur) — tidak selalu memicu blur, jadi dipantau sendiri.
+    // Keluar layar penuh (Esc, F11, gestur) — beri masa tenggang 5 detik dan hindari dobel dengan pindah tab.
     const pantauLayarPenuh = !!opsi.pantauLayarPenuh
     useEffect(() => {
         if (!aktif || !pantauLayarPenuh) return
+        let timerLp: ReturnType<typeof setTimeout> | undefined
         const ubah = () => {
-            if (!document.fullscreenElement) void catat('keluar_layar_penuh', ref.current.msSejakMulai(), 0)
+            if (document.fullscreenElement) {
+                if (timerLp) {
+                    clearTimeout(timerLp)
+                    timerLp = undefined
+                }
+                return
+            }
+            if (timerLp) return
+            const mulaiKeluar = ref.current.msSejakMulai()
+            timerLp = setTimeout(() => {
+                timerLp = undefined
+                if (
+                    harusCatatKeluarLayarPenuh({
+                        layarPenuhAktif: !!document.fullscreenElement,
+                        terlihat: document.visibilityState === 'visible',
+                        sedangPergi: sedangPergiRef.current,
+                        punyaFokus: document.hasFocus(),
+                    })
+                ) {
+                    void catat('keluar_layar_penuh', mulaiKeluar, TOLERANSI_PERGI_MS)
+                }
+            }, TOLERANSI_PERGI_MS)
         }
         document.addEventListener('fullscreenchange', ubah)
 
-        return () => document.removeEventListener('fullscreenchange', ubah)
+        return () => {
+            clearTimeout(timerLp)
+            document.removeEventListener('fullscreenchange', ubah)
+        }
     }, [aktif, pantauLayarPenuh, catat])
 
     /** Catat percobaan yang diblokir proteksi konten (informasi; tidak memicu banner dan tidak dihitung). */

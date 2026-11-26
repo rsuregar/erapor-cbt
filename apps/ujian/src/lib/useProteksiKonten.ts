@@ -30,7 +30,7 @@ export function useProteksiKonten(
     const pelaporRef = useRef<ReturnType<typeof buatPelapor> | null>(null)
     const terakhirUndoRef = useRef(0)
 
-    const baruSajaUndo = useCallback(() => performance.now() - terakhirUndoRef.current < 300, [])
+    const baruSajaUndo = useCallback(() => performance.now() - terakhirUndoRef.current < 800, [])
 
     const kabari = useCallback((teks: string) => {
         setPesan(teks)
@@ -109,7 +109,7 @@ export function useProteksiKonten(
                 })
                 return
             }
-            if (ie.inputType === 'insertText' && typeof ie.data === 'string' && ie.data.length >= 12) {
+            if (ie.inputType === 'insertText' && !ie.isComposing && typeof ie.data === 'string' && ie.data.length >= 12) {
                 const cek = terdeteksiTempel({
                     sebelum: '',
                     sesudah: ie.data,
@@ -151,6 +151,10 @@ export function useProteksiKonten(
                 return
             }
             const k = e.key.toLowerCase()
+            if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
+                terakhirUndoRef.current = performance.now()
+                return
+            }
             if ((e.ctrlKey || e.metaKey) && k === 'a' && !adalahTargetIsian(e.target)) {
                 e.preventDefault()
                 return
