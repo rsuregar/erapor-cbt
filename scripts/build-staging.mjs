@@ -43,17 +43,18 @@ switch (target) {
     console.log(`\n[staging] PWA staging siap di ${join(APP, 'dist')}`);
     break;
   case 'android': {
-    jalankan(npm, ['run', 'build', '-w', '@erapor-cbt/ujian']);
-    jalankan(npx, ['cap', 'sync', 'android'], APP);
+    const nativeEnv = { ...env, VITE_TARGET_NATIVE: '1' };
+    jalankan(npm, ['run', 'build', '-w', '@erapor-cbt/ujian'], AKAR, nativeEnv);
+    jalankan(npx, ['cap', 'sync', 'android'], APP, nativeEnv);
     const gradlew = WINDOWS ? 'gradlew.bat' : './gradlew';
-    jalankan(gradlew, [release ? 'assembleRelease' : 'assembleDebug', '-Plingkungan=staging'], join(APP, 'android'));
+    jalankan(gradlew, [release ? 'assembleRelease' : 'assembleDebug', '-Plingkungan=staging'], join(APP, 'android'), nativeEnv);
     console.log(`\n[staging] APK: ${join(APP, 'android', 'app', 'build', 'outputs', 'apk', release ? 'release' : 'debug')}`);
     console.log('[staging] App id sch.alakhyar.ujian.staging — nama "CBT Staging".');
     break;
   }
   case 'desktop':
     // beforeBuildCommand Tauri menjalankan `npm run build` dengan env staging ini.
-    jalankan(npx, ['tauri', 'build', '--config', 'src-tauri/tauri.staging.conf.json'], APP);
+    jalankan(npx, ['tauri', 'build', '--config', 'src-tauri/tauri.staging.conf.json'], APP, { ...env, VITE_TARGET_NATIVE: '1' });
     console.log(`\n[staging] Installer: ${join(APP, 'src-tauri', 'target', 'release', 'bundle')}`);
     break;
   default:

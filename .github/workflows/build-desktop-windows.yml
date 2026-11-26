@@ -131,6 +131,7 @@ jobs:
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
           VITE_APP_BUILD: ${{ steps.version.outputs.build_number }}
           VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
+          VITE_TARGET_NATIVE: "1"
           VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
           # Updater di dalam app (opsional): tanpa keduanya, build tetap jalan dan app memakai unduh manual.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

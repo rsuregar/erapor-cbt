@@ -31,6 +31,34 @@ export async function terapkanPembaruan(): Promise<void> {
 }
 
 /**
+ * Hapus sisa Service Worker & cache PWA di app native (Android/Tauri/iOS) agar build
+ * native baru tidak pernah tertahan oleh `index.html` atau bundle versi lama dari SW.
+ * Mengembalikan true bila halaman saat ini sedang dikontrol SW (perlu muat ulang sekali).
+ */
+export async function bersihkanServiceWorkerNative(): Promise<boolean> {
+    if (!isNative() || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return false
+
+    const dikontrol = Boolean(navigator.serviceWorker.controller)
+    const regs = (await navigator.serviceWorker.getRegistrations().catch(() => undefined)) ?? []
+
+    if (regs.length === 0) {
+        const kunci = (await globalThis.caches?.keys().catch(() => undefined)) ?? []
+        const workbox = kunci.filter((k) => k.startsWith('workbox-'))
+        if (workbox.length > 0) {
+            await Promise.all(workbox.map((k) => caches.delete(k).catch(() => false)))
+        }
+
+        return false
+    }
+
+    await Promise.all(regs.map((r) => r.unregister().catch(() => false)))
+    const kunci = (await globalThis.caches?.keys().catch(() => undefined)) ?? []
+    await Promise.all(kunci.filter((k) => k !== 'cbt-media').map((k) => caches.delete(k).catch(() => false)))
+
+    return dikontrol
+}
+
+/**
  * true bila versi PWA baru sudah terunduh dan menunggu dipasang. Dicek saat dibuka, saat
  * tab kembali terlihat, dan tiap 30 menit. Selalu false di app native.
  */

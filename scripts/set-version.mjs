@@ -28,6 +28,12 @@ if (buildNumber) {
   buildNumber = String(buildNumber).replace(/\D/g, '').trim();
 }
 
+function hitungVersionCode(vName, bNum) {
+  const [major = 0, minor = 0, patch = 0] = vName.replace(/-.*$/, '').split('.').map(Number);
+  const build = Math.min(Math.max(Number(bNum || 0), 0), 999);
+  return major * 10_000_000 + minor * 100_000 + patch * 1_000 + (Number.isFinite(build) ? build : 0);
+}
+
 console.log(`[set-version] Setting version: ${versionName}${buildNumber ? ` (build ${buildNumber})` : ''}`);
 
 // 1. Update apps/ujian/package.json
@@ -80,13 +86,12 @@ if (existsSync(lockPath)) {
 const gradlePath = resolve(rootDir, 'apps/ujian/android/app/build.gradle');
 if (existsSync(gradlePath)) {
   let gradle = readFileSync(gradlePath, 'utf8');
+  const versionCode = hitungVersionCode(versionName, buildNumber);
   // Update versionName fallback or direct value
   gradle = gradle.replace(/(versionName(?:\s*project\.hasProperty\('versionName'\)[^:]*:\s*|\s+))["'][^"']+["']/g, `$1"${versionName}"`);
-  if (buildNumber) {
-    gradle = gradle.replace(/(versionCode(?:\s*project\.hasProperty\('versionCode'\)[^:]*:\s*|\s+))\d+/g, `$1${buildNumber}`);
-  }
+  gradle = gradle.replace(/(versionCode(?:\s*project\.hasProperty\('versionCode'\)[^:]*:\s*|\s+))\d+/g, `$1${versionCode}`);
   writeFileSync(gradlePath, gradle);
-  console.log(`[set-version] ✓ Updated ${gradlePath} -> versionName: "${versionName}"${buildNumber ? `, versionCode: ${buildNumber}` : ''}`);
+  console.log(`[set-version] ✓ Updated ${gradlePath} -> versionName: "${versionName}", versionCode: ${versionCode}`);
 }
 
 console.log('[set-version] Done!');

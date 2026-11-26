@@ -1,13 +1,54 @@
 import react from "@vitejs/plugin-react";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// PWA = jalur cadangan (laptop, PC lab, HP tanpa app). App Capacitor memuat
-// hasil build yang sama dari dist/.
+const SW_PEMBERSIH_NATIVE = `// Pembersih otomatis Service Worker lama pada build native (Android/Tauri/iOS).
+self.addEventListener("install", () => {
+    self.skipWaiting();
+});
+self.addEventListener("activate", (event) => {
+    event.waitUntil(
+        (async () => {
+            const keys = await caches.keys();
+            await Promise.all(keys.filter((k) => k !== "cbt-media").map((k) => caches.delete(k)));
+            await self.registration.unregister();
+            const clients = await self.clients.matchAll({ type: "window" });
+            for (const client of clients) {
+                try {
+                    await client.navigate(client.url);
+                } catch {
+                    // Sebagian WebView tidak mendukung client.navigate; muat ulang berikutnya sudah bebas SW.
+                }
+            }
+        })(),
+    );
+});
+`;
+
+function swPembersihNative(): Plugin {
+    return {
+        name: "sw-pembersih-native",
+        apply: "build",
+        generateBundle() {
+            this.emitFile({
+                type: "asset",
+                fileName: "sw.js",
+                source: SW_PEMBERSIH_NATIVE,
+            });
+        },
+    };
+}
+
+// PWA = jalur cadangan (laptop, PC lab, HP tanpa app). App Capacitor/Tauri memuat
+// hasil build yang sama dari dist/, tetapi tanpa Service Worker agar pembaruan native
+// tidak pernah tertahan oleh cache Workbox versi lama.
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
+    const targetNative =
+        (process.env.VITE_TARGET_NATIVE || env.VITE_TARGET_NATIVE) === "1" ||
+        Boolean(process.env.TAURI_ENV_PLATFORM);
     const proxy = {
         "/api": {
             target: env.ERAPOR_DEV_URL || "https://www.erapor.test",
@@ -49,48 +90,50 @@ export default defineConfig(({ mode }) => {
                         .replaceAll("%WARNA_TEMA%", identitas.warna)
                         .replaceAll("%BRAND%", brand),
             },
-            VitePWA({
-                registerType: "prompt",
-                includeAssets: [`${brand}/*.png`, `${brand}/*.svg`, "brand/*.png"],
-                manifest: {
-                    name: identitas.nama,
-                    short_name: identitas.pendek,
-                    description: staging
-                        ? "Aplikasi ujian CBT Al Akhyar — versi STAGING (server uji)"
-                        : "Aplikasi ujian CBT murid Al Akhyar",
-                    lang: "id",
-                    display: "fullscreen",
-                    orientation: "any",
-                    theme_color: identitas.warna,
-                    background_color: "#F5F8FA",
-                    icons: [
-                        { src: `${brand}/ikon-192.png`, sizes: "192x192", type: "image/png" },
-                        { src: `${brand}/ikon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
-                        // Android/Chrome memotong ikon ke bentuk sendiri: varian penuh dengan zona aman.
-                        { src: `${brand}/ikon-maskable-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
-                    ],
-                },
-                workbox: {
-                    // Aset app di-cache agar bisa dibuka tanpa internet. API tidak
-                    // di-cache Workbox: data ujian dikelola exam-core (IndexedDB).
-                    globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
-                    navigateFallback: "index.html",
-                    // web-nonaktif.html: halaman blokir mode web_ios_only, dibuat setelah build.
-                    navigateFallbackDenylist: [/^\/api\//, /^\/web-nonaktif/],
-                    // Media soal sudah diunduh ke cache ini saat pra-unduh (lib/ujian.ts unduhMedia).
-                    runtimeCaching: [
-                        {
-                            urlPattern: ({ url }) =>
-                                url.pathname.startsWith("/storage/"),
-                            handler: "CacheFirst",
-                            options: {
-                                cacheName: "cbt-media",
-                                cacheableResponse: { statuses: [0, 200] },
-                            },
-                        },
-                    ],
-                },
-            }),
+            targetNative
+                ? swPembersihNative()
+                : VitePWA({
+                      registerType: "prompt",
+                      includeAssets: [`${brand}/*.png`, `${brand}/*.svg`, "brand/*.png"],
+                      manifest: {
+                          name: identitas.nama,
+                          short_name: identitas.pendek,
+                          description: staging
+                              ? "Aplikasi ujian CBT Al Akhyar — versi STAGING (server uji)"
+                              : "Aplikasi ujian CBT murid Al Akhyar",
+                          lang: "id",
+                          display: "fullscreen",
+                          orientation: "any",
+                          theme_color: identitas.warna,
+                          background_color: "#F5F8FA",
+                          icons: [
+                              { src: `${brand}/ikon-192.png`, sizes: "192x192", type: "image/png" },
+                              { src: `${brand}/ikon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
+                              // Android/Chrome memotong ikon ke bentuk sendiri: varian penuh dengan zona aman.
+                              { src: `${brand}/ikon-maskable-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+                          ],
+                      },
+                      workbox: {
+                          // Aset app di-cache agar bisa dibuka tanpa internet. API tidak
+                          // di-cache Workbox: data ujian dikelola exam-core (IndexedDB).
+                          globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+                          navigateFallback: "index.html",
+                          // web-nonaktif.html: halaman blokir mode web_ios_only, dibuat setelah build.
+                          navigateFallbackDenylist: [/^\/api\//, /^\/web-nonaktif/],
+                          // Media soal sudah diunduh ke cache ini saat pra-unduh (lib/ujian.ts unduhMedia).
+                          runtimeCaching: [
+                              {
+                                  urlPattern: ({ url }) =>
+                                      url.pathname.startsWith("/storage/"),
+                                  handler: "CacheFirst",
+                                  options: {
+                                      cacheName: "cbt-media",
+                                      cacheableResponse: { statuses: [0, 200] },
+                                  },
+                              },
+                          ],
+                      },
+                  }),
         ],
         server: {
             port: 5180,
