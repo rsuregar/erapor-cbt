@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
+mod cache_webview;
 mod media;
 mod pembaruan;
 
@@ -259,6 +260,10 @@ fn sqlite_daftar_kunci(state: tauri::State<'_, DbState>, awalan: Option<String>)
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
+    cache_webview::bersihkan_cache_saat_naik_versi(
+        &context.config().identifier,
+        &context.package_info().version.to_string(),
+    );
     let mut builder = tauri::Builder::default();
     // Updater hanya didaftarkan bila build membawa pubkey (plugins.updater dari --config CI).
     if pembaruan::aktif(context.config()) {
