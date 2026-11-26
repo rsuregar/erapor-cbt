@@ -877,7 +877,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     jawaban={(j?.jawaban ?? null) as Jawaban}
                                     ragu={j?.ragu ?? false}
                                     onJawab={(isi) => {
-                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string' && !proteksi.baruSajaUndo()) {
+                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string' && !proteksi.sedangAmanInput()) {
                                             const sebelum = typeof j?.jawaban === 'string' ? j.jawaban : ''
                                             const cek = terdeteksiTempel({ sebelum, sesudah: isi, teksSoal: teksSoalRef.current })
                                             if (cek.diblokir) {

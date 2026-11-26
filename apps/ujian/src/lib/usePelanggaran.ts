@@ -35,6 +35,180 @@ const dibuka = new Set<number>()
 
 export type Kejadian = { kunci: number; jenis: JenisPelanggaran; durasiMs: number; ke: number }
 
+export type PengawasKepergianOpsi = {
+    pakaiNative: boolean
+    pakaiTauri: boolean
+    pantauBlur: boolean
+    msSejakMulai: () => number | undefined
+    onPergi?: () => void
+    onKembali?: () => void
+    onCatat: (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => void
+    bacaPlatform?: () => 'android' | 'ios' | 'pwa'
+    imporJendelaTauri?: () => Promise<{
+        isFocused: () => Promise<boolean>
+        onFocusChanged: (cb: (e: { payload: boolean }) => void) => Promise<() => void>
+    }>
+}
+
+/** Pasang semua pendengar kepergian layar ujian (visibilitychange, blur/focus, Capacitor, Tauri). */
+export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void {
+    let sejakMono: number | null = null
+    let sejakDinding = 0
+    let mulaiMs: number | undefined
+    let pernahLayarMati = false
+    let fokusTauri = true
+    let riwayatSingkat: number[] = []
+    const bacaPlatform = opsi.bacaPlatform ?? platform
+
+    const pergi = () => {
+        if (sejakMono !== null) return
+        opsi.onPergi?.()
+        sejakMono = performance.now()
+        sejakDinding = Date.now()
+        mulaiMs = opsi.msSejakMulai()
+        if (opsi.pakaiNative) {
+            void apakahLayarMatiNative(false).then((mati) => {
+                if (mati && sejakMono !== null) pernahLayarMati = true
+            })
+        }
+    }
+    const kembali = () => {
+        if (sejakMono === null || document.visibilityState !== 'visible') return
+        if (opsi.pantauBlur && !document.hasFocus()) return
+        if (opsi.pakaiTauri && !fokusTauri) return
+        opsi.onKembali?.()
+        const selisihMonotonikMs = performance.now() - sejakMono
+        const selisihDindingMs = Date.now() - sejakDinding
+        const layarMatiNative = pernahLayarMati
+        const mulaiSaatPergi = mulaiMs
+        sejakMono = null
+        mulaiMs = undefined
+        pernahLayarMati = false
+
+        const catatDenganStatus = (mati: boolean) => {
+            const durasiMs = Math.round(Math.max(selisihMonotonikMs, selisihDindingMs))
+            const bukanLayarMati = !mati && selisihDindingMs - selisihMonotonikMs < 2000
+            let paksaCatatSingkat = false
+            if (durasiMs >= MIN_PERGI_MS && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
+                const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
+                riwayatSingkat = ev.riwayatBaru
+                paksaCatatSingkat = ev.lewatiBatas
+            }
+
+            const hasil = klasifikasiKepergian({
+                platform: bacaPlatform(),
+                layarMatiNative: mati,
+                selisihDindingMs,
+                selisihMonotonikMs,
+                minPergiMs: MIN_PERGI_MS,
+                toleransiPergiMs: TOLERANSI_PERGI_MS,
+                paksaCatatSingkat,
+            })
+            if (hasil) opsi.onCatat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
+        }
+
+        if (opsi.pakaiNative && !layarMatiNative) {
+            void apakahLayarMatiNative(true).then(catatDenganStatus)
+        } else {
+            if (opsi.pakaiNative) void apakahLayarMatiNative(true)
+            catatDenganStatus(layarMatiNative)
+        }
+    }
+    const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
+
+    document.addEventListener('visibilitychange', visibilitas)
+    // App native: perpindahan ke latar belakang dan status layar dilaporkan OS.
+    const statusApp = opsi.pakaiNative ? App.addListener('appStateChange', ({ isActive }) => (isActive ? kembali() : pergi())) : null
+    const statusLayar = opsi.pakaiNative
+        ? dengarStatusLayarNative((interaktif) => {
+              if (!interaktif) pernahLayarMati = true
+          })
+        : null
+    let lepasFokusTauri: (() => void) | null = null
+    let batalTauri = false
+    if (opsi.pakaiTauri) {
+        const ambilJendela =
+            opsi.imporJendelaTauri ?? (() => import('@tauri-apps/api/window').then((m) => m.getCurrentWindow()))
+        void ambilJendela()
+            .then(async (jendela) => {
+                if (batalTauri) return
+                fokusTauri = await jendela.isFocused().catch(() => true)
+                const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
+                    fokusTauri = fokus
+                    if (fokus) kembali()
+                    else pergi()
+                })
+                if (batalTauri) lepas()
+                else lepasFokusTauri = lepas
+            })
+            .catch(() => undefined)
+    }
+    if (opsi.pantauBlur) {
+        window.addEventListener('blur', pergi)
+        window.addEventListener('focus', kembali)
+    }
+    window.addEventListener('pagehide', pergi)
+
+    return () => {
+        batalTauri = true
+        lepasFokusTauri?.()
+        document.removeEventListener('visibilitychange', visibilitas)
+        void statusApp?.then((h) => h.remove())
+        void statusLayar?.then((h) => h?.remove())
+        if (opsi.pantauBlur) {
+            window.removeEventListener('blur', pergi)
+            window.removeEventListener('focus', kembali)
+        }
+        window.removeEventListener('pagehide', pergi)
+    }
+}
+
+/** Pasang pemantau fullscreen dengan masa tenggang 5 detik dan pencegahan dobel saat pindah tab. */
+export function pasangPengawasLayarPenuh(opsi: {
+    msSejakMulai: () => number | undefined
+    sedangPergi: () => boolean
+    onCatat: (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => void
+}): { batal: () => void; lepas: () => void } {
+    let timerLp: ReturnType<typeof setTimeout> | undefined
+    const batal = () => {
+        if (timerLp) {
+            clearTimeout(timerLp)
+            timerLp = undefined
+        }
+    }
+    const ubah = () => {
+        if (document.fullscreenElement) {
+            batal()
+            return
+        }
+        if (timerLp) return
+        if (document.visibilityState !== 'visible' || !document.hasFocus() || opsi.sedangPergi()) return
+        const mulaiKeluar = opsi.msSejakMulai()
+        timerLp = setTimeout(() => {
+            timerLp = undefined
+            if (
+                harusCatatKeluarLayarPenuh({
+                    layarPenuhAktif: !!document.fullscreenElement,
+                    terlihat: document.visibilityState === 'visible',
+                    sedangPergi: opsi.sedangPergi(),
+                    punyaFokus: document.hasFocus(),
+                })
+            ) {
+                opsi.onCatat('keluar_layar_penuh', mulaiKeluar, TOLERANSI_PERGI_MS)
+            }
+        }, TOLERANSI_PERGI_MS)
+    }
+    document.addEventListener('fullscreenchange', ubah)
+
+    return {
+        batal,
+        lepas: () => {
+            batal()
+            document.removeEventListener('fullscreenchange', ubah)
+        },
+    }
+}
+
 const dihitung = (e: EntriPelanggaran[]) => e.filter((x) => !TIDAK_DIHITUNG.has(x.jenis)).length
 
 /**
@@ -69,6 +243,7 @@ export function usePelanggaran(opsi: {
     const antrean = useRef<Promise<unknown>>(Promise.resolve())
     const mengirim = useRef(false)
     const sedangPergiRef = useRef(false)
+    const batalTimerLpRef = useRef<(() => void) | null>(null)
 
     useEffect(() => setAmbang(opsi.ambangAwal), [opsi.ambangAwal])
 
@@ -161,116 +336,28 @@ export function usePelanggaran(opsi: {
     // Pindah tab/aplikasi, layar mati, jendela lain di depan, app ke latar belakang.
     useEffect(() => {
         if (!aktif) return
-        let sejakMono: number | null = null
-        let sejakDinding = 0
-        let mulaiMs: number | undefined
-        let pernahLayarMati = false
-        let fokusTauri = true
-        let riwayatSingkat: number[] = []
         const pakaiNative = adaNative()
         const pakaiTauri = isTauri()
         const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, isTauri: pakaiTauri, jenisPerangkat: jenisPerangkat() })
 
-        const pergi = () => {
-            if (sejakMono !== null) return
-            sedangPergiRef.current = true
-            sejakMono = performance.now()
-            sejakDinding = Date.now()
-            mulaiMs = ref.current.msSejakMulai()
-            if (pakaiNative) {
-                void apakahLayarMatiNative(false).then((mati) => {
-                    if (mati && sejakMono !== null) pernahLayarMati = true
-                })
-            }
-        }
-        const kembali = () => {
-            if (sejakMono === null || document.visibilityState !== 'visible') return
-            if (pantauBlur && !document.hasFocus()) return
-            if (pakaiTauri && !fokusTauri) return
-            sedangPergiRef.current = false
-            const selisihMonotonikMs = performance.now() - sejakMono
-            const selisihDindingMs = Date.now() - sejakDinding
-            const layarMatiNative = pernahLayarMati
-            const mulaiSaatPergi = mulaiMs
-            sejakMono = null
-            mulaiMs = undefined
-            pernahLayarMati = false
-
-            const catatDenganStatus = (mati: boolean) => {
-                const durasiMs = Math.round(Math.max(selisihMonotonikMs, selisihDindingMs))
-                const bukanLayarMati = !mati && selisihDindingMs - selisihMonotonikMs < 2000
-                let paksaCatatSingkat = false
-                if (durasiMs >= MIN_PERGI_MS && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
-                    const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
-                    riwayatSingkat = ev.riwayatBaru
-                    paksaCatatSingkat = ev.lewatiBatas
-                }
-
-                const hasil = klasifikasiKepergian({
-                    platform: platform(),
-                    layarMatiNative: mati,
-                    selisihDindingMs,
-                    selisihMonotonikMs,
-                    minPergiMs: MIN_PERGI_MS,
-                    toleransiPergiMs: TOLERANSI_PERGI_MS,
-                    paksaCatatSingkat,
-                })
-                if (hasil) void catat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
-            }
-
-            if (pakaiNative && !layarMatiNative) {
-                void apakahLayarMatiNative(true).then(catatDenganStatus)
-            } else {
-                if (pakaiNative) void apakahLayarMatiNative(true)
-                catatDenganStatus(layarMatiNative)
-            }
-        }
-        const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
-
-        document.addEventListener('visibilitychange', visibilitas)
-        // App native: perpindahan ke latar belakang dan status layar dilaporkan OS.
-        const statusApp = pakaiNative ? App.addListener('appStateChange', ({ isActive }) => (isActive ? kembali() : pergi())) : null
-        const statusLayar = pakaiNative
-            ? dengarStatusLayarNative((interaktif) => {
-                  if (!interaktif) pernahLayarMati = true
-              })
-            : null
-        let lepasFokusTauri: (() => void) | null = null
-        let batalTauri = false
-        if (pakaiTauri) {
-            void import('@tauri-apps/api/window')
-                .then(async ({ getCurrentWindow }) => {
-                    if (batalTauri) return
-                    const jendela = getCurrentWindow()
-                    fokusTauri = await jendela.isFocused().catch(() => true)
-                    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
-                        fokusTauri = fokus
-                        if (fokus) kembali()
-                        else pergi()
-                    })
-                    if (batalTauri) lepas()
-                    else lepasFokusTauri = lepas
-                })
-                .catch(() => undefined)
-        }
-        if (pantauBlur) {
-            window.addEventListener('blur', pergi)
-            window.addEventListener('focus', kembali)
-        }
-        window.addEventListener('pagehide', pergi)
+        const lepas = pasangPengawasKepergian({
+            pakaiNative,
+            pakaiTauri,
+            pantauBlur,
+            msSejakMulai: () => ref.current.msSejakMulai(),
+            onPergi: () => {
+                sedangPergiRef.current = true
+                batalTimerLpRef.current?.()
+            },
+            onKembali: () => {
+                sedangPergiRef.current = false
+            },
+            onCatat: (jenis, mulaiMs, durasiMs) => void catat(jenis, mulaiMs, durasiMs),
+        })
 
         return () => {
             sedangPergiRef.current = false
-            batalTauri = true
-            lepasFokusTauri?.()
-            document.removeEventListener('visibilitychange', visibilitas)
-            void statusApp?.then((h) => h.remove())
-            void statusLayar?.then((h) => h?.remove())
-            if (pantauBlur) {
-                window.removeEventListener('blur', pergi)
-                window.removeEventListener('focus', kembali)
-            }
-            window.removeEventListener('pagehide', pergi)
+            lepas()
         }
     }, [aktif, catat])
 
@@ -278,36 +365,16 @@ export function usePelanggaran(opsi: {
     const pantauLayarPenuh = !!opsi.pantauLayarPenuh
     useEffect(() => {
         if (!aktif || !pantauLayarPenuh) return
-        let timerLp: ReturnType<typeof setTimeout> | undefined
-        const ubah = () => {
-            if (document.fullscreenElement) {
-                if (timerLp) {
-                    clearTimeout(timerLp)
-                    timerLp = undefined
-                }
-                return
-            }
-            if (timerLp) return
-            const mulaiKeluar = ref.current.msSejakMulai()
-            timerLp = setTimeout(() => {
-                timerLp = undefined
-                if (
-                    harusCatatKeluarLayarPenuh({
-                        layarPenuhAktif: !!document.fullscreenElement,
-                        terlihat: document.visibilityState === 'visible',
-                        sedangPergi: sedangPergiRef.current,
-                        punyaFokus: document.hasFocus(),
-                    })
-                ) {
-                    void catat('keluar_layar_penuh', mulaiKeluar, TOLERANSI_PERGI_MS)
-                }
-            }, TOLERANSI_PERGI_MS)
-        }
-        document.addEventListener('fullscreenchange', ubah)
+        const lp = pasangPengawasLayarPenuh({
+            msSejakMulai: () => ref.current.msSejakMulai(),
+            sedangPergi: () => sedangPergiRef.current,
+            onCatat: (jenis, mulaiMs, durasiMs) => void catat(jenis, mulaiMs, durasiMs),
+        })
+        batalTimerLpRef.current = lp.batal
 
         return () => {
-            clearTimeout(timerLp)
-            document.removeEventListener('fullscreenchange', ubah)
+            batalTimerLpRef.current = null
+            lp.lepas()
         }
     }, [aktif, pantauLayarPenuh, catat])
 
