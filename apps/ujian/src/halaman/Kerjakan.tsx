@@ -246,6 +246,8 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
         setJedaJaringan(true)
         setMembukaWifi(true)
         try {
+            // Tunggu satu tick agar efek `aktif = false` pada usePelanggaran selesai sebelum kiosk/fullscreen dilepas.
+            await new Promise<void>((r) => setTimeout(r, 0))
             await bukaPengaturanWifi({
                 pulihkanKiosk: true,
                 onKembali: () => {
@@ -875,7 +877,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                                     jawaban={(j?.jawaban ?? null) as Jawaban}
                                     ragu={j?.ragu ?? false}
                                     onJawab={(isi) => {
-                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string' && !proteksi.baruSajaUndo()) {
+                                        if (TEKS.has(aktif.jenis) && typeof isi === 'string' && !proteksi.sedangAmanInput()) {
                                             const sebelum = typeof j?.jawaban === 'string' ? j.jawaban : ''
                                             const cek = terdeteksiTempel({ sebelum, sesudah: isi, teksSoal: teksSoalRef.current })
                                             if (cek.diblokir) {
@@ -1095,7 +1097,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             ['←', 'Soal sebelumnya'],
                             ['R', 'Tandai / batalkan ragu-ragu'],
                             ['?', 'Buka / tutup daftar ini'],
-                            ['Esc', 'Tutup jendela yang terbuka'],
+                            ...(!wajibLp ? [['Esc', 'Tutup jendela yang terbuka']] : []),
                         ].map(([tombol, arti]) => (
                             <div key={tombol} className="flex items-center gap-3">
                                 <dt className="w-16 shrink-0">
@@ -1138,7 +1140,9 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             <Maximize className="size-7" />
                         </span>
                         <h2 className="mt-3 text-title">Kembali ke layar penuh</h2>
-                        <p className="mt-1 text-sm">Ujian ini wajib dikerjakan dalam layar penuh. Soal tertutup sampai layar penuh aktif lagi.</p>
+                        <p className="mt-1 text-sm">
+                            Ujian ini wajib dikerjakan dalam layar penuh. Soal tertutup sampai layar penuh aktif lagi — klik Layar penuh dalam 5 detik agar tidak tercatat sebagai pelanggaran.
+                        </p>
                         <Tombol penuh className="mt-5" onClick={() => void masukLayarPenuh()}>
                             Layar penuh
                         </Tombol>

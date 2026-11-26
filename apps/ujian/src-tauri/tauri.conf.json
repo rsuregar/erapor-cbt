@@ -34,6 +34,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Yayasan Pendidikan Islam Al Akhyar",
+    "copyright": "Copyright © Yayasan Pendidikan Islam Al Akhyar",
+    "shortDescription": "Exam Browser resmi ujian CBT Sekolah Islam Al Akhyar",
+    "longDescription": "Aplikasi Exam Browser resmi untuk pelaksanaan ujian CBT di lingkungan Sekolah Islam Al Akhyar.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

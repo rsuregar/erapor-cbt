@@ -60,7 +60,7 @@ jobs:
       version_name: ${{ inputs.version_name || '' }}
     secrets: inherit
 
-  # 3. Build Windows Exam Browser (.exe & .msi)
+  # 3. Build Windows Exam Browser (.msi)
   build-windows:
     name: Windows Exam Browser
     needs: ci

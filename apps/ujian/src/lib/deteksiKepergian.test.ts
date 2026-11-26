@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { harusPantauBlurWindow, klasifikasiKepergian } from './deteksiKepergian'
+import {
+    evaluasiKepergianSingkat,
+    harusCatatKeluarLayarPenuh,
+    harusCatatMuatUlang,
+    harusPantauBlurWindow,
+    klasifikasiKepergian,
+} from './deteksiKepergian'
 
 describe('deteksiKepergian', () => {
-    it('menonaktifkan pantauan window.blur pada Android/iOS/native dan mengaktifkannya hanya pada browser desktop', () => {
+    it('menonaktifkan pantauan window.blur pada Android/iOS/Tauri dan mengaktifkannya hanya pada browser desktop non-native', () => {
         expect(harusPantauBlurWindow({ adaNative: true, jenisPerangkat: 'android' })).toBe(false)
         expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'android' })).toBe(false)
         expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'ios' })).toBe(false)
+        expect(harusPantauBlurWindow({ adaNative: false, isTauri: true, jenisPerangkat: 'desktop' })).toBe(false)
+        expect(harusPantauBlurWindow({ adaNative: false, isTauri: false, jenisPerangkat: 'desktop' })).toBe(true)
         expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'desktop' })).toBe(true)
     })
 
@@ -42,7 +50,7 @@ describe('deteksiKepergian', () => {
         ).toEqual({ jenis: 'layar_mati', durasiMs: 25_000 })
     })
 
-    it('mengklasifikasikan pindah tab di PWA dan aplikasi ke latar di native saat layar tetap menyala', () => {
+    it('mentoleransi kepergian singkat 1–4.9 detik (mis. notifikasi / salah klik), kecuali paksaCatatSingkat', () => {
         expect(
             klasifikasiKepergian({
                 platform: 'pwa',
@@ -50,15 +58,67 @@ describe('deteksiKepergian', () => {
                 selisihDindingMs: 3200,
                 selisihMonotonikMs: 3100,
             }),
+        ).toBeNull()
+
+        expect(
+            klasifikasiKepergian({
+                platform: 'pwa',
+                layarMatiNative: false,
+                selisihDindingMs: 3200,
+                selisihMonotonikMs: 3100,
+                paksaCatatSingkat: true,
+            }),
         ).toEqual({ jenis: 'pindah_tab', durasiMs: 3200 })
+    })
+
+    it('mengklasifikasikan pindah tab di PWA dan aplikasi ke latar di native saat melewati toleransi (>= 5 detik)', () => {
+        expect(
+            klasifikasiKepergian({
+                platform: 'pwa',
+                layarMatiNative: false,
+                selisihDindingMs: 5500,
+                selisihMonotonikMs: 5400,
+            }),
+        ).toEqual({ jenis: 'pindah_tab', durasiMs: 5500 })
 
         expect(
             klasifikasiKepergian({
                 platform: 'android',
                 layarMatiNative: false,
-                selisihDindingMs: 3200,
-                selisihMonotonikMs: 3100,
+                selisihDindingMs: 5500,
+                selisihMonotonikMs: 5400,
             }),
-        ).toEqual({ jenis: 'latar_belakang', durasiMs: 3200 })
+        ).toEqual({ jenis: 'latar_belakang', durasiMs: 5500 })
+    })
+
+    it('evaluasiKepergianSingkat menghitung intip cepat berulang dalam jendela 2 menit dan kedaluwarsa di luar jendela', () => {
+        const t0 = 1_000_000
+        const ev1 = evaluasiKepergianSingkat([], t0)
+        expect(ev1).toEqual({ lewatiBatas: false, riwayatBaru: [t0] })
+
+        const ev2 = evaluasiKepergianSingkat(ev1.riwayatBaru, t0 + 30_000)
+        expect(ev2).toEqual({ lewatiBatas: false, riwayatBaru: [t0, t0 + 30_000] })
+
+        // Ke-3 dalam 2 menit -> melewati batas & reset riwayat.
+        const ev3 = evaluasiKepergianSingkat(ev2.riwayatBaru, t0 + 60_000)
+        expect(ev3).toEqual({ lewatiBatas: true, riwayatBaru: [] })
+
+        // Di luar jendela 2 menit -> entri lama kedaluwarsa.
+        const evLuar = evaluasiKepergianSingkat([t0, t0 + 10_000], t0 + 150_000)
+        expect(evLuar).toEqual({ lewatiBatas: false, riwayatBaru: [t0 + 150_000] })
+    })
+
+    it('harusCatatKeluarLayarPenuh menghindari false positive dan hukuman ganda dengan pindah_tab', () => {
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: true, terlihat: true, sedangPergi: false, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: false, sedangPergi: false, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: true, punyaFokus: true })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: false, punyaFokus: false })).toBe(false)
+        expect(harusCatatKeluarLayarPenuh({ layarPenuhAktif: false, terlihat: true, sedangPergi: false, punyaFokus: true })).toBe(true)
+    })
+
+    it('harusCatatMuatUlang mengabaikan reload internal pembersihan SW dan pembukaan pertama', () => {
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: false, reloadInternal: false })).toBe(false)
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: true, reloadInternal: true })).toBe(false)
+        expect(harusCatatMuatUlang({ pernahDibukaDiTab: true, reloadInternal: false })).toBe(true)
     })
 })

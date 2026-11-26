@@ -300,9 +300,20 @@ export function validasiPinPengawas(pin: string): boolean {
 
 export const bisaBukaPengaturanWifi = (): boolean => adaNative() || isTauri()
 
+export async function bersihkanClipboardNative(): Promise<void> {
+    if (!isTauri()) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('bersihkan_clipboard').catch(() => undefined)
+}
+
 export async function aturProteksiKontenNative(aktif: boolean): Promise<void> {
-    if (!adaNative()) return
-    await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
+    if (adaNative()) {
+        await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
+        return
+    }
+    if (aktif && isTauri()) {
+        await bersihkanClipboardNative()
+    }
 }
 
 export async function aturTetapMenyalaNative(aktif: boolean): Promise<void> {
@@ -384,7 +395,9 @@ export async function bukaPengaturanWifi(
                 if (!isActive) tandaiKeluar()
                 else if (pernahKeluar) akhiri()
             })
-            timer = setTimeout(akhiri, BATAS_PULIH_WIFI_MS)
+            timer = setTimeout(() => {
+                if (document.visibilityState === 'visible') akhiri()
+            }, BATAS_PULIH_WIFI_MS)
         }
 
         try {
@@ -423,12 +436,17 @@ export async function bukaPengaturanWifi(
         }
     })
     timer = setTimeout(() => {
-        if (!selesai) {
-            selesai = true
-            lepas()
-            pulihkan()
-            opsi.onKembali?.()
-        }
+        if (selesai) return
+        void jendela
+            .isFocused()
+            .catch(() => false)
+            .then((fokus) => {
+                if (!fokus || selesai) return
+                selesai = true
+                lepas()
+                pulihkan()
+                opsi.onKembali?.()
+            })
     }, BATAS_PULIH_WIFI_MS)
 
     await jendela.setAlwaysOnTop(false)

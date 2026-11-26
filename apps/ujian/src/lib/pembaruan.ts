@@ -59,7 +59,7 @@ const JENIS_TAG: Record<PlatformRilis, string[]> = {
 
 /** Urutan = prioritas pemasang bila rilis memuat lebih dari satu berkas. */
 const BERKAS: Record<PlatformRilis, RegExp[]> = {
-    windows: [/\.exe$/i, /\.msi$/i],
+    windows: [/\.msi$/i, /\.exe$/i],
     macos: [/arm64\.dmg$/i, /universal\.dmg$/i, /\.dmg$/i],
     android: [/\.apk$/i],
     ios: [/\.xcarchive\.zip$/i],

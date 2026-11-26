@@ -33,7 +33,7 @@ const PASANG: Record<UntukPanduan, Langkah[]> = {
         { teks: <>Buka ujian dari ikon <b>CBT Al Akhyar</b> di layar utama — bukan dari Chrome.</>, adegan: 'layar-utama' },
     ],
     laptop: [
-        { teks: <>Pakai <b>Chrome</b> atau <b>Edge</b> versi terbaru. Bila ada ikon pasang di bilah alamat, pasang aplikasinya agar bisa dibuka offline.</> },
+        { teks: <>Pakai <b>Chrome</b> atau <b>Edge</b> versi terbaru langsung di tab browser. Jangan memasang versi web di laptop — untuk aplikasi terpasang, unduh <b>Exam Browser</b> di bagian 1.</> },
         { teks: <>Saat menekan <b>Mulai</b>, browser meminta layar penuh — <b>izinkan</b>. Ujian level Ketat tidak bisa dimulai tanpa layar penuh.</>, adegan: 'laptop-layar-penuh' },
         { teks: <>Jangan tekan <b>Esc</b> atau berpindah jendela selama ujian: keluar dari layar penuh tercatat sebagai pelanggaran.</> },
     ],
@@ -166,7 +166,7 @@ export default function Panduan({ untuk: awal }: { untuk: UntukPanduan }) {
                             </p>
                         ) : (
                             pasang.bisaPasang &&
-                            untuk !== 'ios' && (
+                            untuk === 'android' && (
                                 <Tombol penuh ikonKiri={<Download className="size-4" />} onClick={() => void pasang.pasang()}>
                                     Pasang sekarang
                                 </Tombol>

@@ -3,6 +3,7 @@ import { IndikatorKoneksi } from '@/komponen/IndikatorKoneksi'
 import { Lencana, type NadaLencana } from '@/komponen/Lencana'
 import { SpanduOffline } from '@/komponen/SpanduOffline'
 import { SpanduPembaruan } from '@/komponen/SpanduPembaruan'
+import { SpanduPwaDesktop } from '@/komponen/SpanduPwaDesktop'
 import { Tombol } from '@/komponen/Tombol'
 import { api } from '@/lib/api'
 import { bersihkanArsipKadaluarsa, daftarArsipJawaban, type ArsipJawaban } from '@/lib/arsipJawaban'
@@ -361,6 +362,7 @@ export default function Beranda() {
 
             {/* Main Content Area */}
             <main className="relative z-10 -mt-5 sm:-mt-7 mx-auto max-w-3xl space-y-3.5 sm:space-y-4 px-3 sm:px-4">
+                <SpanduPwaDesktop />
                 <SpanduPembaruan />
 
                 {/* Offline Warning Banner */}
