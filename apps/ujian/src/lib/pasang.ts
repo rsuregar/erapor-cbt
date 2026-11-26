@@ -1,4 +1,4 @@
-import { standalone } from '@/lib/perangkat'
+import { jenisPerangkat, standalone } from '@/lib/perangkat'
 import { useEffect, useState } from 'react'
 
 /**
@@ -17,6 +17,7 @@ const kabari = () => pendengar.forEach((f) => f())
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault()
+        if (jenisPerangkat() === 'desktop') return
         tertunda = e as PromptPasang
         kabari()
     })
@@ -37,7 +38,7 @@ export function usePasang() {
 
     return {
         terpasang: standalone(),
-        bisaPasang: !!tertunda,
+        bisaPasang: jenisPerangkat() !== 'desktop' && !!tertunda,
         async pasang(): Promise<boolean> {
             if (!tertunda) return false
             await tertunda.prompt()

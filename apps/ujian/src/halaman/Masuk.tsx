@@ -1,6 +1,7 @@
 import { IndikatorKoneksi } from "@/komponen/IndikatorKoneksi";
 import { Masukan } from "@/komponen/Masukan";
 import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
+import { SpanduPwaDesktop } from "@/komponen/SpanduPwaDesktop";
 import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
 import { api, aturDemo, platform } from "@/lib/api";
@@ -231,6 +232,7 @@ export default function Masuk() {
                 <div className="mx-auto max-w-md">
                     <div className="mb-3 space-y-3 empty:hidden">
                         <KartuStaging />
+                        <SpanduPwaDesktop />
                         <SpanduPembaruan />
                     </div>
                     <form
