@@ -24,6 +24,45 @@ unsafe extern "system" {
     fn SetThreadExecutionState(es_flags: u32) -> u32;
 }
 
+#[cfg(target_os = "windows")]
+#[link(name = "user32")]
+unsafe extern "system" {
+    fn OpenClipboard(h_wnd_new_owner: *mut std::ffi::c_void) -> i32;
+    fn EmptyClipboard() -> i32;
+    fn CloseClipboard() -> i32;
+}
+
+#[tauri::command]
+fn bersihkan_clipboard() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        unsafe {
+            if OpenClipboard(std::ptr::null_mut()) != 0 {
+                EmptyClipboard();
+                CloseClipboard();
+            }
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(mut child) = std::process::Command::new("/usr/bin/pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            drop(child.stdin.take());
+            let _ = child.wait();
+        }
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Ok(())
+    }
+}
+
 fn lepas_wake_lock(state: &WakeLockState) {
     #[cfg(target_os = "windows")]
     {
@@ -265,6 +304,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
+            bersihkan_clipboard,
             atur_tetap_menyala,
             jumlah_monitor,
             buka_pengaturan_wifi,

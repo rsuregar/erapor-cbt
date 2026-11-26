@@ -300,9 +300,20 @@ export function validasiPinPengawas(pin: string): boolean {
 
 export const bisaBukaPengaturanWifi = (): boolean => adaNative() || isTauri()
 
+export async function bersihkanClipboardNative(): Promise<void> {
+    if (!isTauri()) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('bersihkan_clipboard').catch(() => undefined)
+}
+
 export async function aturProteksiKontenNative(aktif: boolean): Promise<void> {
-    if (!adaNative()) return
-    await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
+    if (adaNative()) {
+        await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
+        return
+    }
+    if (aktif && isTauri()) {
+        await bersihkanClipboardNative()
+    }
 }
 
 export async function aturTetapMenyalaNative(aktif: boolean): Promise<void> {

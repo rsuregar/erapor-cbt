@@ -43,7 +43,7 @@ on:
 
 jobs:
   build-windows:
-    name: Build Windows Exam Browser (.exe & .msi)
+    name: Build Windows Exam Browser (.msi)
     runs-on: windows-latest
     environment: ${{ inputs.environment || (contains(github.ref, 'staging') && 'staging' || 'production') }}
     steps:
@@ -137,6 +137,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          # Authenticode signing Windows (opsional): dukung Azure Trusted Signing (WINDOWS_SIGN_COMMAND) atau PFX.
+          WINDOWS_SIGN_COMMAND: ${{ secrets.WINDOWS_SIGN_COMMAND }}
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           npm run build -w @erapor-cbt/ujian
           cd apps/ujian
@@ -149,7 +153,35 @@ jobs:
           else
             echo "::notice::Updater di dalam app nonaktif: isi secret TAURI_SIGNING_PRIVATE_KEY dan variable TAURI_UPDATER_PUBKEY."
           fi
-          npx @tauri-apps/cli build "${ARGS[@]}"
+          if [ -n "$WINDOWS_SIGN_COMMAND" ]; then
+            ARGS+=(--config "$(node -e 'console.log(JSON.stringify({bundle:{windows:{signCommand:process.env.WINDOWS_SIGN_COMMAND}}}))')")
+          elif [ -n "$WINDOWS_CERTIFICATE_BASE64" ]; then
+            PFX_POSIX="$RUNNER_TEMP/windows-cert.pfx"
+            echo "$WINDOWS_CERTIFICATE_BASE64" | base64 --decode > "$PFX_POSIX"
+            PFX_WIN="$PFX_POSIX"
+            if command -v cygpath >/dev/null 2>&1; then
+              PFX_WIN=$(cygpath -w "$PFX_POSIX")
+            fi
+            SIGNTOOL=$(find "/c/Program Files (x86)/Windows Kits/10/bin" -name "signtool.exe" -path "*/x64/*" 2>/dev/null | sort -V | tail -n 1 || true)
+            if [ -z "$SIGNTOOL" ]; then
+              SIGNTOOL="signtool.exe"
+            elif command -v cygpath >/dev/null 2>&1; then
+              SIGNTOOL=$(cygpath -w "$SIGNTOOL")
+            fi
+            export SIGNTOOL PFX_WIN
+            ARGS+=(--config "$(node -e '
+              const q = (s) => `"${String(s).replace(/"/g, "\\\"")}"`;
+              const args = [q(process.env.SIGNTOOL), "sign", "/f", q(process.env.PFX_WIN)];
+              if (process.env.WINDOWS_CERTIFICATE_PASSWORD) {
+                args.push("/p", q(process.env.WINDOWS_CERTIFICATE_PASSWORD));
+              }
+              args.push("/tr", "http://timestamp.digicert.com", "/td", "sha256", "/fd", "sha256", "%1");
+              console.log(JSON.stringify({ bundle: { windows: { signCommand: args.join(" ") } } }));
+            ')")
+          else
+            echo "::notice::Windows Authenticode signing nonaktif: isi secret WINDOWS_SIGN_COMMAND (mis. Azure Trusted Signing) atau WINDOWS_CERTIFICATE_BASE64."
+          fi
+          npx @tauri-apps/cli build --bundles msi "${ARGS[@]}"
 
       # Konvensi: cbt-al-akhyar-<platform>[-<env>]-v<versi>-b<build>[-<arch>][-<varian>].<ext>
       - name: Name Installers
@@ -159,14 +191,13 @@ jobs:
           RELEASE_REPO: ${{ vars.RELEASE_REPO || 'rsuregar/erapor-cbt-releases' }}
         run: |
           BUNDLE=apps/ujian/src-tauri/target/release/bundle
-          EXE=$(ls "$BUNDLE"/nsis/*.exe)
-          MSI=$(ls "$BUNDLE"/msi/*.msi)
-          # Tauri: "<Produk>_<versi>_<arch>-setup.exe"
-          ARCH=$(basename "$EXE" | sed -E 's/.*_([^_]+)-setup\.exe$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
+          MSI=$(ls "$BUNDLE"/msi/*.msi | head -n 1)
+          # Tauri: "<Produk>_<versi>_<arch>_<locale>.msi"
+          ARCH=$(basename "$MSI" | sed -E 's/.*_(x64|x86_64|arm64|aarch64|x86)(_[^.]+)?\.msi$/\1/; s/^x86_64$/x64/; s/^aarch64$/arm64/')
+          if [ -z "$ARCH" ] || [ "$ARCH" = "$(basename "$MSI")" ]; then ARCH="x64"; fi
           BASE="cbt-al-akhyar-windows${{ steps.env.outputs.name_env }}-v${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           OUT="$RUNNER_TEMP/installer"
           mkdir -p "$OUT"
-          cp "$EXE" "$OUT/$BASE-$ARCH-setup.exe"
           cp "$MSI" "$OUT/$BASE-$ARCH.msi"
           # Manifes updater: hanya bila build ditandatangani dan berkas akan diterbitkan ke rilis (tag-nya pasti).
           TAG=""
@@ -176,10 +207,10 @@ jobs:
             TAG="staging-${{ steps.version.outputs.version_name }}-b${{ steps.version.outputs.build_number }}"
           fi
           if [ "${{ steps.build.outputs.updater }}" = true ] && [ -n "$TAG" ]; then
-            SIG=$(ls "$BUNDLE"/nsis/*.exe.sig)
+            SIG=$(ls "$BUNDLE"/msi/*.msi.sig)
             TARGET_ARCH="windows-$(echo "$ARCH" | sed -E 's/^x64$/x86_64/; s/^arm64$/aarch64/')"
-            # Updater Windows menjalankan pemasang NSIS yang sama dengan unduhan manual.
-            ASET="$BASE-$ARCH-setup.exe"
+            # Updater Windows menjalankan pemasang MSI (WiX) yang sama dengan unduhan manual.
+            ASET="$BASE-$ARCH.msi"
             node scripts/buat-manifes-updater.mjs "$OUT/$BASE-updater.json" "${{ steps.version.outputs.version_name }}" "$TARGET_ARCH" \
               "https://github.com/$RELEASE_REPO/releases/download/$TAG/$ASET" "$SIG"
           fi
@@ -187,7 +218,7 @@ jobs:
           echo "name=$BASE" >> $GITHUB_OUTPUT
           echo "dir=$OUT" >> $GITHUB_OUTPUT
 
-      - name: Upload Windows MSI & NSIS Installers
+      - name: Upload Windows MSI Installer
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.installer.outputs.name }}

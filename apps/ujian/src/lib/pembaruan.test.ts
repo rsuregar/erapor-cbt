@@ -99,9 +99,9 @@ describe('pilihPembaruan', () => {
         expect(pilihPembaruan([rilis('release-1.2.0', ['a.dmg'])], 'macos', '1.0.0')?.versi).toBe('1.2.0')
     })
 
-    it('Windows memilih .exe NSIS dulu, .msi bila exe tidak ada', () => {
-        expect(pilihPembaruan([rilis('release-win-1.1.0', ['x.msi', 'x.exe'])], 'windows', '1.0.0')?.unduh).toMatch(/x\.exe$/)
-        expect(pilihPembaruan([rilis('release-win-1.1.0', ['x.msi'])], 'windows', '1.0.0')?.unduh).toMatch(/x\.msi$/)
+    it('Windows memilih .msi (WiX) dulu, .exe bila msi tidak ada', () => {
+        expect(pilihPembaruan([rilis('release-win-1.1.0', ['x.exe', 'x.msi'])], 'windows', '1.0.0')?.unduh).toMatch(/x\.msi$/)
+        expect(pilihPembaruan([rilis('release-win-1.1.0', ['x.exe'])], 'windows', '1.0.0')?.unduh).toMatch(/x\.exe$/)
     })
 
     it('tag "release-win-2" dinormalkan menjadi 2.0.0', () => {
@@ -166,7 +166,7 @@ describe('pilihPembaruan', () => {
 })
 
 describe('pilihUnduhan', () => {
-    it('ambil rilis terbaru tiap platform (Windows .exe, macOS .dmg, Android .apk), lewati pra-rilis', () => {
+    it('ambil rilis terbaru tiap platform (Windows .msi, macOS .dmg, Android .apk), lewati pra-rilis', () => {
         const hasil = pilihUnduhan([
             rilis('release-desktop-0.5.0', ['cbt-windows-x64-setup.exe', 'cbt-windows-x64.msi', 'cbt-macos-arm64.dmg']),
             rilis('release-desktop-0.4.0', ['old.exe', 'old.dmg']),
@@ -174,7 +174,7 @@ describe('pilihUnduhan', () => {
             rilis('release-android-0.6.0', ['beta.apk'], { prerelease: true }),
             rilis('staging-0.7.0-b3', ['s.apk'], { prerelease: true }),
         ])
-        expect(hasil.windows?.unduh).toBe('https://dl/release-desktop-0.5.0/cbt-windows-x64-setup.exe')
+        expect(hasil.windows?.unduh).toBe('https://dl/release-desktop-0.5.0/cbt-windows-x64.msi')
         expect(hasil.macos?.versi).toBe('0.5.0')
         expect(hasil.android?.unduh).toBe('https://dl/release-android-0.5.0/cbt.apk')
     })

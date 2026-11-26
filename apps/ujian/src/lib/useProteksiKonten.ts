@@ -1,5 +1,5 @@
 import { buatPelapor, perkirakanSumber, type KirimInfo } from '@/lib/laporProteksi'
-import { adaNative, aturProteksiKontenNative, isShortcutPengawas } from '@/lib/native'
+import { adaNative, aturProteksiKontenNative, bersihkanClipboardNative, isShortcutPengawas, isTauri } from '@/lib/native'
 import { adalahInputTypeTempel, adalahPintasanCopas, adalahTargetIsian, terdeteksiTempel } from '@/lib/proteksiSalin'
 import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -59,11 +59,6 @@ export function useProteksiKonten(
         if (!aktif) return
         document.body.classList.add('ujian-berjalan')
         void aturProteksiKontenNative(true)
-
-        const bersihkanClipboardWeb = () => {
-            void navigator.clipboard?.writeText?.('').catch(() => undefined)
-        }
-        bersihkanClipboardWeb()
 
         const pelapor = buatPelapor((jenis, meta) => opsiRef.current.lapor?.(jenis, meta))
         pelaporRef.current = pelapor
@@ -187,9 +182,12 @@ export function useProteksiKonten(
             }
         }
         const cetak = () => kabari('Soal ujian tidak boleh dicetak.')
-        const saatFokus = () => bersihkanClipboardWeb()
+        const pakaiTauri = isTauri()
+        const saatFokus = () => {
+            void bersihkanClipboardNative()
+        }
         const saatTerlihat = () => {
-            if (document.visibilityState === 'visible') bersihkanClipboardWeb()
+            if (document.visibilityState === 'visible') void bersihkanClipboardNative()
         }
 
         const peristiwa: [string, EventListener][] = [
@@ -207,8 +205,10 @@ export function useProteksiKonten(
         document.addEventListener('selectionchange', ubahSeleksi)
         document.addEventListener('keydown', tombol, true)
         window.addEventListener('beforeprint', cetak)
-        window.addEventListener('focus', saatFokus)
-        document.addEventListener('visibilitychange', saatTerlihat)
+        if (pakaiTauri) {
+            window.addEventListener('focus', saatFokus)
+            document.addEventListener('visibilitychange', saatTerlihat)
+        }
         // Android: tombol Kembali tidak boleh menutup layar ujian (selama ada pendengar, Capacitor tidak menutup app).
         const kembali = adaNative() ? App.addListener('backButton', () => kabari('Tombol kembali dinonaktifkan selama ujian.')) : null
 
@@ -219,8 +219,10 @@ export function useProteksiKonten(
             document.removeEventListener('selectionchange', ubahSeleksi)
             document.removeEventListener('keydown', tombol, true)
             window.removeEventListener('beforeprint', cetak)
-            window.removeEventListener('focus', saatFokus)
-            document.removeEventListener('visibilitychange', saatTerlihat)
+            if (pakaiTauri) {
+                window.removeEventListener('focus', saatFokus)
+                document.removeEventListener('visibilitychange', saatTerlihat)
+            }
             void kembali?.then((h) => h.remove())
             clearTimeout(timer.current)
             // Yang masih tertahan di jendela penggabungan ikut dikirim.

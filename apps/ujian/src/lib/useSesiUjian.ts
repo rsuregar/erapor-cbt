@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { buatArsipDariSesi, simpanArsipJawaban } from '@/lib/arsipJawaban'
-import { ambilPosisi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
+import { ambilPosisi, izinLokasi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { PenulisJawaban } from '@/lib/penulisJawaban'
 import { bersihkan, muatUjian, penyimpanan, type PetaMedia, type SesiUjian } from '@/lib/ujian'
@@ -219,14 +219,22 @@ export function useSesiUjian(attemptId: number) {
     const lokasiWajib = !!data?.sesi.mulai.lokasi_wajib
     useEffect(() => {
         if (!lokasiWajib || status !== 'mengerjakan') return
-        const baca = () =>
-            void ambilPosisi({ maksUmurMs: SELANG_LOKASI_MS })
-                .then((p) => (posisi.current = p))
-                .catch(() => undefined)
-        baca()
-        const t = setInterval(baca, SELANG_LOKASI_MS)
+        let batal = false
+        const baca = async () => {
+            if (!adaNative()) {
+                const izin = await izinLokasi()
+                if (batal || izin === 'prompt' || izin === 'denied') return
+            }
+            const p = await ambilPosisi({ maksUmurMs: SELANG_LOKASI_MS }).catch(() => undefined)
+            if (!batal && p) posisi.current = p
+        }
+        void baca()
+        const t = setInterval(() => void baca(), SELANG_LOKASI_MS)
 
-        return () => clearInterval(t)
+        return () => {
+            batal = true
+            clearInterval(t)
+        }
     }, [lokasiWajib, status])
 
     // App native: sematkan layar selama mengerjakan (juga setelah app dibuka ulang), laporkan statusnya.

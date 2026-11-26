@@ -1,6 +1,12 @@
 import { api, platform } from '@/lib/api'
-import { harusPantauBlurWindow, klasifikasiKepergian } from '@/lib/deteksiKepergian'
-import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative } from '@/lib/native'
+import {
+    evaluasiKepergianSingkat,
+    harusPantauBlurWindow,
+    klasifikasiKepergian,
+    MIN_KEPERGIAN_MS,
+    TOLERANSI_PERGI_MS,
+} from '@/lib/deteksiKepergian'
+import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative, isTauri } from '@/lib/native'
 import { jenisPerangkat } from '@/lib/perangkat'
 import { App } from '@capacitor/app'
 import { penyimpanan } from '@/lib/ujian'
@@ -19,8 +25,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  */
 const TIDAK_DIHITUNG = new Set<JenisPelanggaran>(['offline', 'layar_mati', 'muat_ulang', 'klik_kanan', 'salin_diblokir'])
 
-/** Tinggal sebentar (mis. menarik panel notifikasi) tidak dihitung. */
-const MIN_PERGI_MS = 1000
+/** Tinggal sebentar (mis. menarik panel notifikasi atau salah klik < 5 dtk) ditoleransi. */
+const MIN_PERGI_MS = MIN_KEPERGIAN_MS
 
 /** Attempt yang layarnya sudah dibuka di muatan JS ini — pembeda muat ulang dari navigasi biasa. */
 const dibuka = new Set<number>()
@@ -152,8 +158,11 @@ export function usePelanggaran(opsi: {
         let sejakDinding = 0
         let mulaiMs: number | undefined
         let pernahLayarMati = false
+        let fokusTauri = true
+        let riwayatSingkat: number[] = []
         const pakaiNative = adaNative()
-        const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, jenisPerangkat: jenisPerangkat() })
+        const pakaiTauri = isTauri()
+        const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, isTauri: pakaiTauri, jenisPerangkat: jenisPerangkat() })
 
         const pergi = () => {
             if (sejakMono !== null) return
@@ -169,6 +178,7 @@ export function usePelanggaran(opsi: {
         const kembali = () => {
             if (sejakMono === null || document.visibilityState !== 'visible') return
             if (pantauBlur && !document.hasFocus()) return
+            if (pakaiTauri && !fokusTauri) return
             const selisihMonotonikMs = performance.now() - sejakMono
             const selisihDindingMs = Date.now() - sejakDinding
             const layarMatiNative = pernahLayarMati
@@ -178,12 +188,23 @@ export function usePelanggaran(opsi: {
             pernahLayarMati = false
 
             const catatDenganStatus = (mati: boolean) => {
+                const durasiMs = Math.round(Math.max(selisihMonotonikMs, selisihDindingMs))
+                const bukanLayarMati = !mati && selisihDindingMs - selisihMonotonikMs < 2000
+                let paksaCatatSingkat = false
+                if (durasiMs >= MIN_PERGI_MS && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
+                    const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
+                    riwayatSingkat = ev.riwayatBaru
+                    paksaCatatSingkat = ev.lewatiBatas
+                }
+
                 const hasil = klasifikasiKepergian({
                     platform: platform(),
                     layarMatiNative: mati,
                     selisihDindingMs,
                     selisihMonotonikMs,
                     minPergiMs: MIN_PERGI_MS,
+                    toleransiPergiMs: TOLERANSI_PERGI_MS,
+                    paksaCatatSingkat,
                 })
                 if (hasil) void catat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
             }
@@ -205,6 +226,24 @@ export function usePelanggaran(opsi: {
                   if (!interaktif) pernahLayarMati = true
               })
             : null
+        let lepasFokusTauri: (() => void) | null = null
+        let batalTauri = false
+        if (pakaiTauri) {
+            void import('@tauri-apps/api/window')
+                .then(async ({ getCurrentWindow }) => {
+                    if (batalTauri) return
+                    const jendela = getCurrentWindow()
+                    fokusTauri = await jendela.isFocused().catch(() => true)
+                    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
+                        fokusTauri = fokus
+                        if (fokus) kembali()
+                        else pergi()
+                    })
+                    if (batalTauri) lepas()
+                    else lepasFokusTauri = lepas
+                })
+                .catch(() => undefined)
+        }
         if (pantauBlur) {
             window.addEventListener('blur', pergi)
             window.addEventListener('focus', kembali)
@@ -212,6 +251,8 @@ export function usePelanggaran(opsi: {
         window.addEventListener('pagehide', pergi)
 
         return () => {
+            batalTauri = true
+            lepasFokusTauri?.()
             document.removeEventListener('visibilitychange', visibilitas)
             void statusApp?.then((h) => h.remove())
             void statusLayar?.then((h) => h?.remove())

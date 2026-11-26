@@ -16,7 +16,7 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = process.env.RELEASE_REPO || 'rsuregar/erapor-cbt-releases';
 
 const BERKAS_POLA = {
-  windows: [/\.exe$/i, /\.msi$/i],
+  windows: [/\.msi$/i, /\.exe$/i],
   macos: [/arm64\.dmg$/i, /universal\.dmg$/i, /\.dmg$/i],
   macos_intel: [/x64\.dmg$/i, /x86_64\.dmg$/i],
   android: [/\.apk$/i],
