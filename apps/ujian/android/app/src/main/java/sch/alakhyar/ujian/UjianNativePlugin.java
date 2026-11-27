@@ -1,6 +1,7 @@
 package sch.alakhyar.ujian;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -48,8 +49,13 @@ import java.net.URL;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONArray;
 
 /**
@@ -74,6 +80,16 @@ public class UjianNativePlugin extends Plugin {
     private volatile long layarMatiTerakhirMs = 0L;
     private volatile long layarNyalaTerakhirMs = 0L;
     private BroadcastReceiver penerimaLayar;
+    private final Set<Runnable> pembersihLokasiAktif = Collections.synchronizedSet(new HashSet<>());
+    private final AtomicBoolean sedangPasangApk = new AtomicBoolean(false);
+    private static final AtomicLong URUTAN_UNDUH = new AtomicLong(0);
+    private static final String USER_AGENT = "AlAkhyarCBT/1.0 (+https://erapor.alakhyar.sch.id)";
+
+    private Activity aktivitasAman() {
+        Activity a = getActivity();
+        if (a == null || a.isFinishing() || a.isDestroyed()) return null;
+        return a;
+    }
 
     @Override
     public void load() {
@@ -119,6 +135,18 @@ public class UjianNativePlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        List<Runnable> pembersih;
+        synchronized (pembersihLokasiAktif) {
+            pembersih = new ArrayList<>(pembersihLokasiAktif);
+            pembersihLokasiAktif.clear();
+        }
+        for (Runnable r : pembersih) {
+            try {
+                r.run();
+            } catch (Exception ignored) {
+                // Abaikan jika listener sudah terlepas.
+            }
+        }
         if (penerimaLayar != null) {
             try {
                 getContext().unregisterReceiver(penerimaLayar);
@@ -127,7 +155,34 @@ public class UjianNativePlugin extends Plugin {
             }
             penerimaLayar = null;
         }
+        synchronized (this) {
+            if (dbHelper != null) {
+                try {
+                    dbHelper.close();
+                } catch (Exception ignored) {
+                    // Abaikan galat penutupan SQLite.
+                }
+                dbHelper = null;
+            }
+        }
         super.handleOnDestroy();
+    }
+
+    static boolean apakahLayarMati(
+        boolean interaktif,
+        boolean layarMati,
+        boolean pernahLayarMati,
+        long layarMatiTerakhirMs,
+        long layarNyalaTerakhirMs,
+        long kini
+    ) {
+        boolean matiBaru = (layarMatiTerakhirMs > 0L && (kini - layarMatiTerakhirMs) < 3000L)
+                || (layarNyalaTerakhirMs > 0L && (kini - layarNyalaTerakhirMs) < 5000L);
+        return !interaktif || layarMati || pernahLayarMati || matiBaru;
+    }
+
+    static File namaBerkasSementara(String pathTujuan, long urutan) {
+        return new File(pathTujuan + "." + urutan + ".unduh");
     }
 
     @PluginMethod
@@ -136,11 +191,18 @@ public class UjianNativePlugin extends Plugin {
         PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
         boolean interaktif = pm == null || pm.isInteractive();
         long kini = SystemClock.elapsedRealtime();
-        boolean matiBaru = (layarMatiTerakhirMs > 0L && (kini - layarMatiTerakhirMs) < 3000L)
-                || (layarNyalaTerakhirMs > 0L && (kini - layarNyalaTerakhirMs) < 5000L);
-        boolean hasilMati = !interaktif || layarMati || pernahLayarMati || matiBaru;
+        boolean hasilMati = apakahLayarMati(
+            interaktif,
+            layarMati,
+            pernahLayarMati,
+            layarMatiTerakhirMs,
+            layarNyalaTerakhirMs,
+            kini
+        );
         if (reset && interaktif && !layarMati) {
             pernahLayarMati = false;
+            layarMatiTerakhirMs = 0L;
+            layarNyalaTerakhirMs = 0L;
         }
         JSObject o = new JSObject();
         o.put("interaktif", interaktif);
@@ -152,9 +214,14 @@ public class UjianNativePlugin extends Plugin {
 
     @PluginMethod
     public void kunciLayar(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
+        Activity a = aktivitasAman();
+        if (a == null) {
+            call.reject("Aktivitas layar tidak tersedia.", "AKTIVITAS_TIDAK_ADA");
+            return;
+        }
+        a.runOnUiThread(() -> {
             try {
-                getActivity().startLockTask();
+                a.startLockTask();
                 call.resolve(statusKunci());
             } catch (Exception e) {
                 call.reject("Kunci layar gagal: " + e.getMessage(), "KUNCI_GAGAL");
@@ -164,9 +231,14 @@ public class UjianNativePlugin extends Plugin {
 
     @PluginMethod
     public void lepasKunci(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
+        Activity a = aktivitasAman();
+        if (a == null) {
+            call.resolve(statusKunci());
+            return;
+        }
+        a.runOnUiThread(() -> {
             try {
-                getActivity().stopLockTask();
+                a.stopLockTask();
             } catch (Exception ignored) {
                 // Tidak sedang terkunci.
             }
@@ -181,7 +253,7 @@ public class UjianNativePlugin extends Plugin {
 
     private JSObject statusKunci() {
         ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
-        int mode = am.getLockTaskModeState();
+        int mode = am != null ? am.getLockTaskModeState() : ActivityManager.LOCK_TASK_MODE_NONE;
         JSObject o = new JSObject();
         o.put("aktif", mode != ActivityManager.LOCK_TASK_MODE_NONE);
         o.put("mode", mode == ActivityManager.LOCK_TASK_MODE_LOCKED ? "kios" : mode == ActivityManager.LOCK_TASK_MODE_PINNED ? "sematan" : "tidak");
@@ -190,10 +262,15 @@ public class UjianNativePlugin extends Plugin {
 
     @PluginMethod
     public void bukaPengaturanWifi(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
+        Activity a = aktivitasAman();
+        if (a == null) {
+            call.reject("Aktivitas layar tidak tersedia.", "AKTIVITAS_TIDAK_ADA");
+            return;
+        }
+        a.runOnUiThread(() -> {
             try {
                 try {
-                    getActivity().stopLockTask();
+                    a.stopLockTask();
                 } catch (Exception ignored) {
                     // Tidak sedang terkunci.
                 }
@@ -201,7 +278,7 @@ public class UjianNativePlugin extends Plugin {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     Intent panel = new Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY);
                     if (panel.resolveActivity(pm) != null) {
-                        getActivity().startActivity(panel);
+                        a.startActivity(panel);
                         JSObject o = new JSObject();
                         o.put("mode", "panel");
                         call.resolve(o);
@@ -212,7 +289,7 @@ public class UjianNativePlugin extends Plugin {
                 if (wifi.resolveActivity(pm) == null) {
                     wifi = new Intent(Settings.ACTION_SETTINGS);
                 }
-                getActivity().startActivity(wifi);
+                a.startActivity(wifi);
                 JSObject o = new JSObject();
                 o.put("mode", "pengaturan");
                 call.resolve(o);
@@ -225,9 +302,14 @@ public class UjianNativePlugin extends Plugin {
     @PluginMethod
     public void aturProteksiKonten(PluginCall call) {
         boolean aktif = Boolean.TRUE.equals(call.getBoolean("aktif", false));
-        getActivity().runOnUiThread(() -> {
-            if (getActivity() instanceof MainActivity) {
-                ((MainActivity) getActivity()).setProteksiKontenAktif(aktif);
+        Activity a = aktivitasAman();
+        if (a == null) {
+            call.resolve();
+            return;
+        }
+        a.runOnUiThread(() -> {
+            if (a instanceof MainActivity) {
+                ((MainActivity) a).setProteksiKontenAktif(aktif);
             }
             call.resolve();
         });
@@ -236,9 +318,14 @@ public class UjianNativePlugin extends Plugin {
     @PluginMethod
     public void aturTetapMenyala(PluginCall call) {
         boolean aktif = Boolean.TRUE.equals(call.getBoolean("aktif", false));
-        getActivity().runOnUiThread(() -> {
-            if (getActivity() instanceof MainActivity) {
-                ((MainActivity) getActivity()).setTetapMenyala(aktif);
+        Activity a = aktivitasAman();
+        if (a == null) {
+            call.resolve();
+            return;
+        }
+        a.runOnUiThread(() -> {
+            if (a instanceof MainActivity) {
+                ((MainActivity) a).setTetapMenyala(aktif);
             }
             call.resolve();
         });
@@ -275,6 +362,10 @@ public class UjianNativePlugin extends Plugin {
     @SuppressWarnings({ "MissingPermission", "deprecation" })
     private void baca(PluginCall call) {
         LocationManager lm = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+        if (lm == null) {
+            call.reject("Layanan lokasi tidak tersedia.", "TIDAK_ADA");
+            return;
+        }
         long maksUmurMs = call.getLong("maksUmurMs", 0L);
         long batasMs = call.getLong("batasMs", 20000L);
 
@@ -288,11 +379,15 @@ public class UjianNativePlugin extends Plugin {
         if (maksUmurMs > 0) {
             Location terbaik = null;
             for (String p : penyediaList) {
-                Location terakhir = lm.getLastKnownLocation(p);
-                if (terakhir != null && umurMs(terakhir) <= maksUmurMs) {
-                    if (terbaik == null || terakhir.getAccuracy() < terbaik.getAccuracy()) {
-                        terbaik = terakhir;
+                try {
+                    Location terakhir = lm.getLastKnownLocation(p);
+                    if (terakhir != null && umurMs(terakhir) <= maksUmurMs) {
+                        if (terbaik == null || terakhir.getAccuracy() < terbaik.getAccuracy()) {
+                            terbaik = terakhir;
+                        }
                     }
+                } catch (Exception ignored) {
+                    // Abaikan provider bermasalah; coba provider lain.
                 }
             }
             if (terbaik != null) {
@@ -305,6 +400,7 @@ public class UjianNativePlugin extends Plugin {
         final boolean[] selesai = { false };
         final Location[] cadangan = { null };
         final boolean adaGanda = penyediaList.size() > 1;
+        final Runnable[] pembersihRef = new Runnable[1];
         LocationListener pendengar = new LocationListener() {
             @Override
             public void onLocationChanged(Location loc) {
@@ -318,30 +414,51 @@ public class UjianNativePlugin extends Plugin {
                     }
                     return;
                 }
-                selesai[0] = true;
-                h.removeCallbacksAndMessages(null);
-                lm.removeUpdates(this);
+                if (pembersihRef[0] != null) pembersihRef[0].run();
                 call.resolve(keJs(loc));
             }
         };
+        Runnable bersihkan = () -> {
+            selesai[0] = true;
+            h.removeCallbacksAndMessages(null);
+            try {
+                lm.removeUpdates(pendengar);
+            } catch (Exception ignored) {
+                // Listener mungkin sudah dilepas.
+            }
+            if (pembersihRef[0] != null) {
+                pembersihLokasiAktif.remove(pembersihRef[0]);
+            }
+        };
+        pembersihRef[0] = bersihkan;
+        pembersihLokasiAktif.add(bersihkan);
+
         h.post(() -> {
+            if (selesai[0]) return;
+            int terdaftar = 0;
             for (String p : penyediaList) {
-                lm.requestLocationUpdates(p, 0L, 0f, pendengar, Looper.getMainLooper());
+                try {
+                    lm.requestLocationUpdates(p, 0L, 0f, pendengar, Looper.getMainLooper());
+                    terdaftar++;
+                } catch (Exception ignored) {
+                    // Izin dicabut / provider hilang sesaat: lanjut coba provider lain.
+                }
+            }
+            if (terdaftar == 0 && !selesai[0]) {
+                bersihkan.run();
+                call.reject("Layanan lokasi tidak tersedia.", "TIDAK_ADA");
             }
         });
         if (adaGanda && batasMs > 6000L) {
             h.postDelayed(() -> {
                 if (selesai[0] || cadangan[0] == null) return;
-                selesai[0] = true;
-                h.removeCallbacksAndMessages(null);
-                lm.removeUpdates(pendengar);
+                bersihkan.run();
                 call.resolve(keJs(cadangan[0]));
             }, 6000L);
         }
         h.postDelayed(() -> {
             if (selesai[0]) return;
-            selesai[0] = true;
-            lm.removeUpdates(pendengar);
+            bersihkan.run();
             if (cadangan[0] != null) {
                 call.resolve(keJs(cadangan[0]));
             } else {
@@ -354,10 +471,14 @@ public class UjianNativePlugin extends Plugin {
         List<String> hasil = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.hasProvider(LocationManager.FUSED_PROVIDER) && lm.isProviderEnabled(LocationManager.FUSED_PROVIDER)) {
             hasil.add(LocationManager.FUSED_PROVIDER);
-            return hasil;
         }
-        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) hasil.add(LocationManager.GPS_PROVIDER);
-        if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) hasil.add(LocationManager.NETWORK_PROVIDER);
+        // Jangan early return di FUSED_PROVIDER: perangkat Android 12+ tanpa GMS penuh tetap butuh fallback GPS/Network.
+        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) && !hasil.contains(LocationManager.GPS_PROVIDER)) {
+            hasil.add(LocationManager.GPS_PROVIDER);
+        }
+        if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) && !hasil.contains(LocationManager.NETWORK_PROVIDER)) {
+            hasil.add(LocationManager.NETWORK_PROVIDER);
+        }
         return hasil;
     }
 
@@ -394,6 +515,17 @@ public class UjianNativePlugin extends Plugin {
 
         DatabaseHelper(Context context) {
             super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onConfigure(SQLiteDatabase db) {
+            super.onConfigure(db);
+            db.enableWriteAheadLogging();
+            try (Cursor c = db.rawQuery("PRAGMA busy_timeout = 5000", null)) {
+                c.moveToFirst();
+            } catch (Exception ignored) {
+                // Sebagian device membatasi pragma tertentu; WAL tetap aktif.
+            }
         }
 
         @Override
@@ -531,21 +663,37 @@ public class UjianNativePlugin extends Plugin {
             return;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getContext().getPackageManager().canRequestPackageInstalls()) {
+            Activity act = aktivitasAman();
+            if (act != null) {
+                act.runOnUiThread(() -> {
+                    try {
+                        act.stopLockTask();
+                    } catch (Exception ignored) {
+                        // Tidak sedang disematkan.
+                    }
+                });
+            }
             Intent setelan = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getContext().getPackageName()));
             setelan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(setelan);
             call.reject("Izinkan app ini memasang pembaruan, lalu coba lagi.", "IZIN_PASANG");
             return;
         }
+        if (!sedangPasangApk.compareAndSet(false, true)) {
+            call.reject("Pembaruan sedang berlangsung.", "PEMBARUAN_SIBUK");
+            return;
+        }
 
         new Thread(() -> {
+            File apk = null;
             try {
-                File apk = unduhApk(url);
+                apk = unduhApk(url);
                 periksaApk(apk);
                 kirimProgres("memasang", null);
-                bukaPemasang(apk);
-                call.resolve();
+                bukaPemasang(apk, call);
             } catch (Exception e) {
+                if (apk != null && apk.exists()) apk.delete();
+                sedangPasangApk.set(false);
                 call.reject(e.getMessage() != null ? e.getMessage() : "Pembaruan gagal.", "PEMBARUAN_GAGAL");
             }
         }).start();
@@ -555,9 +703,11 @@ public class UjianNativePlugin extends Plugin {
         File folder = new File(getContext().getCacheDir(), "pembaruan");
         if (!folder.exists() && !folder.mkdirs()) throw new Exception("Tidak bisa membuat folder unduhan.");
         File apk = new File(folder, "pembaruan.apk");
+        File sementara = namaBerkasSementara(apk.getPath(), URUTAN_UNDUH.incrementAndGet());
 
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setInstanceFollowRedirects(true);
+        conn.setRequestProperty("User-Agent", USER_AGENT);
         conn.setConnectTimeout(20000);
         conn.setReadTimeout(30000);
         try {
@@ -569,7 +719,7 @@ public class UjianNativePlugin extends Plugin {
             mulai.put("total", total > 0 ? total : null);
             kirimProgres("mulai", mulai);
 
-            try (InputStream in = conn.getInputStream(); OutputStream out = new FileOutputStream(apk)) {
+            try (InputStream in = conn.getInputStream(); OutputStream out = new FileOutputStream(sementara)) {
                 byte[] buf = new byte[64 * 1024];
                 long belumDikirim = 0;
                 long terakhirKirim = 0;
@@ -593,8 +743,11 @@ public class UjianNativePlugin extends Plugin {
                     kirimProgres("progres", p);
                 }
             }
+            if (apk.exists()) apk.delete();
+            if (!sementara.renameTo(apk)) throw new Exception("Gagal menyiapkan berkas pembaruan.");
         } finally {
             conn.disconnect();
+            if (sementara.exists()) sementara.delete();
         }
         return apk;
     }
@@ -639,19 +792,32 @@ public class UjianNativePlugin extends Plugin {
         return Arrays.equals(sa, sb);
     }
 
-    private void bukaPemasang(File apk) {
+    private void bukaPemasang(File apk, PluginCall call) {
+        Activity a = aktivitasAman();
+        if (a == null) {
+            sedangPasangApk.set(false);
+            call.reject("Aktivitas layar tidak tersedia.", "AKTIVITAS_TIDAK_ADA");
+            return;
+        }
         Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", apk);
         Intent pasang = new Intent(Intent.ACTION_VIEW);
         pasang.setDataAndType(uri, MIME_APK);
         pasang.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-        getActivity().runOnUiThread(() -> {
-            // Sematan layar menghalangi pemasang sistem tampil.
+        a.runOnUiThread(() -> {
             try {
-                getActivity().stopLockTask();
-            } catch (Exception ignored) {
-                // Tidak sedang disematkan.
+                // Sematan layar menghalangi pemasang sistem tampil.
+                try {
+                    a.stopLockTask();
+                } catch (Exception ignored) {
+                    // Tidak sedang disematkan.
+                }
+                getContext().startActivity(pasang);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Tidak bisa membuka pemasang pembaruan: " + e.getMessage(), "PEMBARUAN_GAGAL");
+            } finally {
+                sedangPasangApk.set(false);
             }
-            getContext().startActivity(pasang);
         });
     }
 
@@ -729,12 +895,12 @@ public class UjianNativePlugin extends Plugin {
     private static void unduhKe(String url, File tujuan) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent", "AlAkhyarCBT/1.0 (+https://erapor.alakhyar.sch.id)");
+        conn.setRequestProperty("User-Agent", USER_AGENT);
         conn.setRequestProperty("Accept", "image/*,*/*;q=0.8");
         conn.setConnectTimeout(20000);
         conn.setReadTimeout(30000);
-        // Tulis ke berkas sementara lalu ganti nama: berkas setengah jadi tidak pernah dianggap lengkap.
-        File sementara = new File(tujuan.getPath() + ".unduh");
+        // Tulis ke berkas sementara unik lalu ganti nama: aman saat unduhan/retry paralel.
+        File sementara = namaBerkasSementara(tujuan.getPath(), URUTAN_UNDUH.incrementAndGet());
         try {
             int status = conn.getResponseCode();
             if (status < 200 || status >= 300) throw new Exception("Gagal mengunduh media (" + status + ").");
@@ -743,7 +909,9 @@ public class UjianNativePlugin extends Plugin {
                 int n;
                 while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
             }
-            if (!sementara.renameTo(tujuan)) throw new Exception("Gagal menyimpan media.");
+            if (!sementara.renameTo(tujuan) && (!tujuan.exists() || tujuan.length() == 0)) {
+                throw new Exception("Gagal menyimpan media.");
+            }
         } catch (java.io.IOException e) {
             throw new Exception("Gagal mengunduh media. Periksa internet lalu coba lagi.");
         } finally {

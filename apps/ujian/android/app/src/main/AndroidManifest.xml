@@ -46,4 +46,17 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!-- Android 11+ (targetSdk 35): agar resolveActivity untuk panel internet/Wi-Fi tidak mengembalikan null. -->
+    <queries>
+        <intent>
+            <action android:name="android.settings.panel.action.INTERNET_CONNECTIVITY" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.WIFI_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+    </queries>
 </manifest>

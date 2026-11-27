@@ -125,7 +125,7 @@ jobs:
             BUILD_NUM="1"
           fi
 
-          ANDROID_VERSION_CODE=$(node -e 'const [M=0,m=0,p=0]=process.argv[1].replace(/-.*$/,"").split(".").map(Number); const b=Math.min(Math.max(Number(process.argv[2]||0),0),999); console.log(M*10000000+m*100000+p*1000+b)' "$VERSION" "$BUILD_NUM")
+          ANDROID_VERSION_CODE=$(node -e 'const [M=0,m=0,p=0]=process.argv[1].replace(/-.*$/,"").split(".").map(Number); const b=Math.min(Math.max(Number(process.argv[2]||0),0),9999); console.log(M*100000000+m*1000000+p*10000+b)' "$VERSION" "$BUILD_NUM")
 
           echo "version_name=$VERSION" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUM" >> $GITHUB_OUTPUT
