@@ -19,14 +19,25 @@ export async function registrasiMenunggu(): Promise<ServiceWorkerRegistration | 
 }
 
 /** Pasang versi baru lalu muat ulang — hanya dari layar di luar ujian, tidak pernah saat mengerjakan. */
-export async function terapkanPembaruan(): Promise<void> {
+export async function terapkanPembaruan(batasTungguMs = 3500): Promise<void> {
     const reg = await registrasiMenunggu()
     if (!reg?.waiting) {
         location.reload()
 
         return
     }
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true })
+    let selesai = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const muatUlang = () => {
+        if (selesai) return
+        selesai = true
+        if (timer) clearTimeout(timer)
+        location.reload()
+    }
+    // iOS standalone PWA terkadang tidak memicu `controllerchange` setelah SKIP_WAITING;
+    // muat ulang paksa setelah batas tunggu agar UI tidak macet di "Memperbarui…".
+    timer = setTimeout(muatUlang, batasTungguMs)
+    navigator.serviceWorker.addEventListener('controllerchange', muatUlang, { once: true })
     reg.waiting.postMessage({ type: 'SKIP_WAITING' })
 }
 
@@ -69,24 +80,29 @@ export function usePembaruanPwa(): boolean {
         if (isNative() || !('serviceWorker' in navigator)) return
         let reg: ServiceWorkerRegistration | undefined
         let aktif = true
+        let terpasangUpdateFound = false
         // Pemasangan pertama (belum ada controller) bukan "pembaruan".
         const tandai = () => aktif && !!navigator.serviceWorker.controller && setTersedia(true)
-        const pantauPemasangan = () => {
-            const sw = reg?.installing
+        const pantauSw = (sw: ServiceWorker | null | undefined) => {
             sw?.addEventListener('statechange', () => sw.state === 'installed' && tandai())
+        }
+        const pantauPemasangan = () => {
+            pantauSw(reg?.installing)
         }
         const cek = async () => {
             reg ??= await navigator.serviceWorker.getRegistration().catch(() => undefined)
-            if (!reg) return
+            if (!reg || !aktif) return
+            if (!terpasangUpdateFound) {
+                terpasangUpdateFound = true
+                reg.addEventListener('updatefound', pantauPemasangan)
+                pantauSw(reg.installing)
+            }
             await reg.update().catch(() => undefined)
             if (reg.waiting) tandai()
         }
         const saatTerlihat = () => document.visibilityState === 'visible' && void cek()
 
-        void (async () => {
-            await cek()
-            reg?.addEventListener('updatefound', pantauPemasangan)
-        })()
+        void cek()
         document.addEventListener('visibilitychange', saatTerlihat)
         const t = setInterval(() => void cek(), JEDA_CEK_MS)
 

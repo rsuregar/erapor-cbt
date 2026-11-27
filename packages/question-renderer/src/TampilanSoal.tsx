@@ -413,6 +413,9 @@ function IsianJawaban({
                         type="text"
                         data-isian-jawaban
                         aria-label="Jawaban singkat"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
                         className="h-12 w-full max-w-md rounded-lg border-2 border-slate-300 bg-white px-3.5 text-base outline-none transition focus:border-sky-600 focus:ring-4 focus:ring-sky-600/15 dark:border-slate-600 dark:bg-slate-900"
                         placeholder="Tulis jawaban singkat…"
                         value={(jawaban as string) ?? ''}
@@ -437,6 +440,9 @@ function IsianJawaban({
                         dir="auto"
                         data-isian-jawaban
                         aria-label="Jawaban uraian"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
                         className="w-full rounded-lg border-2 border-slate-300 bg-white p-3.5 text-base leading-relaxed outline-none transition focus:border-sky-600 focus:ring-4 focus:ring-sky-600/15 dark:border-slate-600 dark:bg-slate-900"
                         placeholder="Tulis jawaban…"
                         value={teks}

@@ -1,15 +1,27 @@
 import { api, platform } from '@/lib/api'
 import {
+    AMBANG_JEDA_FRAME_IOS_MS,
+    BATAS_INTIP_CEPAT,
+    bolehDeteksiLayarMatiDariJam,
+    DEBOUNCE_LAYAR_DIBAGI_MS,
     evaluasiKepergianSingkat,
     harusCatatKeluarLayarPenuh,
+    harusCatatLayarDibagi,
     harusCatatMuatUlang,
+    harusKonfirmasiBlur,
     harusPantauBlurWindow,
+    harusPantauLayarDibagi,
+    INTERVAL_CEK_FOKUS_IOS_MS,
+    INTERVAL_CEK_FRAME_IOS_MS,
     klasifikasiKepergian,
+    KONFIRMASI_BLUR_IOS_MS,
+    MIN_INTIP_TERSEMBUNYI_MS,
     MIN_KEPERGIAN_MS,
+    TOLERANSI_LAYAR_DIBAGI_MS,
     TOLERANSI_PERGI_MS,
 } from '@/lib/deteksiKepergian'
 import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative, isTauri } from '@/lib/native'
-import { jenisPerangkat } from '@/lib/perangkat'
+import { jenisPerangkat, layarDibagi, type JenisPerangkat } from '@/lib/perangkat'
 import { App } from '@capacitor/app'
 import { penyimpanan } from '@/lib/ujian'
 import { GalatApi, type EntriPelanggaran, type JenisPelanggaran, type UjianRingkas } from '@erapor-cbt/exam-core'
@@ -39,9 +51,24 @@ export type PengawasKepergianOpsi = {
     pakaiNative: boolean
     pakaiTauri: boolean
     pantauBlur: boolean
+    jenisPerangkat?: JenisPerangkat
     msSejakMulai: () => number | undefined
     onPergi?: () => void
     onKembali?: () => void
+    onKembaliDetail?: (info: {
+        durasiMs: number
+        selisihDindingMs: number
+        selisihMonotonikMs: number
+        hasil: JenisPelanggaran | null
+        jumlahIntip: number
+        batasIntip: number
+    }) => void
+    onFokusBerubah?: (tidakFokus: boolean) => void
+    abaikanCatatSekali?: () => boolean
+    konfirmasiBlurMs?: number
+    intervalCekFokusMs?: number
+    ambangJedaFrameMs?: number
+    onJedaFrame?: (jedaMs: number) => void
     onCatat: (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => void
     bacaPlatform?: () => 'android' | 'ios' | 'pwa'
     imporJendelaTauri?: () => Promise<{
@@ -56,40 +83,82 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     let sejakDinding = 0
     let mulaiMs: number | undefined
     let pernahLayarMati = false
+    let pernahTersembunyi = false
+    let jendelaBlurAktif = false
     let fokusTauri = true
     let riwayatSingkat: number[] = []
+    let terakhirKembaliDinding = -Infinity
+    let timerKonfirmasiBlur: ReturnType<typeof setTimeout> | undefined
     const bacaPlatform = opsi.bacaPlatform ?? platform
 
-    const pergi = () => {
+    const batalKonfirmasiBlur = () => {
+        if (timerKonfirmasiBlur) {
+            clearTimeout(timerKonfirmasiBlur)
+            timerKonfirmasiBlur = undefined
+        }
+    }
+
+    const pergi = (awal?: { mono: number; dinding: number; mulai: number | undefined }) => {
+        batalKonfirmasiBlur()
+        if (document.visibilityState === 'hidden') pernahTersembunyi = true
         if (sejakMono !== null) return
         opsi.onPergi?.()
-        sejakMono = performance.now()
-        sejakDinding = Date.now()
-        mulaiMs = opsi.msSejakMulai()
+        opsi.onFokusBerubah?.(true)
+        sejakMono = awal?.mono ?? performance.now()
+        sejakDinding = awal?.dinding ?? Date.now()
+        mulaiMs = awal ? awal.mulai : opsi.msSejakMulai()
         if (opsi.pakaiNative) {
             void apakahLayarMatiNative(false).then((mati) => {
                 if (mati && sejakMono !== null) pernahLayarMati = true
             })
         }
     }
+
+    const mulaiBlurTerverifikasi = (sumber: 'event' | 'watchdog') => {
+        if (sumber === 'event') jendelaBlurAktif = true
+        if (sejakMono !== null || timerKonfirmasiBlur) return
+        const jedaKonfirmasi = opsi.konfirmasiBlurMs ?? 0
+        if (jedaKonfirmasi <= 0) {
+            pergi()
+            return
+        }
+        const awal = { mono: performance.now(), dinding: Date.now(), mulai: opsi.msSejakMulai() }
+        timerKonfirmasiBlur = setTimeout(() => {
+            timerKonfirmasiBlur = undefined
+            if (sumber === 'event') {
+                if (!jendelaBlurAktif) return
+            } else if (document.visibilityState === 'visible' && document.hasFocus()) {
+                return
+            }
+            pergi(awal)
+        }, jedaKonfirmasi)
+    }
+
     const kembali = () => {
+        batalKonfirmasiBlur()
         if (sejakMono === null || document.visibilityState !== 'visible') return
-        if (opsi.pantauBlur && !document.hasFocus()) return
+        if (opsi.pantauBlur && (jendelaBlurAktif || !document.hasFocus())) return
         if (opsi.pakaiTauri && !fokusTauri) return
+        terakhirKembaliDinding = Date.now()
         opsi.onKembali?.()
+        opsi.onFokusBerubah?.(false)
         const selisihMonotonikMs = performance.now() - sejakMono
         const selisihDindingMs = Date.now() - sejakDinding
         const layarMatiNative = pernahLayarMati
+        const tersembunyiSaatPergi = pernahTersembunyi
         const mulaiSaatPergi = mulaiMs
         sejakMono = null
         mulaiMs = undefined
         pernahLayarMati = false
+        pernahTersembunyi = false
 
         const catatDenganStatus = (mati: boolean) => {
             const durasiMs = Math.round(Math.max(selisihMonotonikMs, selisihDindingMs))
-            const bukanLayarMati = !mati && selisihDindingMs - selisihMonotonikMs < 2000
+            const pakaiHeuristikJam = bolehDeteksiLayarMatiDariJam(opsi.jenisPerangkat)
+            const minPergiMs = tersembunyiSaatPergi ? MIN_INTIP_TERSEMBUNYI_MS : MIN_PERGI_MS
+            const bukanLayarMati = !mati && (!pakaiHeuristikJam || selisihDindingMs - selisihMonotonikMs < 2000)
             let paksaCatatSingkat = false
-            if (durasiMs >= MIN_PERGI_MS && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
+            if (durasiMs >= minPergiMs && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
                 const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
                 riwayatSingkat = ev.riwayatBaru
                 paksaCatatSingkat = ev.lewatiBatas
@@ -97,14 +166,25 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
 
             const hasil = klasifikasiKepergian({
                 platform: bacaPlatform(),
+                jenisPerangkat: opsi.jenisPerangkat,
                 layarMatiNative: mati,
                 selisihDindingMs,
                 selisihMonotonikMs,
-                minPergiMs: MIN_PERGI_MS,
+                minPergiMs,
                 toleransiPergiMs: TOLERANSI_PERGI_MS,
                 paksaCatatSingkat,
             })
-            if (hasil) opsi.onCatat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
+            if (hasil && !opsi.abaikanCatatSekali?.()) {
+                opsi.onCatat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
+            }
+            opsi.onKembaliDetail?.({
+                durasiMs,
+                selisihDindingMs: Math.round(selisihDindingMs),
+                selisihMonotonikMs: Math.round(selisihMonotonikMs),
+                hasil: hasil?.jenis ?? null,
+                jumlahIntip: paksaCatatSingkat ? BATAS_INTIP_CEPAT : riwayatSingkat.length,
+                batasIntip: BATAS_INTIP_CEPAT,
+            })
         }
 
         if (opsi.pakaiNative && !layarMatiNative) {
@@ -114,7 +194,28 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
             catatDenganStatus(layarMatiNative)
         }
     }
-    const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
+    const visibilitas = () => {
+        if (document.visibilityState === 'hidden') {
+            pernahTersembunyi = true
+            pergi()
+        } else {
+            if (pernahTersembunyi && document.hasFocus()) jendelaBlurAktif = false
+            kembali()
+        }
+    }
+    const saatBlur = () => mulaiBlurTerverifikasi('event')
+    const saatFocus = () => {
+        jendelaBlurAktif = false
+        kembali()
+    }
+    const pulihSaatInteraksi = () => {
+        if (document.visibilityState !== 'visible' || !document.hasFocus()) return
+        jendelaBlurAktif = false
+        batalKonfirmasiBlur()
+        if (sejakMono !== null) {
+            kembali()
+        }
+    }
 
     document.addEventListener('visibilitychange', visibilitas)
     // App native: perpindahan ke latar belakang dan status layar dilaporkan OS.
@@ -143,23 +244,115 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
             })
             .catch(() => undefined)
     }
+    let timerCekFokus: ReturnType<typeof setInterval> | undefined
+    const pakaiCekFokusBerkala = opsi.pantauBlur && (opsi.intervalCekFokusMs ?? 0) > 0
     if (opsi.pantauBlur) {
-        window.addEventListener('blur', pergi)
-        window.addEventListener('focus', kembali)
+        window.addEventListener('blur', saatBlur)
+        window.addEventListener('focus', saatFocus)
+        if (pakaiCekFokusBerkala) {
+            window.addEventListener('pointerdown', pulihSaatInteraksi, { capture: true, passive: true })
+            window.addEventListener('touchstart', pulihSaatInteraksi, { capture: true, passive: true })
+            window.addEventListener('keydown', pulihSaatInteraksi, { capture: true, passive: true })
+            if (document.visibilityState === 'visible' && !document.hasFocus()) {
+                mulaiBlurTerverifikasi('watchdog')
+            }
+            timerCekFokus = setInterval(() => {
+                if (document.visibilityState !== 'visible') return
+                if (!document.hasFocus()) {
+                    if (sejakMono === null) mulaiBlurTerverifikasi('watchdog')
+                } else if (!jendelaBlurAktif && sejakMono !== null) {
+                    kembali()
+                }
+            }, opsi.intervalCekFokusMs)
+        }
     }
-    window.addEventListener('pagehide', pergi)
+    let idRaf: number | undefined
+    let timerCekFrame: ReturnType<typeof setTimeout> | undefined
+    let batalRaf = false
+    const ambangJedaFrame = opsi.ambangJedaFrameMs ?? 0
+    if (ambangJedaFrame > 0 && typeof requestAnimationFrame === 'function') {
+        let terakhirCekDinding = Date.now()
+        const jadwalkanCekFrame = () => {
+            if (batalRaf) return
+            terakhirCekDinding = Date.now()
+            timerCekFrame = setTimeout(() => {
+                timerCekFrame = undefined
+                if (!batalRaf) idRaf = requestAnimationFrame(detakFrame)
+            }, INTERVAL_CEK_FRAME_IOS_MS)
+        }
+        const detakFrame = () => {
+            idRaf = undefined
+            if (batalRaf) return
+            const sekarangDinding = Date.now()
+            const jedaMs = Math.max(0, sekarangDinding - terakhirCekDinding - INTERVAL_CEK_FRAME_IOS_MS)
+            if (
+                document.visibilityState === 'visible' &&
+                sejakMono === null &&
+                !jendelaBlurAktif &&
+                !timerKonfirmasiBlur &&
+                sekarangDinding - terakhirKembaliDinding >= 1500 &&
+                jedaMs >= ambangJedaFrame
+            ) {
+                terakhirKembaliDinding = sekarangDinding
+                opsi.onJedaFrame?.(jedaMs)
+                let paksaCatatSingkat = false
+                if (jedaMs < TOLERANSI_PERGI_MS) {
+                    const ev = evaluasiKepergianSingkat(riwayatSingkat, sekarangDinding)
+                    riwayatSingkat = ev.riwayatBaru
+                    paksaCatatSingkat = ev.lewatiBatas
+                }
+                const hasil = klasifikasiKepergian({
+                    platform: bacaPlatform(),
+                    jenisPerangkat: opsi.jenisPerangkat,
+                    layarMatiNative: false,
+                    selisihDindingMs: jedaMs,
+                    selisihMonotonikMs: jedaMs,
+                    minPergiMs: ambangJedaFrame,
+                    toleransiPergiMs: TOLERANSI_PERGI_MS,
+                    paksaCatatSingkat,
+                })
+                if (hasil && !opsi.abaikanCatatSekali?.()) {
+                    opsi.onCatat(hasil.jenis, opsi.msSejakMulai(), hasil.durasiMs)
+                }
+                opsi.onKembaliDetail?.({
+                    durasiMs: Math.round(jedaMs),
+                    selisihDindingMs: Math.round(jedaMs),
+                    selisihMonotonikMs: Math.round(jedaMs),
+                    hasil: hasil?.jenis ?? null,
+                    jumlahIntip: paksaCatatSingkat ? BATAS_INTIP_CEPAT : riwayatSingkat.length,
+                    batasIntip: BATAS_INTIP_CEPAT,
+                })
+            }
+            jadwalkanCekFrame()
+        }
+        jadwalkanCekFrame()
+    }
+    const saatPagehide = () => pergi()
+    window.addEventListener('pagehide', saatPagehide)
 
     return () => {
         batalTauri = true
+        batalRaf = true
+        if (timerCekFrame) clearTimeout(timerCekFrame)
+        if (idRaf !== undefined && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(idRaf)
+        }
+        batalKonfirmasiBlur()
+        if (timerCekFokus) clearInterval(timerCekFokus)
         lepasFokusTauri?.()
         document.removeEventListener('visibilitychange', visibilitas)
         void statusApp?.then((h) => h.remove())
         void statusLayar?.then((h) => h?.remove())
         if (opsi.pantauBlur) {
-            window.removeEventListener('blur', pergi)
-            window.removeEventListener('focus', kembali)
+            window.removeEventListener('blur', saatBlur)
+            window.removeEventListener('focus', saatFocus)
+            if (pakaiCekFokusBerkala) {
+                window.removeEventListener('pointerdown', pulihSaatInteraksi, true)
+                window.removeEventListener('touchstart', pulihSaatInteraksi, true)
+                window.removeEventListener('keydown', pulihSaatInteraksi, true)
+            }
         }
-        window.removeEventListener('pagehide', pergi)
+        window.removeEventListener('pagehide', saatPagehide)
     }
 }
 
@@ -209,6 +402,109 @@ export function pasangPengawasLayarPenuh(opsi: {
     }
 }
 
+export type PengawasLayarDibagiOpsi = {
+    cekLayarDibagi: () => boolean
+    msSejakMulai: () => number | undefined
+    onStatusBerubah?: (terbagi: boolean) => void
+    onCatat: (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => void
+    debounceMasukMs?: number
+    intervalCekMs?: number
+}
+
+/**
+ * Pantau Split View, Stage Manager, dan jendela mengambang selama ujian di tablet/HP.
+ * Memakai debounce masuk (300 ms) agar rotasi layar tidak berkedip dan masa tenggang 2 detik
+ * (+ pencegahan intip cepat berulang).
+ */
+export function pasangPengawasLayarDibagi(opsi: PengawasLayarDibagiOpsi): () => void {
+    let terbagiAktif = false
+    let sejakMono: number | null = null
+    let mulaiMs: number | undefined
+    let sudahCatatSesiIni = false
+    let riwayatSingkat: number[] = []
+    let timerDebounce: ReturnType<typeof setTimeout> | undefined
+    let timerCatat: ReturnType<typeof setTimeout> | undefined
+    const debounceMs = opsi.debounceMasukMs ?? DEBOUNCE_LAYAR_DIBAGI_MS
+    const cekMs = opsi.intervalCekMs ?? 1000
+
+    const bersihkanTimer = () => {
+        if (timerDebounce) {
+            clearTimeout(timerDebounce)
+            timerDebounce = undefined
+        }
+        if (timerCatat) {
+            clearTimeout(timerCatat)
+            timerCatat = undefined
+        }
+    }
+
+    const evaluasi = () => {
+        const kiniTerbagi = opsi.cekLayarDibagi()
+        if (kiniTerbagi) {
+            if (terbagiAktif || timerDebounce) return
+            timerDebounce = setTimeout(() => {
+                timerDebounce = undefined
+                if (!opsi.cekLayarDibagi() || terbagiAktif) return
+                terbagiAktif = true
+                sudahCatatSesiIni = false
+                sejakMono = performance.now()
+                mulaiMs = opsi.msSejakMulai()
+                opsi.onStatusBerubah?.(true)
+                timerCatat = setTimeout(() => {
+                    timerCatat = undefined
+                    if (
+                        harusCatatLayarDibagi({
+                            layarDibagiAktif: opsi.cekLayarDibagi(),
+                            terlihat: document.visibilityState === 'visible',
+                        })
+                    ) {
+                        sudahCatatSesiIni = true
+                        opsi.onCatat('ukuran_layar', mulaiMs, TOLERANSI_LAYAR_DIBAGI_MS)
+                    }
+                }, TOLERANSI_LAYAR_DIBAGI_MS)
+            }, debounceMs)
+            return
+        }
+
+        bersihkanTimer()
+        if (!terbagiAktif) return
+        terbagiAktif = false
+        opsi.onStatusBerubah?.(false)
+        if (!sudahCatatSesiIni && sejakMono !== null) {
+            const durasiMs = Math.round(performance.now() - sejakMono)
+            if (durasiMs >= MIN_KEPERGIAN_MS && durasiMs < TOLERANSI_LAYAR_DIBAGI_MS) {
+                const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
+                riwayatSingkat = ev.riwayatBaru
+                if (ev.lewatiBatas) {
+                    opsi.onCatat('ukuran_layar', mulaiMs, durasiMs)
+                }
+            }
+        }
+        sejakMono = null
+        mulaiMs = undefined
+        sudahCatatSesiIni = false
+    }
+
+    const win = typeof window !== 'undefined' ? window : undefined
+    win?.addEventListener?.('resize', evaluasi)
+    win?.addEventListener?.('orientationchange', evaluasi)
+    win?.visualViewport?.addEventListener?.('resize', evaluasi)
+    const timerInterval = cekMs > 0 ? setInterval(evaluasi, cekMs) : undefined
+    evaluasi()
+
+    return () => {
+        bersihkanTimer()
+        if (timerInterval) clearInterval(timerInterval)
+        win?.removeEventListener?.('resize', evaluasi)
+        win?.removeEventListener?.('orientationchange', evaluasi)
+        win?.visualViewport?.removeEventListener?.('resize', evaluasi)
+        if (terbagiAktif) {
+            terbagiAktif = false
+            opsi.onStatusBerubah?.(false)
+        }
+    }
+}
+
 const dihitung = (e: EntriPelanggaran[]) => e.filter((x) => !TIDAK_DIHITUNG.has(x.jenis)).length
 
 /**
@@ -235,6 +531,8 @@ export function usePelanggaran(opsi: {
     const [tertunda, setTertunda] = useState(0)
     const [ambang, setAmbang] = useState(opsi.ambangAwal)
     const [kejadian, setKejadian] = useState<Kejadian | null>(null)
+    const [layarTerbagi, setLayarTerbagi] = useState(false)
+    const [tidakFokus, setTidakFokus] = useState(false)
 
     const ref = useRef(opsi)
     ref.current = opsi
@@ -243,6 +541,7 @@ export function usePelanggaran(opsi: {
     const antrean = useRef<Promise<unknown>>(Promise.resolve())
     const mengirim = useRef(false)
     const sedangPergiRef = useRef(false)
+    const sudahCatatSplitRef = useRef(false)
     const batalTimerLpRef = useRef<(() => void) | null>(null)
 
     useEffect(() => setAmbang(opsi.ambangAwal), [opsi.ambangAwal])
@@ -335,15 +634,26 @@ export function usePelanggaran(opsi: {
 
     // Pindah tab/aplikasi, layar mati, jendela lain di depan, app ke latar belakang.
     useEffect(() => {
-        if (!aktif) return
+        if (!aktif) {
+            setTidakFokus(false)
+            return
+        }
         const pakaiNative = adaNative()
         const pakaiTauri = isTauri()
-        const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, isTauri: pakaiTauri, jenisPerangkat: jenisPerangkat() })
+        const perangkat = jenisPerangkat()
+        const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, isTauri: pakaiTauri, jenisPerangkat: perangkat })
+        const konfirmasiBlurMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? KONFIRMASI_BLUR_IOS_MS : 0
+        const intervalCekFokusMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? INTERVAL_CEK_FOKUS_IOS_MS : 0
+        const ambangJedaFrameMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? AMBANG_JEDA_FRAME_IOS_MS : 0
 
         const lepas = pasangPengawasKepergian({
             pakaiNative,
             pakaiTauri,
             pantauBlur,
+            jenisPerangkat: perangkat,
+            konfirmasiBlurMs,
+            intervalCekFokusMs,
+            ambangJedaFrameMs,
             msSejakMulai: () => ref.current.msSejakMulai(),
             onPergi: () => {
                 sedangPergiRef.current = true
@@ -352,11 +662,50 @@ export function usePelanggaran(opsi: {
             onKembali: () => {
                 sedangPergiRef.current = false
             },
+            onFokusBerubah: setTidakFokus,
+            abaikanCatatSekali: () => {
+                if (!sudahCatatSplitRef.current) return false
+                sudahCatatSplitRef.current = false
+                return true
+            },
             onCatat: (jenis, mulaiMs, durasiMs) => void catat(jenis, mulaiMs, durasiMs),
         })
 
         return () => {
             sedangPergiRef.current = false
+            setTidakFokus(false)
+            lepas()
+        }
+    }, [aktif, catat])
+
+    // Split View / Stage Manager / jendela mengambang di iPad & HP/tablet.
+    useEffect(() => {
+        if (!aktif) {
+            setLayarTerbagi(false)
+            sudahCatatSplitRef.current = false
+            return
+        }
+        const pakaiTauri = isTauri()
+        if (!harusPantauLayarDibagi({ isTauri: pakaiTauri, jenisPerangkat: jenisPerangkat() })) return
+
+        const lepas = pasangPengawasLayarDibagi({
+            cekLayarDibagi: layarDibagi,
+            msSejakMulai: () => ref.current.msSejakMulai(),
+            onStatusBerubah: (terbagi) => {
+                setLayarTerbagi(terbagi)
+                if (terbagi || !sedangPergiRef.current) {
+                    sudahCatatSplitRef.current = false
+                }
+            },
+            onCatat: (jenis, mulaiMs, durasiMs) => {
+                sudahCatatSplitRef.current = true
+                void catat(jenis, mulaiMs, durasiMs)
+            },
+        })
+
+        return () => {
+            setLayarTerbagi(false)
+            sudahCatatSplitRef.current = false
             lepas()
         }
     }, [aktif, catat])
@@ -397,6 +746,8 @@ export function usePelanggaran(opsi: {
         mengunci,
         tingkat: !mengunci || jumlah === 0 ? 'tenang' : jumlah >= ambang ? 'batas' : jumlah === ambang - 1 ? 'waspada' : 'tenang',
         kejadian,
+        layarTerbagi,
+        tidakFokus,
         tutupKejadian: () => setKejadian(null),
         kirim,
         laporInfo,

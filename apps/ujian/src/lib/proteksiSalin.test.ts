@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
     adalahInputTypeTempel,
+    adalahNodeDiDalamIsian,
     adalahPintasanCopas,
     adalahTargetIsian,
     ekstrakTeksDokumen,
+    ekstrakTeksInputEvent,
     hitungSisipan,
     terdeteksiTempel,
 } from './proteksiSalin'
@@ -109,9 +111,66 @@ describe('terdeteksiTempel', () => {
             }),
         ).toEqual({ diblokir: true, alasan: 'tempel_massal' })
     })
+
+    it('memblokir tempelan pendek 3 kata (16+ char), potongan soal 2 kata (10+ char), dan URL, sambil mengizinkan 2 kata ketikan bebas', () => {
+        expect(
+            terdeteksiTempel({
+                sebelum: '',
+                sesudah: 'tiga kata panjang',
+                teksSoal,
+            }),
+        ).toEqual({ diblokir: true, alasan: 'tempel_massal' })
+
+        expect(
+            terdeteksiTempel({
+                sebelum: '',
+                sesudah: 'proklamasi kemerdekaan',
+                teksSoal,
+            }),
+        ).toEqual({ diblokir: true, alasan: 'salin_soal' })
+
+        expect(
+            terdeteksiTempel({
+                sebelum: '',
+                sesudah: 'https://contoh.id/catatan',
+                teksSoal,
+            }),
+        ).toEqual({ diblokir: true, alasan: 'tempel_massal' })
+
+        expect(
+            terdeteksiTempel({
+                sebelum: '',
+                sesudah: 'dua kata',
+                teksSoal,
+            }),
+        ).toEqual({ diblokir: false })
+    })
 })
 
 describe('deteksi inputType, pintasan, dan target isian', () => {
+    it('ekstrakTeksInputEvent membaca dataTransfer saat e.data null (khas WebKit iPadOS)', () => {
+        expect(ekstrakTeksInputEvent({ data: 'teks langsung', dataTransfer: null })).toBe('teks langsung')
+        expect(
+            ekstrakTeksInputEvent({
+                data: null,
+                dataTransfer: { getData: (t) => (t === 'text/plain' ? 'hasil tempel webkit' : '') },
+            }),
+        ).toBe('hasil tempel webkit')
+        expect(ekstrakTeksInputEvent({ data: null, dataTransfer: null })).toBe('')
+    })
+
+    it('adalahNodeDiDalamIsian mengenali Text node di dalam textarea vs di luar textarea', () => {
+        const textareaMock = {
+            closest: (sel: string) => (sel.includes('textarea') ? {} : null),
+        } as unknown as Element
+        const soalMock = {
+            closest: () => null,
+        } as unknown as Element
+
+        expect(adalahNodeDiDalamIsian({ nodeType: 3, parentElement: textareaMock })).toBe(true)
+        expect(adalahNodeDiDalamIsian({ nodeType: 3, parentElement: soalMock })).toBe(false)
+        expect(adalahNodeDiDalamIsian(null)).toBe(false)
+    })
     it('mengenali inputType tempel dan potong', () => {
         expect(adalahInputTypeTempel('insertFromPaste')).toBe(true)
         expect(adalahInputTypeTempel('insertFromPasteAsQuotation')).toBe(true)

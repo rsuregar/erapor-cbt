@@ -105,13 +105,21 @@ export class KlienApi {
         return this.minta('POST', `/cbt/ujian/${ujianId}/mulai`, { token, perangkat_id: id, perangkat, lokasi })
     }
 
-    async sinkron(attemptId: number, entri: EntriJawaban[], detak?: Detak, perangkatId?: string): Promise<SinkronRespons> {
+    async sinkron(attemptId: number, entri: EntriJawaban[], detak?: Detak, perangkatId?: string, opsi?: { keepalive?: boolean }): Promise<SinkronRespons> {
         const id = await this.idPerangkat(perangkatId)
-        return this.minta('POST', `/cbt/attempt/${attemptId}/sinkron`, {
-            ...(id ? { perangkat_id: id } : {}),
-            entri,
-            detak,
-        })
+        return this.minta(
+            'POST',
+            `/cbt/attempt/${attemptId}/sinkron`,
+            {
+                ...(id ? { perangkat_id: id } : {}),
+                entri,
+                detak,
+            },
+            true,
+            undefined,
+            BATAS_PERMINTAAN_MS,
+            opsi?.keepalive ?? false,
+        )
     }
 
     async pelanggaran(attemptId: number, entri: EntriPelanggaran[], bukti: Record<string, Blob> = {}, perangkatId?: string): Promise<PelanggaranRespons> {
@@ -152,6 +160,7 @@ export class KlienApi {
         berToken = true,
         onProgres?: (diterima: number, total: number | null) => void,
         batasMs = BATAS_PERMINTAAN_MS,
+        keepalive = false,
     ): Promise<T> {
         const kepala: Record<string, string> = { Accept: 'application/json' }
         if (berToken) {
@@ -171,10 +180,17 @@ export class KlienApi {
         // dan tidak pernah menyampaikan perintah pengawas, padahal app murid tampak normal.
         const pembatal = new AbortController()
         const timer = globalThis.setTimeout(() => pembatal.abort(), batasMs)
+        const pakaiKeepalive = keepalive && (typeof body !== 'string' || body.length < 60_000)
         try {
             let respons: Response
             try {
-                respons = await this.fetch(this.opsi.baseUrl.replace(/\/$/, '') + jalur, { method: metode, headers: kepala, body, signal: pembatal.signal })
+                respons = await this.fetch(this.opsi.baseUrl.replace(/\/$/, '') + jalur, {
+                    method: metode,
+                    headers: kepala,
+                    body,
+                    signal: pembatal.signal,
+                    ...(pakaiKeepalive ? { keepalive: true } : {}),
+                })
             } catch {
                 throw new GalatApi('JARINGAN', pembatal.signal.aborted ? 'Server tidak menjawab tepat waktu.' : 'Tidak tersambung ke server.', 0)
             }

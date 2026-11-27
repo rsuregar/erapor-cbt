@@ -1,5 +1,6 @@
 import { platform } from '@/lib/api'
-import { isTauri } from '@/lib/native'
+import { isNative, isTauri } from '@/lib/native'
+import { adalahTargetIsian } from '@/lib/proteksiSalin'
 
 /**
  * Info perangkat untuk cek kesiapan dan aturan layar (PRD § Jalur cadangan:
@@ -37,10 +38,11 @@ export function jenisPerangkat(): JenisPerangkat {
 
 /** Dibuka dari ikon layar utama (PWA terpasang), bukan tab browser biasa. */
 export function standalone(): boolean {
+    const mm = typeof matchMedia === 'function' ? matchMedia : null
     return (
-        matchMedia('(display-mode: standalone)').matches ||
-        matchMedia('(display-mode: fullscreen)').matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true
+        Boolean(mm?.('(display-mode: standalone)').matches) ||
+        Boolean(mm?.('(display-mode: fullscreen)').matches) ||
+        (typeof navigator !== 'undefined' && (navigator as Navigator & { standalone?: boolean }).standalone === true)
     )
 }
 
@@ -73,21 +75,94 @@ export async function masukLayarPenuh(): Promise<boolean> {
 function apakahLanskap(): boolean {
     const tipe = typeof screen !== 'undefined' ? screen.orientation?.type : undefined
     if (tipe) return tipe.startsWith('landscape')
-    if (typeof screen !== 'undefined' && screen.width && screen.height) return screen.width > screen.height
+    const orientasiWin = typeof window !== 'undefined' ? (window as Window & { orientation?: number }).orientation : undefined
+    if (typeof orientasiWin === 'number') return Math.abs(orientasiWin) === 90
+    if (jenisPerangkat() !== 'ios' && typeof screen !== 'undefined' && screen.width && screen.height && screen.width !== screen.height) {
+        return screen.width > screen.height
+    }
 
-    return innerWidth > innerHeight
+    return typeof innerWidth === 'number' && typeof innerHeight === 'number' ? innerWidth > innerHeight : false
+}
+
+export type ParamLayarDibagi = {
+    jenisPerangkat: JenisPerangkat
+    screenWidth: number
+    screenHeight: number
+    innerWidth: number
+    innerHeight: number
+    visualViewportWidth?: number
+    visualViewportScale?: number
+    orientationType?: string
+    windowOrientation?: number
+    standalone: boolean
+    fokusIsian: boolean
+}
+
+const AMBANG_LEBAR_PENUH = 0.9
+
+/**
+ * Deteksi Split View, Stage Manager, atau jendela mengambang pada HP/tablet.
+ * Di iPadOS, `screen.width` & `screen.height` tetap dalam koordinat potret meski perangkat lanskap,
+ * dan `screen.orientation` kadang tidak berubah/tersedia — jadi cek kecocokan terhadap orientasi
+ * eksplisit atau kedua orientasi bila orientasi tidak diketahui.
+ */
+export function deteksiLayarDibagi(params: ParamLayarDibagi): boolean {
+    if (params.jenisPerangkat === 'desktop') return false
+    const { screenWidth, screenHeight, innerWidth, innerHeight } = params
+    if (screenWidth <= 0 || screenHeight <= 0 || innerWidth <= 0) return false
+
+    const pendek = Math.min(screenWidth, screenHeight)
+    const panjang = Math.max(screenWidth, screenHeight)
+    const vvLebar = params.visualViewportWidth
+    const vvSkala = params.visualViewportScale ?? 1
+    const lebarEfektif = vvLebar && vvLebar > 0 && vvSkala <= 1.05 ? Math.min(innerWidth, vvLebar) : innerWidth
+
+    let lanskap: boolean | null = null
+    if (params.orientationType) {
+        lanskap = params.orientationType.startsWith('landscape')
+    } else if (typeof params.windowOrientation === 'number') {
+        lanskap = Math.abs(params.windowOrientation) === 90
+    } else if (params.jenisPerangkat !== 'ios' && screenWidth !== screenHeight) {
+        lanskap = screenWidth > screenHeight
+    }
+
+    const batasTinggi = params.standalone ? 0.85 : 0.78
+    const cocokOrientasi = (lebarLayar: number, tinggiLayar: number): boolean => {
+        if (lebarEfektif / lebarLayar < AMBANG_LEBAR_PENUH) return false
+        if (pendek >= 600 && !params.fokusIsian && innerHeight > 0 && innerHeight / tinggiLayar < batasTinggi) {
+            return false
+        }
+        return true
+    }
+
+    if (lanskap === true) return !cocokOrientasi(panjang, pendek)
+    if (lanskap === false) return !cocokOrientasi(pendek, panjang)
+
+    return !cocokOrientasi(panjang, pendek) && !cocokOrientasi(pendek, panjang)
 }
 
 /**
- * Layar dibagi (Split View / jendela mengambang): viewport jauh lebih sempit
+ * Layar dibagi (Split View / Stage Manager / jendela mengambang): viewport jauh lebih kecil
  * dari layar. Hanya untuk HP/tablet — jendela browser laptop memang bebas ukuran.
  */
 export function layarDibagi(): boolean {
-    if (jenisPerangkat() === 'desktop') return false
-    const lanskap = apakahLanskap()
-    const lebarLayar = lanskap ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
+    const jenis = jenisPerangkat()
+    if (jenis === 'desktop') return false
 
-    return innerWidth / lebarLayar < 0.8
+    return deteksiLayarDibagi({
+        jenisPerangkat: jenis,
+        screenWidth: typeof screen !== 'undefined' ? screen.width : 0,
+        screenHeight: typeof screen !== 'undefined' ? screen.height : 0,
+        innerWidth: typeof innerWidth === 'number' ? innerWidth : 0,
+        innerHeight: typeof innerHeight === 'number' ? innerHeight : 0,
+        visualViewportWidth: typeof visualViewport !== 'undefined' && visualViewport ? visualViewport.width : undefined,
+        visualViewportScale: typeof visualViewport !== 'undefined' && visualViewport ? visualViewport.scale : undefined,
+        orientationType: typeof screen !== 'undefined' ? screen.orientation?.type : undefined,
+        windowOrientation:
+            typeof window !== 'undefined' ? (window as Window & { orientation?: number }).orientation : undefined,
+        standalone: standalone() || isNative(),
+        fokusIsian: typeof document !== 'undefined' && adalahTargetIsian(document.activeElement),
+    })
 }
 
 /** HP (bukan tablet) dalam posisi miring: soal jadi sempit. */

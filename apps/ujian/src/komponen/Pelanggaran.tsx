@@ -86,7 +86,7 @@ export function IndikatorPelanggaran({ r }: { r: Ringkas }) {
                                 : 'Tercatat dan terlihat oleh pengawas. Ujian ini tidak terkunci otomatis.'}
                         </p>
                         <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                            Yang dihitung: keluar atau berpindah aplikasi/tab, dan keluar dari layar penuh. Internet putus, layar mati, dan memuat ulang halaman <b>tidak</b> dihitung.
+                            Yang dihitung: keluar atau berpindah aplikasi/tab, membagi layar (Split View / jendela mengambang), dan keluar dari layar penuh. Internet putus, layar mati, dan memuat ulang halaman <b>tidak</b> dihitung.
                         </p>
                     </div>
                 </>
@@ -125,9 +125,13 @@ export function PemberitahuanPelanggaran({ k, r, onTutup }: { k: Kejadian; r: Ri
                 <div className="min-w-0 flex-1">
                     {pertama ? (
                         <>
-                            <p className="text-sm font-bold">Kamu tadi keluar dari layar ujian</p>
+                            <p className="text-sm font-bold">
+                                {k.jenis === 'ukuran_layar'
+                                    ? 'Layar ujian tadi dibagi dengan aplikasi lain'
+                                    : 'Kamu tadi keluar dari layar ujian'}
+                            </p>
                             <p className="mt-0.5 text-xs text-white/80">
-                                Tidak apa-apa, lanjutkan saja. Tetap di layar ini sampai selesai ya{r.mengunci ? ` — keluar ${r.ambang} kali akan mengunci ujian.` : '.'}
+                                Tidak apa-apa, lanjutkan saja. Tetap di layar penuh sampai selesai ya{r.mengunci ? ` — keluar ${r.ambang} kali akan mengunci ujian.` : '.'}
                             </p>
                         </>
                     ) : (

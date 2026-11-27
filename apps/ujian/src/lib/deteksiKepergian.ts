@@ -2,18 +2,44 @@ import type { JenisPerangkat } from '@/lib/perangkat'
 import type { JenisPelanggaran } from '@erapor-cbt/exam-core'
 
 /**
- * `window.blur` di Android/iOS (khususnya WebView/Chrome tablet saat unmount input atau
+ * `window.blur` di Android (khususnya WebView/Chrome tablet saat unmount input atau
  * tutup keyboard virtual saat pindah soal) sering menembak meski halaman tetap `visible`.
  * Di Tauri Exam Browser, pemantauan fokus memakai event fokus jendela OS (`onFocusChanged`)
  * alih-alih DOM `window.blur` agar popup/dialog internal WebView2 tidak memicu false positive.
- * Karena itu, hanya pantau `blur`/`focus` pada browser desktop non-native.
+ * Di iOS/iPadOS PWA, Slide Over, Floating Menu (`...`), Control Center, dan jendela mengambang
+ * menjaga `visibilityState === 'visible'` — satu-satunya sinyal adalah `window.blur` / `hasFocus()`,
+ * sehingga iOS PWA ikut dipantau dengan konfirmasi singkat (`KONFIRMASI_BLUR_IOS_MS`).
  */
 export function harusPantauBlurWindow(params: {
     adaNative: boolean
     isTauri?: boolean
     jenisPerangkat: JenisPerangkat
 }): boolean {
-    return !params.adaNative && !params.isTauri && params.jenisPerangkat === 'desktop'
+    return !params.adaNative && !params.isTauri && (params.jenisPerangkat === 'desktop' || params.jenisPerangkat === 'ios')
+}
+
+export const KONFIRMASI_BLUR_IOS_MS = 250
+export const INTERVAL_CEK_FOKUS_IOS_MS = 500
+export const INTERVAL_CEK_FRAME_IOS_MS = 500
+export const AMBANG_JEDA_FRAME_IOS_MS = 1500
+export const DEBOUNCE_LAYAR_DIBAGI_MS = 300
+
+export function harusKonfirmasiBlur(jenisPerangkat: JenisPerangkat): boolean {
+    return jenisPerangkat === 'ios'
+}
+
+export function harusPantauLayarDibagi(params: {
+    isTauri?: boolean
+    jenisPerangkat: JenisPerangkat
+}): boolean {
+    return !params.isTauri && params.jenisPerangkat !== 'desktop'
+}
+
+export function harusCatatLayarDibagi(params: {
+    layarDibagiAktif: boolean
+    terlihat: boolean
+}): boolean {
+    return params.layarDibagiAktif && params.terlihat
 }
 
 /**
@@ -38,9 +64,19 @@ export function harusCatatMuatUlang(params: {
 }
 
 export const MIN_KEPERGIAN_MS = 1000
+export const MIN_INTIP_TERSEMBUNYI_MS = 400
 export const TOLERANSI_PERGI_MS = 5000
+export const TOLERANSI_LAYAR_DIBAGI_MS = 2000
 export const JENDELA_INTIP_CEPAT_MS = 120_000
 export const BATAS_INTIP_CEPAT = 3
+
+/**
+ * Di iOS/iPadOS WebKit PWA, proses dibekukan saat App Switcher / latar belakang meski layar tetap menyala,
+ * sehingga selisih jam dinding vs monotonik tidak dapat dipakai untuk menebak `layar_mati`.
+ */
+export function bolehDeteksiLayarMatiDariJam(jenisPerangkat?: JenisPerangkat): boolean {
+    return jenisPerangkat !== 'ios'
+}
 
 /**
  * Pantau kepergian singkat (1–5 detik) agar tidak diakali dengan intip cepat berulang.
@@ -72,6 +108,7 @@ export function evaluasiKepergianSingkat(
  */
 export function klasifikasiKepergian(params: {
     platform: 'android' | 'ios' | 'pwa'
+    jenisPerangkat?: JenisPerangkat
     layarMatiNative: boolean
     selisihDindingMs: number
     selisihMonotonikMs: number
@@ -82,7 +119,11 @@ export function klasifikasiKepergian(params: {
     const durasiMs = Math.round(Math.max(params.selisihMonotonikMs, params.selisihDindingMs))
     if (durasiMs < (params.minPergiMs ?? MIN_KEPERGIAN_MS)) return null
 
-    if (params.layarMatiNative || params.selisihDindingMs - params.selisihMonotonikMs >= 2000) {
+    if (
+        params.layarMatiNative ||
+        (bolehDeteksiLayarMatiDariJam(params.jenisPerangkat) &&
+            params.selisihDindingMs - params.selisihMonotonikMs >= 2000)
+    ) {
         return { jenis: 'layar_mati', durasiMs }
     }
 

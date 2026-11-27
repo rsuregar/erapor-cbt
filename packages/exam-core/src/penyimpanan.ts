@@ -34,6 +34,20 @@ export class PenyimpananMemori implements Penyimpanan {
     }
 }
 
+function adalahGalatKoneksiIdb(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false
+    const { name, message } = err as { name?: unknown; message?: unknown }
+    if (
+        name === 'InvalidStateError' ||
+        name === 'UnknownError' ||
+        name === 'AbortError' ||
+        name === 'TransactionInactiveError'
+    ) {
+        return true
+    }
+    return typeof message === 'string' && /connection|closing|closed|lost|invalid state/i.test(message)
+}
+
 /** IndexedDB satu object store; tanpa pustaka tambahan. */
 export class PenyimpananIndexedDb implements Penyimpanan {
     private db?: Promise<IDBDatabase>
@@ -62,21 +76,55 @@ export class PenyimpananIndexedDb implements Penyimpanan {
                 this.db = undefined
                 gagal(minta.error)
             }
+            minta.onblocked = () => {
+                this.db = undefined
+                gagal(new Error('Penyimpanan IndexedDB sedang diblokir tab lain.'))
+            }
         })
 
         return this.db
     }
 
-    private async jalankan<T>(mode: IDBTransactionMode, aksi: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+    private async eksekusiSekali<T>(mode: IDBTransactionMode, aksi: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
         const db = await this.buka()
 
-        return new Promise((selesai, gagal) => {
-            const tx = db.transaction(this.store, mode)
-            const minta = aksi(tx.objectStore(this.store))
-            tx.oncomplete = () => selesai(minta.result)
-            tx.onerror = () => gagal(tx.error)
-            tx.onabort = () => gagal(tx.error)
-        })
+        try {
+            return await new Promise<T>((selesai, gagal) => {
+                try {
+                    const tx = db.transaction(this.store, mode)
+                    const minta = aksi(tx.objectStore(this.store))
+                    tx.oncomplete = () => selesai(minta.result)
+                    tx.onerror = () => gagal(tx.error)
+                    tx.onabort = () => gagal(tx.error ?? new Error('Transaksi IndexedDB dibatalkan.'))
+                } catch (e) {
+                    gagal(e)
+                }
+            })
+        } catch (e) {
+            if (adalahGalatKoneksiIdb(e)) {
+                try {
+                    db.close()
+                } catch {
+                    // Koneksi sudah tertutup/rusak di WebKit.
+                }
+                this.db = undefined
+            }
+            throw e
+        }
+    }
+
+    private async jalankan<T>(mode: IDBTransactionMode, aksi: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+        try {
+            return await this.eksekusiSekali(mode, aksi)
+        } catch (e) {
+            // Di iOS WebKit PWA setelah suspend/resume, koneksi IDB bisa mati diam-diam
+            // tanpa memicu `onclose` sehingga `db.transaction()` melempar galat; buka ulang sekali.
+            if (adalahGalatKoneksiIdb(e)) {
+                this.db = undefined
+                return this.eksekusiSekali(mode, aksi)
+            }
+            throw e
+        }
     }
 
     ambil<T>(kunci: string) {

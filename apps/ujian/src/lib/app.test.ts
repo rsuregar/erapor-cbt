@@ -18,4 +18,17 @@ describe('Identitas Aplikasi CBT Al Akhyar', () => {
 
         vi.restoreAllMocks()
     })
+
+    it('mengenali iPadOS (Macintosh + layar sentuh) pada petunjuk izin lokasi PWA', () => {
+        vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('web')
+        vi.stubGlobal('navigator', {
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)',
+            maxTouchPoints: 5,
+        })
+
+        expect(petunjukIzin()).toContain('Pengaturan → Privasi & Keamanan → Layanan Lokasi')
+
+        vi.unstubAllGlobals()
+        vi.restoreAllMocks()
+    })
 })

@@ -1,8 +1,43 @@
 import { buatPelapor, perkirakanSumber, type KirimInfo } from '@/lib/laporProteksi'
 import { adaNative, aturProteksiKontenNative, bersihkanClipboardNative, isShortcutPengawas, isTauri } from '@/lib/native'
-import { adalahInputTypeTempel, adalahPintasanCopas, adalahTargetIsian, terdeteksiTempel } from '@/lib/proteksiSalin'
+import {
+    adalahInputTypeTempel,
+    adalahNodeDiDalamIsian,
+    adalahPintasanCopas,
+    adalahTargetIsian,
+    ekstrakTeksInputEvent,
+    terdeteksiTempel,
+} from '@/lib/proteksiSalin'
 import { App } from '@capacitor/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+type ElemenIsian = {
+    value: string
+    tagName?: string
+    selectionStart?: number | null
+    selectionEnd?: number | null
+    setSelectionRange?: (a: number, b: number) => void
+}
+
+function ambilElemenIsian(target: EventTarget | null): ElemenIsian | null {
+    if (!adalahTargetIsian(target)) return null
+    const el = ((target as Element).closest?.('textarea, input') ?? target) as Partial<ElemenIsian> | null
+    if (!el || typeof el.value !== 'string') return null
+    return el as ElemenIsian
+}
+
+function pulihkanNilaiIsian(el: ElemenIsian, nilai: string, awal: number | null, akhir: number | null): void {
+    const proto =
+        el.tagName === 'TEXTAREA'
+            ? (globalThis as { HTMLTextAreaElement?: { prototype: object } }).HTMLTextAreaElement?.prototype
+            : (globalThis as { HTMLInputElement?: { prototype: object } }).HTMLInputElement?.prototype
+    const desc = proto ? Object.getOwnPropertyDescriptor(proto, 'value') : undefined
+    if (desc?.set) desc.set.call(el, nilai)
+    else el.value = nilai
+    try {
+        if (awal !== null && akhir !== null) el.setSelectionRange?.(awal, akhir)
+    } catch {}
+}
 
 /**
  * Proteksi konten di layar ujian (story 7.5, PRD level Dasar): salin, potong,
@@ -35,9 +70,33 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
 
     const pelapor = buatPelapor((jenis, meta) => opsi.lapor?.(jenis, meta))
     let terakhirPapanKetik: number | null = null
+    let terakhirLaporTempel = -Infinity
+    const nilaiTerakhir = new WeakMap<object, string>()
+    let snapshotTempel: {
+        target: ElemenIsian
+        nilai: string
+        awal: number | null
+        akhir: number | null
+        pada: number
+        sudahDilaporkan: boolean
+    } | null = null
     const soal = () => opsi.soalAktif?.()
 
+    const simpanSnapshot = (target: EventTarget | null, sudahDilaporkan: boolean) => {
+        const el = ambilElemenIsian(target)
+        if (!el) return
+        snapshotTempel = {
+            target: el,
+            nilai: el.value,
+            awal: el.selectionStart ?? el.value.length,
+            akhir: el.selectionEnd ?? el.value.length,
+            pada: performance.now(),
+            sudahDilaporkan,
+        }
+    }
+
     const laporTempelDiblokir = (alasan?: 'salin_soal' | 'tempel_massal') => {
+        terakhirLaporTempel = performance.now()
         opsi.kabari(
             alasan === 'salin_soal'
                 ? 'Tidak boleh menyalin pertanyaan ke kolom jawaban. Ketik jawabanmu sendiri.'
@@ -57,14 +116,29 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
         opsi.kabari(teks)
         catat(e)
     }
-    const salin = blokir('Menyalin dan menempel dinonaktifkan selama ujian.', (e) => {
+    const salin = (e: Event) => {
+        if (e.type === 'paste') {
+            simpanSnapshot(e.target, true)
+            terakhirLaporTempel = performance.now()
+        }
+        e.preventDefault()
+        e.stopImmediatePropagation?.()
+        opsi.kabari('Menyalin dan menempel dinonaktifkan selama ujian.')
         if (e.type !== 'copy' && e.type !== 'cut' && e.type !== 'paste') return
         if (e.type === 'copy' || e.type === 'cut') {
             try {
-                ;(e as ClipboardEvent).clipboardData?.setData('text/plain', '')
+                const cb = (e as ClipboardEvent).clipboardData
+                cb?.setData('text/plain', '')
+                cb?.setData('text/html', '')
             } catch {}
-            if (!adalahTargetIsian(e.target)) {
+            const el = ambilElemenIsian(e.target)
+            if (!el) {
                 window.getSelection()?.removeAllRanges()
+            } else {
+                try {
+                    const pos = el.selectionEnd ?? 0
+                    el.setSelectionRange?.(pos, pos)
+                } catch {}
             }
         }
         pelapor.lapor('salin_diblokir', {
@@ -73,7 +147,7 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
             diblokir: true,
             soal: soal(),
         })
-    })
+    }
     const menu = blokir('Klik kanan dinonaktifkan selama ujian.', () => pelapor.lapor('klik_kanan', { soal: soal() }))
     const seret = (e: Event) => e.preventDefault()
     const komposisiMulai = () => opsi.onKomposisiMulai?.()
@@ -86,6 +160,8 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
             return
         }
         if (adalahInputTypeTempel(ie.inputType)) {
+            simpanSnapshot(e.target, true)
+            terakhirLaporTempel = performance.now()
             e.preventDefault()
             e.stopImmediatePropagation?.()
             opsi.kabari('Menempel teks dinonaktifkan selama ujian. Ketik jawabanmu sendiri.')
@@ -97,18 +173,73 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
             })
             return
         }
-        if (ie.inputType === 'insertText' && !ie.isComposing && typeof ie.data === 'string' && ie.data.length >= 12) {
-            const cek = terdeteksiTempel({
-                sebelum: '',
-                sesudah: ie.data,
-                teksSoal: opsi.teksSoalAktif?.(),
-            })
-            if (cek.diblokir) {
-                e.preventDefault()
-                e.stopImmediatePropagation?.()
-                laporTempelDiblokir(cek.alasan)
+        if ((ie.inputType === 'insertText' || ie.inputType === 'insertReplacementText') && !ie.isComposing) {
+            const teks = ekstrakTeksInputEvent(ie)
+            if (teks.length >= 8) {
+                const cek = terdeteksiTempel({
+                    sebelum: '',
+                    sesudah: teks,
+                    teksSoal: opsi.teksSoalAktif?.(),
+                })
+                if (cek.diblokir) {
+                    simpanSnapshot(e.target, true)
+                    e.preventDefault()
+                    e.stopImmediatePropagation?.()
+                    laporTempelDiblokir(cek.alasan)
+                }
             }
         }
+    }
+
+    const saatFokusIsian = (e: Event) => {
+        const el = ambilElemenIsian(e.target)
+        if (el) nilaiTerakhir.set(el, el.value)
+    }
+
+    const saatInput = (e: Event) => {
+        const el = ambilElemenIsian(e.target)
+        if (!el) return
+        const ie = e as InputEvent
+        if (ie.inputType === 'historyUndo' || ie.inputType === 'historyRedo' || ie.isComposing) {
+            snapshotTempel = null
+            nilaiTerakhir.set(el, el.value)
+            return
+        }
+        const sebelum = nilaiTerakhir.get(el) ?? ''
+        const snapCocok = snapshotTempel && snapshotTempel.target === el && performance.now() - snapshotTempel.pada <= 200
+        const ketikSatuHuruf =
+            (ie.inputType === 'insertText' || ie.inputType === 'insertCompositionText') &&
+            typeof ie.data === 'string' &&
+            ie.data.length <= 1
+        const tempelDariInputType = adalahInputTypeTempel(ie.inputType)
+        const cekTempelLangsung =
+            !tempelDariInputType &&
+            !ketikSatuHuruf &&
+            (ie.inputType === 'insertReplacementText' || ie.inputType === 'insertText' || !ie.inputType)
+                ? terdeteksiTempel({
+                      sebelum: snapCocok ? snapshotTempel!.nilai : sebelum,
+                      sesudah: el.value,
+                      teksSoal: opsi.teksSoalAktif?.(),
+                  })
+                : { diblokir: false as const }
+
+        if (tempelDariInputType || (snapCocok && !ketikSatuHuruf && el.value !== snapshotTempel!.nilai) || cekTempelLangsung.diblokir) {
+            const nilaiPulih = snapCocok ? snapshotTempel!.nilai : sebelum
+            const awal = snapCocok ? snapshotTempel!.awal : nilaiPulih.length
+            const akhir = snapCocok ? snapshotTempel!.akhir : nilaiPulih.length
+            const sudahDilaporkan = snapCocok ? snapshotTempel!.sudahDilaporkan : false
+            snapshotTempel = null
+            e.stopImmediatePropagation?.()
+            pulihkanNilaiIsian(el, nilaiPulih, awal, akhir)
+            nilaiTerakhir.set(el, nilaiPulih)
+            if (!sudahDilaporkan && performance.now() - terakhirLaporTempel > 200) {
+                laporTempelDiblokir(cekTempelLangsung.diblokir ? cekTempelLangsung.alasan : undefined)
+            }
+            return
+        }
+
+        if (ketikSatuHuruf) snapshotTempel = null
+        nilaiTerakhir.set(el, el.value)
     }
 
     const mulaiSeleksi = (e: Event) => {
@@ -117,9 +248,10 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
         }
     }
     const ubahSeleksi = () => {
-        if (adalahTargetIsian(document.activeElement)) return
         const sel = window.getSelection()
-        if (sel && !sel.isCollapsed) sel.removeAllRanges()
+        if (!sel || sel.isCollapsed) return
+        if (adalahNodeDiDalamIsian(sel.anchorNode) && adalahNodeDiDalamIsian(sel.focusNode)) return
+        sel.removeAllRanges()
     }
 
     const tombol = (e: KeyboardEvent) => {
@@ -189,6 +321,8 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
         ['cut', salin],
         ['paste', salin],
         ['beforeinput', sebelumInput],
+        ['input', saatInput],
+        ['focusin', saatFokusIsian],
         ['compositionstart', komposisiMulai],
         ['compositionend', komposisiSelesai],
         ['selectstart', mulaiSeleksi],
@@ -239,7 +373,8 @@ export function useProteksiKonten(
         teksSoalAktif?: () => string
     } = {},
 ) {
-    const [pesan, setPesan] = useState<string | null>(null)
+    const [pesanState, setPesanState] = useState<{ teks: string; kunci: number } | null>(null)
+    const kunciPesanRef = useRef(0)
     const timer = useRef<ReturnType<typeof setTimeout>>()
     const opsiRef = useRef(opsi)
     opsiRef.current = opsi
@@ -255,9 +390,10 @@ export function useProteksiKonten(
     )
 
     const kabari = useCallback((teks: string) => {
-        setPesan(teks)
+        kunciPesanRef.current += 1
+        setPesanState({ teks, kunci: kunciPesanRef.current })
         clearTimeout(timer.current)
-        timer.current = setTimeout(() => setPesan(null), 3000)
+        timer.current = setTimeout(() => setPesanState(null), 3000)
     }, [])
 
     const laporTempelDiblokir = useCallback((alasan?: 'salin_soal' | 'tempel_massal') => {
@@ -291,5 +427,5 @@ export function useProteksiKonten(
         }
     }, [aktif, kabari])
 
-    return { pesan, laporTempelDiblokir, baruSajaUndo, sedangAmanInput }
+    return { pesan: pesanState?.teks ?? null, laporTempelDiblokir, baruSajaUndo, sedangAmanInput }
 }

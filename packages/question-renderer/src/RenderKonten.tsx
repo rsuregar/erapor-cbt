@@ -187,7 +187,7 @@ function renderTeks(teks: string, marks?: TiptapMark[]): ReactNode {
 
 function Gambar({ src, alt }: { src: string; alt: string }) {
     const ubahSrc = useContext(KonteksMedia)
-    return <img src={ubahSrc(src)} alt={alt} loading="lazy" className="my-1 inline-block max-h-80 max-w-full rounded align-middle" />
+    return <img src={ubahSrc(src)} alt={alt} loading="lazy" draggable={false} className="my-1 inline-block max-h-80 max-w-full rounded align-middle" />
 }
 
 function Rumus({ latex, blok }: { latex: string; blok: boolean }) {

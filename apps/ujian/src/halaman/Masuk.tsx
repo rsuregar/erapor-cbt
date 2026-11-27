@@ -4,8 +4,10 @@ import { SpanduPembaruan } from "@/komponen/SpanduPembaruan";
 import { SpanduPwaDesktop } from "@/komponen/SpanduPwaDesktop";
 import { PintasanUnduhApp, TautanUnduhApp } from "@/komponen/TautanUnduhApp";
 import { Tombol } from "@/komponen/Tombol";
+import { WEB_KHUSUS_IOS } from "@/lib/aksesWeb";
 import { api, aturDemo, platform } from "@/lib/api";
 import { bisaBukaPengaturanWifi, isNative, isShortcutPengawas, isTauri, keluarAplikasi, validasiPinPengawas, bukaPengaturanWifi } from "@/lib/native";
+import { jenisPerangkat, standalone } from "@/lib/perangkat";
 import { queryClient } from "@/lib/queryClient";
 import { sesi } from "@/lib/sesi";
 import { useOnline } from "@/lib/useOnline";
@@ -165,6 +167,9 @@ export default function Masuk() {
         if (masuk.isError) masuk.reset();
     };
 
+    const perluPasangIos = !isNative() && jenisPerangkat() === "ios" && !standalone();
+    const blokirLoginSafariIos = WEB_KHUSUS_IOS && perluPasangIos;
+
     return (
         <main className="flex min-h-full flex-col bg-slate-50/70">
             {/* Header / Hero Section */}
@@ -235,6 +240,46 @@ export default function Masuk() {
                         <SpanduPwaDesktop />
                         <SpanduPembaruan />
                     </div>
+                    {blokirLoginSafariIos ? (
+                        <section
+                            aria-labelledby="judul-pasang-ios"
+                            className="space-y-4 rounded-lg border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5"
+                        >
+                            <div className="border-b border-slate-100 pb-4">
+                                <h2 id="judul-pasang-ios" className="text-base font-bold text-ink">
+                                    Pasang ke Layar Utama Dulu
+                                </h2>
+                                <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                                    Di iPhone/iPad, data Safari dan ikon Layar Utama terpisah. Jangan masuk di Safari dulu agar sesi akun tidak terkunci perangkat lain.
+                                </p>
+                            </div>
+                            <ol className="space-y-2.5 text-sm text-slate-700">
+                                <li className="flex gap-2.5">
+                                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-micro font-bold text-white">1</span>
+                                    <span>Ketuk tombol <b>Bagikan</b> (kotak panah ke atas) di bilah Safari atau Chrome.</span>
+                                </li>
+                                <li className="flex gap-2.5">
+                                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-micro font-bold text-white">2</span>
+                                    <span>Pilih <b>Tambahkan ke Layar Utama</b>, lalu ketuk <b>Tambah</b>.</span>
+                                </li>
+                                <li className="flex gap-2.5">
+                                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-micro font-bold text-white">3</span>
+                                    <span>Buka aplikasi <b>CBT Al Akhyar</b> dari ikon di Layar Utama, lalu masuk dengan akunmu.</span>
+                                </li>
+                            </ol>
+                            <Link
+                                to="/panduan"
+                                search={{ untuk: "ios" }}
+                                className="flex min-h-11 items-center justify-between rounded-lg border border-primary/30 bg-primary-50/60 p-3 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary-50"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <BookOpen className="size-4 text-primary" />
+                                    <span>Lihat panduan bergambar iPhone/iPad</span>
+                                </span>
+                                <ArrowRight className="size-3.5 opacity-60" />
+                            </Link>
+                        </section>
+                    ) : (
                     <form
                         className="relative space-y-5 rounded-lg border border-slate-100/80 bg-white p-6 sm:p-8 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 transition-all"
                         onSubmit={(e) => {
@@ -242,6 +287,23 @@ export default function Masuk() {
                             masuk.mutate();
                         }}
                     >
+                        {perluPasangIos && (
+                            <div
+                                role="alert"
+                                className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-xs sm:text-sm text-amber-950"
+                            >
+                                <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+                                <div className="space-y-1">
+                                    <p className="font-bold">Pasang ke Layar Utama sebelum Masuk</p>
+                                    <p className="leading-relaxed">
+                                        iPhone/iPad memisahkan penyimpanan Safari dan Layar Utama. Masuk dulu di Safari lalu buka dari ikon bisa memicu kunci sesi perangkat lain.{" "}
+                                        <Link to="/panduan" search={{ untuk: "ios" }} className="font-bold underline">
+                                            Lihat cara pasang
+                                        </Link>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                         {/* Form Title Header */}
                         <div className="border-b border-slate-100 pb-4">
                             <h2 className="text-base font-bold text-ink">
@@ -417,6 +479,7 @@ export default function Masuk() {
                             </div>
                         )}
                     </form>
+                    )}
 
                     {/* Tautan unduh aplikasi resmi sesuai perangkat (hanya web/PWA) */}
                     <TautanUnduhApp />
@@ -494,7 +557,7 @@ export default function Masuk() {
                                         setGalatPin(null);
                                     }}
                                     placeholder="Masukkan PIN pengawas..."
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 />
                                 {galatPin && (
                                     <p className="text-xs font-medium text-coral-700">{galatPin}</p>

@@ -15,6 +15,13 @@ export type GalatLokasi =
 
 export type PosisiDidapat = Lokasi & { pada: number };
 
+let posisiTerakhirCache: PosisiDidapat | null = null;
+
+/** Posisi terakhir yang berhasil dibaca di sesi ini (mis. saat Persiapan sebelum masuk Kerjakan). */
+export function posisiTerakhirTersimpan(): PosisiDidapat | null {
+    return posisiTerakhirCache;
+}
+
 /** Server menolak akurasi > 200 m; tetap kirim, tapi beri tahu murid lebih dulu. */
 export const BATAS_AKURASI_M = 200;
 
@@ -35,7 +42,10 @@ export async function ambilPosisi(
                 batasMs: opsi.batasMs ?? 20_000,
             });
 
-            return { ...p, pada: Date.now() };
+            const hasil = { ...p, pada: Date.now() };
+            posisiTerakhirCache = hasil;
+
+            return hasil;
         } catch (e) {
             const kode = (e as { code?: string }).code;
 
@@ -56,14 +66,17 @@ export async function ambilPosisi(
             return;
         }
         navigator.geolocation.getCurrentPosition(
-            (p) =>
-                selesai({
+            (p) => {
+                const hasil: PosisiDidapat = {
                     lat: p.coords.latitude,
                     lng: p.coords.longitude,
                     akurasi_m: Math.round(p.coords.accuracy),
                     palsu: false,
                     pada: Date.now(),
-                }),
+                };
+                posisiTerakhirCache = hasil;
+                selesai(hasil);
+            },
             (e) =>
                 gagal(
                     galat(
@@ -114,7 +127,8 @@ export function petunjukIzin(): string {
     if (adaNative())
         return "Buka Setelan → Aplikasi → CBT Al Akhyar → Izin → Lokasi → Izinkan. Pastikan Lokasi (GPS) di panel cepat menyala.";
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    if (/iPhone|iPad|iPod/.test(ua))
+    const maxTouch = typeof navigator !== "undefined" ? (navigator.maxTouchPoints ?? 0) : 0;
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouch > 1))
         return "Buka Pengaturan → Privasi & Keamanan → Layanan Lokasi, nyalakan, lalu izinkan untuk browser/aplikasi ini.";
     if (/Android/.test(ua))
         return "Ketuk ikon gembok/pengaturan di sebelah alamat, pilih Izin → Lokasi → Izinkan. Pastikan GPS (Lokasi) di panel cepat menyala.";
