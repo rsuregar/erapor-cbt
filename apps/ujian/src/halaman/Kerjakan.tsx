@@ -1300,7 +1300,7 @@ function PanelNomor({
                 role="dialog"
                 aria-modal
                 aria-labelledby="judul-panel-nomor"
-                className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-lg border border-slate-200"
+                className="max-h-[85dvh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-lg border border-slate-200"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">

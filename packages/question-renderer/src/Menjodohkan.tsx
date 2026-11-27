@@ -42,9 +42,12 @@ export default function Menjodohkan({
     const wadah = useRef<HTMLDivElement>(null)
     const elKiri = useRef(new Map<string, HTMLElement>())
     const elKanan = useRef(new Map<string, HTMLElement>())
+    const lepasTarikRef = useRef<(() => void) | null>(null)
     const [pilih, setPilih] = useState<Pilihan>(null)
     const [garis, setGaris] = useState<Garis[]>([])
     const [tarik, setTarik] = useState<{ dari: string; x: number; y: number } | null>(null)
+
+    useEffect(() => () => lepasTarikRef.current?.(), [])
 
     const warna = (kiriId: string) => WARNA[Math.max(0, opsi.kiri.findIndex((k) => k.id === kiriId)) % WARNA.length]
     const terpasang = (kiriId: string) => (isi[kiriId] ? opsi.kanan.find((k) => k.id === isi[kiriId]) : undefined)
@@ -122,6 +125,7 @@ export default function Menjodohkan({
         if (nonaktif || e.pointerType !== 'mouse' || e.button !== 0) return
         const w = wadah.current
         if (!w) return
+        lepasTarikRef.current?.()
         const awal = { x: e.clientX, y: e.clientY }
         let bergerak = false
         const posisi = (ev: PointerEvent) => {
@@ -133,11 +137,16 @@ export default function Menjodohkan({
             bergerak = true
             setTarik({ dari: kiriId, ...posisi(ev) })
         }
-        const lepasMouse = (ev: PointerEvent) => {
+        const bersihkan = () => {
             window.removeEventListener('pointermove', gerak)
             window.removeEventListener('pointerup', lepasMouse)
+            window.removeEventListener('pointercancel', lepasMouse)
+            if (lepasTarikRef.current === bersihkan) lepasTarikRef.current = null
             setTarik(null)
-            if (!bergerak) return // klik biasa → ditangani onClick
+        }
+        const lepasMouse = (ev: PointerEvent) => {
+            bersihkan()
+            if (ev.type !== 'pointerup' || !bergerak) return // klik biasa / cancel
             const sasaran = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-kanan-id]')
             if (sasaran?.dataset.kananId) pasang(kiriId, sasaran.dataset.kananId)
             // Cegah onClick setelah tarik memilih kartu kiri.
@@ -148,8 +157,10 @@ export default function Menjodohkan({
             window.addEventListener('click', cegah, { capture: true, once: true })
             setTimeout(() => window.removeEventListener('click', cegah, { capture: true }), 0)
         }
+        lepasTarikRef.current = bersihkan
         window.addEventListener('pointermove', gerak)
         window.addEventListener('pointerup', lepasMouse)
+        window.addEventListener('pointercancel', lepasMouse)
     }
 
     const garisTarik = (() => {

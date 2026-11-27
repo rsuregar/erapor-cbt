@@ -2,9 +2,10 @@ import { Tombol } from "@/komponen/Tombol";
 import { api } from "@/lib/api";
 import { sesi } from "@/lib/sesi";
 import { hariTanggal, jamMenit } from "@/lib/tanggal";
+import { urlAbsolut } from "@/lib/ujian";
 import { cn } from "@/lib/utils";
 import { GalatApi } from "@erapor-cbt/exam-core";
-import { RenderKonten, TampilanSoal, type DokumenTiptap, type Jawaban, type Kunci, type Opsi, type TiptapNode } from "@erapor-cbt/question-renderer";
+import { PenyediaMedia, RenderKonten, TampilanSoal, type DokumenTiptap, type Jawaban, type Kunci, type Opsi, type TiptapNode } from "@erapor-cbt/question-renderer";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -54,6 +55,9 @@ function pesanGalatHasil(e: Error | null): { judul: string; isi: string; cobaLag
 
 const angka = (n: number | null) =>
     n === null ? "—" : String(n).replace(".", ",");
+
+const ubahSrcMediaHasil = (src: string) =>
+    src.startsWith("/storage/") ? urlAbsolut(src) : src;
 
 /**
  * Halaman Nilai & Pembahasan Ujian (PRD M-12).
@@ -119,7 +123,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
 
     if (hasil.isPending) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+            <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">
                 <div className="size-10 animate-spin rounded-full border-4 border-primary border-t-transparent motion-reduce:animate-none" />
                 <p className="mt-4 text-sm font-semibold text-slate-600">
                     Memuat hasil ujian…
@@ -131,7 +135,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
     if (hasil.isError || !h) {
         const galat = pesanGalatHasil(hasil.error);
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+            <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">
                 {galat.cobaLagi ? <AlertCircle className="size-12 text-coral-500" /> : <Clock className="size-12 text-primary" />}
                 <h1 className="mt-3 text-lg font-bold text-ink">{galat.judul}</h1>
                 <p className="mt-1 max-w-sm text-sm text-slate-600">{galat.isi}</p>
@@ -447,6 +451,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                 )}
 
                 {/* Daftar Butir Soal */}
+                <PenyediaMedia ubahSrc={ubahSrcMediaHasil}>
                 <div className="space-y-4">
                     {daftarTampil.length === 0 ? (
                         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
@@ -598,6 +603,7 @@ export default function Hasil({ attemptId }: { attemptId: number }) {
                         })
                     )}
                 </div>
+                </PenyediaMedia>
 
             </main>
         </div>

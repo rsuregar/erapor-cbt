@@ -158,7 +158,7 @@ export default function DaftarJawaban({ attemptId }: { attemptId: number }) {
 
     if (serverQuery.isPending && arsipQuery.isPending) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+            <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">
                 <Loader2 className="size-8 animate-spin text-primary" />
                 <p className="mt-3 text-sm font-semibold text-slate-600">Memuat bukti jawaban…</p>
             </div>
