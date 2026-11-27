@@ -130,7 +130,7 @@ export function tagSebelumnya(tag, ref) {
   const platform = PLATFORM[kini.jenis];
   let terbaik = null;
 
-  for (const t of git('tag', '--list', 'release-*').split('\n').filter(Boolean)) {
+  for (const t of git('tag', '--list', 'release-*', 'v*').split('\n').filter(Boolean)) {
     const u = t !== tag && uraiTag(t);
     if (!u || (u.praRilis && !kini.praRilis)) continue;
     if (!PLATFORM[u.jenis].some((p) => platform.includes(p))) continue;
