@@ -417,6 +417,7 @@ export async function bukaPengaturanWifi(
     const jendela = getCurrentWindow()
     const pulihkan = () => {
         if (opsi.pulihkanKiosk === false) return
+        void invoke('atur_kios_macos', { aktif: true }).catch(() => undefined)
         void jendela.setFullscreen(true)
         void jendela.setAlwaysOnTop(true)
     }
@@ -449,6 +450,7 @@ export async function bukaPengaturanWifi(
             })
     }, BATAS_PULIH_WIFI_MS)
 
+    await invoke('atur_kios_macos', { aktif: false }).catch(() => undefined)
     await jendela.setAlwaysOnTop(false)
     await jendela.setFullscreen(false)
     try {
@@ -479,9 +481,11 @@ export async function bukaTautanLuar(url: string): Promise<void> {
 
     // Dynamic import: modul Tauri hanya berfungsi di runtime desktop (sama seperti jembatanSqliteTauri).
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    const { invoke } = await import('@tauri-apps/api/core')
     const { openUrl } = await import('@tauri-apps/plugin-opener')
     const jendela = getCurrentWindow()
     const pulihkan = () => {
+        void invoke('atur_kios_macos', { aktif: true }).catch(() => undefined)
         void jendela.setFullscreen(true)
         void jendela.setAlwaysOnTop(true)
     }
@@ -507,6 +511,7 @@ export async function bukaTautanLuar(url: string): Promise<void> {
         }
     }, BATAS_PULIH_KIOS_MS)
 
+    await invoke('atur_kios_macos', { aktif: false }).catch(() => undefined)
     await jendela.setAlwaysOnTop(false)
     await jendela.setFullscreen(false)
     try {

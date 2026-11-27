@@ -6,6 +6,7 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 mod cache_webview;
+mod kios_macos;
 mod media;
 mod pembaruan;
 
@@ -92,8 +93,15 @@ fn keluar_aplikasi(app_handle: tauri::AppHandle) {
     if let Some(wl) = app_handle.try_state::<WakeLockState>() {
         lepas_wake_lock(&wl);
     }
+    kios_macos::atur_kios(&app_handle, false);
     KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
     app_handle.exit(0);
+}
+
+#[tauri::command]
+fn atur_kios_macos(app: tauri::AppHandle, aktif: bool) -> Result<(), String> {
+    kios_macos::atur_kios(&app, aktif);
+    Ok(())
 }
 
 #[tauri::command]
@@ -301,7 +309,10 @@ pub fn run() {
             app.manage(WakeLockState(Mutex::new(None)));
 
             #[cfg(all(target_os = "macos", not(debug_assertions)))]
-            pasang_menu_macos(app.handle())?;
+            {
+                pasang_menu_macos(app.handle())?;
+                kios_macos::atur_kios(app.handle(), true);
+            }
 
             Ok(())
         })
@@ -309,6 +320,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
+            atur_kios_macos,
             bersihkan_clipboard,
             atur_tetap_menyala,
             jumlah_monitor,
@@ -322,14 +334,18 @@ pub fn run() {
             sqlite_hapus,
             sqlite_daftar_kunci
         ])
-        .on_window_event(|_window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 // Di mode Exam Browser (Release), cegah penutupan jendela sembarangan (Alt+F4)
                 #[cfg(not(debug_assertions))]
                 api.prevent_close();
                 #[cfg(debug_assertions)]
                 let _ = api;
             }
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(true) => {
+                kios_macos::sinkronkan_jika_aktif(window.app_handle());
+            }
+            _ => {}
         })
         .build(context)
         .expect("error while building tauri application")

@@ -462,13 +462,15 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
                     }),
                 }),
             }))
+            const invokeMock = vi.fn().mockResolvedValue(undefined)
             vi.doMock('@tauri-apps/api/core', () => ({
-                invoke: vi.fn().mockResolvedValue(undefined),
+                invoke: invokeMock,
             }))
 
             const { bukaPengaturanWifi } = await import('./native')
             const onKembali = vi.fn()
             await bukaPengaturanWifi({ pulihkanKiosk: true, onKembali })
+            expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: false })
 
             // Jendela masih tidak fokus saat 90 dtk lewat -> belum memulihkan
             focusCb?.({ payload: false })
@@ -479,6 +481,7 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
             // Kembali fokus -> selesai & pulih
             tauriFocused = true
             focusCb?.({ payload: true })
+            expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
             expect(onKembali).toHaveBeenCalledTimes(1)
         }
     })
