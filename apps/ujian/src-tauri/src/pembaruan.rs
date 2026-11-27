@@ -77,6 +77,8 @@ pub async fn pasang_pembaruan(
         .await
         .map_err(|e| e.to_string())?;
 
+    // Lepas wake lock, kios macOS, dan izinkan keluar sebelum restart agar ExitRequested tidak menolak pembaruan.
+    crate::siapkan_keluar_aplikasi(&app);
     // Windows: pemasang NSIS sudah mengambil alih dan menutup app. macOS/Linux: mulai ulang.
     app.restart();
 }

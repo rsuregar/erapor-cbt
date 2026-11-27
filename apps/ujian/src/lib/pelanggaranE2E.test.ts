@@ -959,4 +959,57 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         expect(env.state.visibilityState).toBe('visible')
         lepas()
     })
+
+    it('23. bukaTautanLuar di Tauri tidak memulihkan kios paksa setelah 15 dtk saat app masih di latar', async () => {
+        vi.resetModules()
+        const env = buatLingkunganDom({ visibilityState: 'visible', focused: true })
+        ;(env.winMock as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}
+        let tauriFocused = false
+        let focusCb: ((e: { payload: boolean }) => void) | undefined
+        const setFullscreenMock = vi.fn().mockResolvedValue(undefined)
+        const setAlwaysOnTopMock = vi.fn().mockResolvedValue(undefined)
+        const invokeMock = vi.fn().mockResolvedValue(undefined)
+        const openUrlMock = vi.fn().mockResolvedValue(undefined)
+
+        vi.doMock('@capacitor/core', () => ({
+            Capacitor: { getPlatform: () => 'web', isNativePlatform: () => false, convertFileSrc: (p: string) => p },
+            registerPlugin: () => ({}),
+        }))
+        vi.doMock('@tauri-apps/api/window', () => ({
+            getCurrentWindow: () => ({
+                isFocused: async () => tauriFocused,
+                setAlwaysOnTop: setAlwaysOnTopMock,
+                setFullscreen: setFullscreenMock,
+                onFocusChanged: vi.fn().mockImplementation(async (cb: (e: { payload: boolean }) => void) => {
+                    focusCb = cb
+                    return vi.fn()
+                }),
+            }),
+        }))
+        vi.doMock('@tauri-apps/api/core', () => ({
+            invoke: invokeMock,
+        }))
+        vi.doMock('@tauri-apps/plugin-opener', () => ({
+            openUrl: openUrlMock,
+        }))
+
+        const { bukaTautanLuar } = await import('./native')
+        await bukaTautanLuar('https://github.com/rsuregar/erapor-cbt-releases/releases/latest')
+        expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: false })
+        expect(openUrlMock).toHaveBeenCalledTimes(1)
+
+        // Browser pengunduh masih aktif di depan saat 15 dtk lewat -> belum memulihkan kios
+        focusCb?.({ payload: false })
+        vi.advanceTimersByTime(16_000)
+        await flushMicrotasks()
+        expect(setFullscreenMock).not.toHaveBeenCalledWith(true)
+        expect(invokeMock).not.toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
+
+        // Kembali fokus ke Exam Browser -> baru pulihkan kios
+        tauriFocused = true
+        focusCb?.({ payload: true })
+        expect(setFullscreenMock).toHaveBeenCalledWith(true)
+        expect(setAlwaysOnTopMock).toHaveBeenCalledWith(true)
+        expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
+    })
 })

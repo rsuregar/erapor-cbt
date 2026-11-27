@@ -35,7 +35,7 @@ unsafe extern "system" {
 }
 
 #[tauri::command]
-fn bersihkan_clipboard() -> Result<(), String> {
+async fn bersihkan_clipboard() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         unsafe {
@@ -84,23 +84,37 @@ fn lepas_wake_lock(state: &WakeLockState) {
     let _ = state;
 }
 
-/// Hanya `keluar_aplikasi` (setelah PIN pengawas) yang boleh menutup aplikasi di mode
-/// Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
+/// Hanya `keluar_aplikasi` (setelah PIN pengawas) atau `restart()` updater yang boleh menutup
+/// aplikasi di mode Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
 static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
 
-#[tauri::command]
-fn keluar_aplikasi(app_handle: tauri::AppHandle) {
+#[cfg_attr(debug_assertions, allow(dead_code))]
+fn boleh_keluar(diizinkan: bool, code: Option<i32>) -> bool {
+    diizinkan || code == Some(tauri::RESTART_EXIT_CODE)
+}
+
+pub(crate) fn siapkan_keluar_aplikasi(app_handle: &tauri::AppHandle) {
     if let Some(wl) = app_handle.try_state::<WakeLockState>() {
         lepas_wake_lock(&wl);
     }
-    kios_macos::atur_kios(&app_handle, false);
+    kios_macos::atur_kios_sinkron(app_handle, false);
     KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn keluar_aplikasi(app_handle: tauri::AppHandle) {
+    siapkan_keluar_aplikasi(&app_handle);
     app_handle.exit(0);
 }
 
 #[tauri::command]
-fn atur_kios_macos(app: tauri::AppHandle, aktif: bool) -> Result<(), String> {
-    kios_macos::atur_kios(&app, aktif);
+fn arsitektur_aplikasi() -> &'static str {
+    std::env::consts::ARCH
+}
+
+#[tauri::command]
+async fn atur_kios_macos(app: tauri::AppHandle, aktif: bool) -> Result<(), String> {
+    kios_macos::atur_kios_sinkron(&app, aktif);
     Ok(())
 }
 
@@ -294,7 +308,8 @@ pub fn run() {
             let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
             conn.execute_batch(
-                "PRAGMA journal_mode = WAL;
+                "PRAGMA busy_timeout = 5000;
+                 PRAGMA journal_mode = WAL;
                  PRAGMA synchronous = NORMAL;
                  CREATE TABLE IF NOT EXISTS erapor_cbt_kv (
                      kunci TEXT PRIMARY KEY NOT NULL,
@@ -311,7 +326,7 @@ pub fn run() {
             #[cfg(all(target_os = "macos", not(debug_assertions)))]
             {
                 pasang_menu_macos(app.handle())?;
-                kios_macos::atur_kios(app.handle(), true);
+                kios_macos::aktifkan_saat_startup(app.handle());
             }
 
             Ok(())
@@ -321,6 +336,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
             atur_kios_macos,
+            arsitektur_aplikasi,
             bersihkan_clipboard,
             atur_tetap_menyala,
             jumlah_monitor,
@@ -350,14 +366,27 @@ pub fn run() {
         .build(context)
         .expect("error while building tauri application")
         .run(|_app, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                // Di mode Exam Browser (Release), tolak keluar selain lewat `keluar_aplikasi` (Cmd+Q di macOS)
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                // Di mode Exam Browser (Release), tolak keluar selain lewat `keluar_aplikasi` atau `restart()` updater
                 #[cfg(not(debug_assertions))]
-                if !KELUAR_DIIZINKAN.load(Ordering::SeqCst) {
+                if !boleh_keluar(KELUAR_DIIZINKAN.load(Ordering::SeqCst), code) {
                     api.prevent_exit();
                 }
                 #[cfg(debug_assertions)]
-                let _ = api;
+                let _ = (code, api);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn boleh_keluar_hanya_saat_diizinkan_atau_restart() {
+        assert!(!boleh_keluar(false, None));
+        assert!(!boleh_keluar(false, Some(0)));
+        assert!(boleh_keluar(true, None));
+        assert!(boleh_keluar(false, Some(tauri::RESTART_EXIT_CODE)));
+    }
 }

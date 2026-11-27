@@ -348,10 +348,78 @@ export async function jumlahMonitor(): Promise<number> {
     return layar?.isExtended === true ? 2 : 1
 }
 
+async function jedaTransisiFullscreenMacOs(): Promise<void> {
+    if (typeof navigator !== 'undefined' && /Macintosh|Mac OS X/i.test(navigator.userAgent)) {
+        await new Promise<void>((r) => setTimeout(r, 450))
+    }
+}
+
+async function keluarSementaraKiosTauri(opsi: {
+    batasMs: number
+    pulihkanKiosk: boolean
+    onKembali?: () => void
+    jalankan: () => Promise<unknown>
+}): Promise<void> {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    const { invoke } = await import('@tauri-apps/api/core')
+    const jendela = getCurrentWindow()
+    const pulihkan = () => {
+        if (!opsi.pulihkanKiosk) return
+        void invoke('atur_kios_macos', { aktif: true }).catch(() => undefined)
+        void jendela.setFullscreen(true)
+        void jendela.setAlwaysOnTop(true)
+    }
+
+    let pernahKeluarFokus = false
+    let selesai = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
+        if (!fokus) {
+            pernahKeluarFokus = true
+        } else if (pernahKeluarFokus && !selesai) {
+            selesai = true
+            if (timer) clearTimeout(timer)
+            lepas()
+            pulihkan()
+            opsi.onKembali?.()
+        }
+    })
+    timer = setTimeout(() => {
+        if (selesai) return
+        void jendela
+            .isFocused()
+            .catch(() => false)
+            .then((fokus) => {
+                if (!fokus || selesai) return
+                selesai = true
+                lepas()
+                pulihkan()
+                opsi.onKembali?.()
+            })
+    }, opsi.batasMs)
+
+    await invoke('atur_kios_macos', { aktif: false }).catch(() => undefined)
+    await jendela.setAlwaysOnTop(false)
+    await jendela.setFullscreen(false)
+    await jedaTransisiFullscreenMacOs()
+    try {
+        await opsi.jalankan()
+        if (!(await jendela.isFocused().catch(() => true))) {
+            pernahKeluarFokus = true
+        }
+    } catch (e) {
+        selesai = true
+        if (timer) clearTimeout(timer)
+        lepas()
+        pulihkan()
+        throw e
+    }
+}
+
 /**
  * Buka panel / pengaturan Wi-Fi OS tanpa melogout murid.
  * - Android: melepas Screen Pinning sementara lalu membuka Internet Panel / Wi-Fi Settings.
- * - Desktop Tauri: menurunkan alwaysOnTop + fullscreen sementara lalu memulihkannya saat fokus kembali.
+ * - Desktop Tauri: melepas kios macOS + alwaysOnTop + fullscreen sementara lalu memulihkannya saat fokus kembali.
  */
 export async function bukaPengaturanWifi(
     opsi: { pulihkanKiosk?: boolean; onKembali?: () => void } = {},
@@ -412,59 +480,13 @@ export async function bukaPengaturanWifi(
 
     if (!isTauri()) return
 
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
     const { invoke } = await import('@tauri-apps/api/core')
-    const jendela = getCurrentWindow()
-    const pulihkan = () => {
-        if (opsi.pulihkanKiosk === false) return
-        void invoke('atur_kios_macos', { aktif: true }).catch(() => undefined)
-        void jendela.setFullscreen(true)
-        void jendela.setAlwaysOnTop(true)
-    }
-
-    let pernahKeluarFokus = false
-    let selesai = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
-        if (!fokus) {
-            pernahKeluarFokus = true
-        } else if (pernahKeluarFokus && !selesai) {
-            selesai = true
-            if (timer) clearTimeout(timer)
-            lepas()
-            pulihkan()
-            opsi.onKembali?.()
-        }
+    await keluarSementaraKiosTauri({
+        batasMs: BATAS_PULIH_WIFI_MS,
+        pulihkanKiosk: opsi.pulihkanKiosk !== false,
+        onKembali: opsi.onKembali,
+        jalankan: () => invoke('buka_pengaturan_wifi'),
     })
-    timer = setTimeout(() => {
-        if (selesai) return
-        void jendela
-            .isFocused()
-            .catch(() => false)
-            .then((fokus) => {
-                if (!fokus || selesai) return
-                selesai = true
-                lepas()
-                pulihkan()
-                opsi.onKembali?.()
-            })
-    }, BATAS_PULIH_WIFI_MS)
-
-    await invoke('atur_kios_macos', { aktif: false }).catch(() => undefined)
-    await jendela.setAlwaysOnTop(false)
-    await jendela.setFullscreen(false)
-    try {
-        await invoke('buka_pengaturan_wifi')
-        if (!(await jendela.isFocused().catch(() => true))) {
-            pernahKeluarFokus = true
-        }
-    } catch (e) {
-        selesai = true
-        if (timer) clearTimeout(timer)
-        lepas()
-        pulihkan()
-        throw e
-    }
 }
 
 /**
@@ -480,50 +502,10 @@ export async function bukaTautanLuar(url: string): Promise<void> {
     }
 
     // Dynamic import: modul Tauri hanya berfungsi di runtime desktop (sama seperti jembatanSqliteTauri).
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    const { invoke } = await import('@tauri-apps/api/core')
     const { openUrl } = await import('@tauri-apps/plugin-opener')
-    const jendela = getCurrentWindow()
-    const pulihkan = () => {
-        void invoke('atur_kios_macos', { aktif: true }).catch(() => undefined)
-        void jendela.setFullscreen(true)
-        void jendela.setAlwaysOnTop(true)
-    }
-
-    let pernahKeluarFokus = false
-    let selesai = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const lepas = await jendela.onFocusChanged(({ payload: fokus }) => {
-        if (!fokus) {
-            pernahKeluarFokus = true
-        } else if (pernahKeluarFokus && !selesai) {
-            selesai = true
-            if (timer) clearTimeout(timer)
-            lepas()
-            pulihkan()
-        }
+    await keluarSementaraKiosTauri({
+        batasMs: BATAS_PULIH_KIOS_MS,
+        pulihkanKiosk: true,
+        jalankan: () => openUrl(url),
     })
-    timer = setTimeout(() => {
-        if (!selesai) {
-            selesai = true
-            lepas()
-            pulihkan()
-        }
-    }, BATAS_PULIH_KIOS_MS)
-
-    await invoke('atur_kios_macos', { aktif: false }).catch(() => undefined)
-    await jendela.setAlwaysOnTop(false)
-    await jendela.setFullscreen(false)
-    try {
-        await openUrl(url)
-        if (!(await jendela.isFocused().catch(() => true))) {
-            pernahKeluarFokus = true
-        }
-    } catch (e) {
-        selesai = true
-        if (timer) clearTimeout(timer)
-        lepas()
-        pulihkan()
-        throw e
-    }
 }

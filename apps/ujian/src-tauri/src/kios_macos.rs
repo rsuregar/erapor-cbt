@@ -60,6 +60,12 @@ fn perilaku_koleksi_anti_tiling(
     target
 }
 
+#[cfg(target_os = "macos")]
+#[cfg_attr(debug_assertions, allow(dead_code))]
+fn harus_terapkan_sekarang_saat_startup(sekarang: NSApplicationPresentationOptions) -> bool {
+    sekarang.contains(NSApplicationPresentationOptions::FullScreen)
+}
+
 #[cfg(all(target_os = "macos", not(debug_assertions)))]
 fn terapkan_presentasi_di_main_thread(aktif: bool) {
     use objc2::MainThreadMarker;
@@ -111,23 +117,85 @@ fn terapkan_anti_tiling_jendela(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Mengaktifkan atau menonaktifkan penguncian kios macOS tingkat OS.
-/// Pada build debug (`tauri dev`) dan platform non-macOS, fungsi ini no-op agar pengembang tidak terkunci.
-pub fn atur_kios(app: &tauri::AppHandle, aktif: bool) {
+#[cfg(all(target_os = "macos", not(debug_assertions)))]
+fn terapkan_lengkap_di_main_thread(app: &tauri::AppHandle, aktif: bool) {
+    use tauri::Manager;
+
+    terapkan_presentasi_di_main_thread(aktif);
+    if aktif {
+        if let Some(jendela) = app.get_webview_window("main") {
+            terapkan_anti_tiling_jendela(&jendela);
+        }
+    }
+}
+
+/// Mengaktifkan penguncian kios saat aplikasi baru dimulai di macOS.
+/// Bila jendela belum selesai masuk native `FullScreen`, tunda `HideMenuBar`/`HideDock` ke
+/// event transisi fullscreen dan sinkronisasi tertunda agar animasi Space `tao` tidak terganggu.
+#[cfg_attr(debug_assertions, allow(dead_code))]
+pub fn aktifkan_saat_startup(app: &tauri::AppHandle) {
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::NSApplication;
         use tauri::Manager;
 
-        KIOS_AKTIF.store(aktif, Ordering::SeqCst);
-        let handle = app.clone();
+        KIOS_AKTIF.store(true, Ordering::SeqCst);
+        let handle_main = app.clone();
         let _ = app.run_on_main_thread(move || {
-            terapkan_presentasi_di_main_thread(aktif);
-            if aktif {
-                if let Some(jendela) = handle.get_webview_window("main") {
-                    terapkan_anti_tiling_jendela(&jendela);
+            if !sedang_aktif() {
+                return;
+            }
+            if let Some(jendela) = handle_main.get_webview_window("main") {
+                terapkan_anti_tiling_jendela(&jendela);
+            }
+            if let Some(mtm) = MainThreadMarker::new() {
+                let app_kit = NSApplication::sharedApplication(mtm);
+                if harus_terapkan_sekarang_saat_startup(app_kit.presentationOptions()) {
+                    terapkan_presentasi_di_main_thread(true);
                 }
             }
         });
+
+        let handle_bg = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            sinkronkan_jika_aktif(&handle_bg);
+            std::thread::sleep(std::time::Duration::from_millis(800));
+            sinkronkan_jika_aktif(&handle_bg);
+        });
+    }
+    #[cfg(not(all(target_os = "macos", not(debug_assertions))))]
+    {
+        let _ = app;
+    }
+}
+
+/// Mengaktifkan atau menonaktifkan penguncian kios macOS tingkat OS secara sinkron (aman
+/// dipanggil baik dari main thread maupun Tokio worker thread tanpa deadlock).
+/// Pada build debug (`tauri dev`) dan platform non-macOS, fungsi ini no-op.
+pub fn atur_kios_sinkron(app: &tauri::AppHandle, aktif: bool) {
+    #[cfg(all(target_os = "macos", not(debug_assertions)))]
+    {
+        use objc2::MainThreadMarker;
+
+        KIOS_AKTIF.store(aktif, Ordering::SeqCst);
+        if MainThreadMarker::new().is_some() {
+            terapkan_lengkap_di_main_thread(app, aktif);
+            return;
+        }
+
+        let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
+        let handle = app.clone();
+        if app
+            .run_on_main_thread(move || {
+                terapkan_lengkap_di_main_thread(&handle, aktif);
+                let _ = tx.send(());
+            })
+            .is_ok()
+        {
+            let _ = rx.recv_timeout(std::time::Duration::from_millis(500));
+        }
     }
     #[cfg(not(all(target_os = "macos", not(debug_assertions))))]
     {
@@ -140,8 +208,6 @@ pub fn atur_kios(app: &tauri::AppHandle, aktif: bool) {
 pub fn sinkronkan_jika_aktif(app: &tauri::AppHandle) {
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
-        use tauri::Manager;
-
         if !sedang_aktif() {
             return;
         }
@@ -150,10 +216,7 @@ pub fn sinkronkan_jika_aktif(app: &tauri::AppHandle) {
             if !sedang_aktif() {
                 return;
             }
-            terapkan_presentasi_di_main_thread(true);
-            if let Some(jendela) = handle.get_webview_window("main") {
-                terapkan_anti_tiling_jendela(&jendela);
-            }
+            terapkan_lengkap_di_main_thread(&handle, true);
         });
     }
     #[cfg(not(all(target_os = "macos", not(debug_assertions))))]
@@ -225,5 +288,17 @@ mod tests {
         assert!(target.contains(NSWindowCollectionBehavior::FullScreenPrimary));
         assert!(target.contains(NSWindowCollectionBehavior::FullScreenDisallowsTiling));
         assert!(!target.contains(NSWindowCollectionBehavior::FullScreenAllowsTiling));
+    }
+
+    #[test]
+    fn startup_tidak_terapkan_hide_menu_bar_sebelum_fullscreen_aktif() {
+        assert!(!harus_terapkan_sekarang_saat_startup(
+            NSApplicationPresentationOptions::Default
+        ));
+        assert!(harus_terapkan_sekarang_saat_startup(
+            NSApplicationPresentationOptions::FullScreen
+                | NSApplicationPresentationOptions::AutoHideDock
+                | NSApplicationPresentationOptions::AutoHideMenuBar
+        ));
     }
 }
