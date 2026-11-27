@@ -134,13 +134,15 @@ fn terapkan_lengkap_di_main_thread(app: &tauri::AppHandle, aktif: bool) {
 /// event transisi fullscreen dan sinkronisasi tertunda agar animasi Space `tao` tidak terganggu.
 #[cfg_attr(debug_assertions, allow(dead_code))]
 pub fn aktifkan_saat_startup(app: &tauri::AppHandle) {
+    #[cfg(not(debug_assertions))]
+    KIOS_AKTIF.store(true, Ordering::SeqCst);
+
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
         use objc2::MainThreadMarker;
         use objc2_app_kit::NSApplication;
         use tauri::Manager;
 
-        KIOS_AKTIF.store(true, Ordering::SeqCst);
         let handle_main = app.clone();
         let _ = app.run_on_main_thread(move || {
             if !sedang_aktif() {
@@ -175,11 +177,13 @@ pub fn aktifkan_saat_startup(app: &tauri::AppHandle) {
 /// dipanggil baik dari main thread maupun Tokio worker thread tanpa deadlock).
 /// Pada build debug (`tauri dev`) dan platform non-macOS, fungsi ini no-op.
 pub fn atur_kios_sinkron(app: &tauri::AppHandle, aktif: bool) {
+    #[cfg(not(debug_assertions))]
+    KIOS_AKTIF.store(aktif, Ordering::SeqCst);
+
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
         use objc2::MainThreadMarker;
 
-        KIOS_AKTIF.store(aktif, Ordering::SeqCst);
         if MainThreadMarker::new().is_some() {
             terapkan_lengkap_di_main_thread(app, aktif);
             return;

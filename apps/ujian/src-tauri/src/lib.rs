@@ -7,6 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 
 mod cache_webview;
 mod kios_macos;
+mod kios_windows;
 mod media;
 mod pembaruan;
 
@@ -97,6 +98,10 @@ fn penanda_versi_webview(versi: &str, build: Option<&str>) -> String {
 /// Hanya `keluar_aplikasi` (setelah PIN pengawas) atau `restart()` updater yang boleh menutup
 /// aplikasi di mode Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
 static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
+/// Menandai bahwa jendela sudah selesai masuk fullscreen awal; mencegah loop `Resized` saat startup,
+/// sekaligus memulihkan fullscreen seketika bila pengguna keluar lewat tombol Esc / Space macOS.
+#[cfg_attr(debug_assertions, allow(dead_code))]
+static PERNAH_FULLSCREEN: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(debug_assertions, allow(dead_code))]
 fn boleh_keluar(diizinkan: bool, code: Option<i32>) -> bool {
@@ -112,11 +117,15 @@ pub(crate) fn siapkan_keluar_aplikasi(app_handle: &tauri::AppHandle) {
     if let Some(wl) = app_handle.try_state::<WakeLockState>() {
         lepas_wake_lock(app_handle, &wl);
     }
+    PERNAH_FULLSCREEN.store(false, Ordering::SeqCst);
+    kios_windows::atur_aktif(false);
     kios_macos::atur_kios_sinkron(app_handle, false);
     KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
 }
 
 pub(crate) fn siapkan_pemasangan_pembaruan(app_handle: &tauri::AppHandle) {
+    PERNAH_FULLSCREEN.store(false, Ordering::SeqCst);
+    kios_windows::atur_aktif(false);
     if let Some(jendela) = app_handle.get_webview_window("main") {
         let _ = jendela.set_always_on_top(false);
         let _ = jendela.set_fullscreen(false);
@@ -130,6 +139,7 @@ pub(crate) fn pulihkan_setelah_pembaruan_gagal(app_handle: &tauri::AppHandle) {
         let _ = jendela.set_fullscreen(true);
         let _ = jendela.set_always_on_top(true);
     }
+    kios_windows::atur_aktif(true);
     kios_macos::atur_kios_sinkron(app_handle, true);
 }
 
@@ -146,6 +156,10 @@ fn arsitektur_aplikasi() -> &'static str {
 
 #[tauri::command]
 async fn atur_kios_macos(app: tauri::AppHandle, aktif: bool) -> Result<(), String> {
+    if !aktif {
+        PERNAH_FULLSCREEN.store(false, Ordering::SeqCst);
+    }
+    kios_windows::atur_aktif(aktif);
     kios_macos::atur_kios_sinkron(&app, aktif);
     Ok(())
 }
@@ -380,6 +394,9 @@ pub fn run() {
             app.manage(DbState(Mutex::new(conn)));
             app.manage(WakeLockState(Mutex::new(None)));
 
+            #[cfg(not(debug_assertions))]
+            kios_windows::atur_aktif(true);
+
             #[cfg(all(target_os = "macos", not(debug_assertions)))]
             {
                 pasang_menu_macos(app.handle())?;
@@ -420,6 +437,15 @@ pub fn run() {
                 let _ = api;
             }
             tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(true) => {
+                #[cfg(not(debug_assertions))]
+                if kios_macos::sedang_aktif() {
+                    if window.is_fullscreen().unwrap_or(false) {
+                        PERNAH_FULLSCREEN.store(true, Ordering::SeqCst);
+                    } else if PERNAH_FULLSCREEN.load(Ordering::SeqCst) {
+                        let _ = window.set_fullscreen(true);
+                        let _ = window.set_always_on_top(true);
+                    }
+                }
                 kios_macos::sinkronkan_jika_aktif(window.app_handle());
             }
             _ => {}

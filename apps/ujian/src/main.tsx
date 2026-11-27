@@ -10,8 +10,20 @@ import './lib/pasang'
 import './lib/kunciZoom'
 import { router } from './router'
 import { alihkanKeHalamanNonaktif, webDitolak } from './lib/aksesWeb'
+import { isTauri } from './lib/native'
 import { bersihkanServiceWorkerNative } from './lib/pembaruanPwa'
 import { queryClient } from './lib/queryClient'
+
+if (isTauri() && typeof window !== 'undefined') {
+    // Cegah Escape / Ctrl+Cmd+F / Cmd+W / Cmd+M / Cmd+H mengeluarkan WebView dari fullscreen macOS.
+    // Listener bubble-phase membiarkan dialog internal menutup dulu lalu tetap memanggil preventDefault().
+    window.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase()
+        if (e.key === 'Escape' || (e.metaKey && (k === 'w' || k === 'm' || k === 'h' || (e.ctrlKey && k === 'f')))) {
+            e.preventDefault()
+        }
+    })
+}
 
 if (webDitolak()) {
     // Mode web_ios_only: laptop & Android wajib aplikasi resmi.
