@@ -729,6 +729,8 @@ public class UjianNativePlugin extends Plugin {
     private static void unduhKe(String url, File tujuan) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setInstanceFollowRedirects(true);
+        conn.setRequestProperty("User-Agent", "AlAkhyarCBT/1.0 (+https://erapor.alakhyar.sch.id)");
+        conn.setRequestProperty("Accept", "image/*,*/*;q=0.8");
         conn.setConnectTimeout(20000);
         conn.setReadTimeout(30000);
         // Tulis ke berkas sementara lalu ganti nama: berkas setengah jadi tidak pernah dianggap lengkap.

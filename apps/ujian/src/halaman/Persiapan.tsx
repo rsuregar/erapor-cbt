@@ -118,7 +118,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
         lanjutLokal()
     }
     const aplikasi = ujian.data?.aplikasi
-    const { status, unduh } = useUnduhPaket(u)
+    const { status, unduh } = useUnduhPaket(u, online)
     const wajibLokasi = !!u?.lokasi?.wajib
     const lokasi = useLokasi(wajibLokasi)
     const kesiapan = useKesiapan(u?.level_keamanan, aplikasi)
@@ -368,7 +368,7 @@ export default function Persiapan({ ujianId }: { ujianId: number }) {
                                     <h2 id="judul-sebelum" className="text-base font-bold text-ink">
                                         Sebelum mulai
                                     </h2>
-                                    <KartuUnduh id="cek-paket" ujian={u} status={status} onUnduh={unduh} />
+                                    <KartuUnduh id="cek-paket" ujian={u} status={status} online={online} onUnduh={unduh} />
                                     {wajibLokasi && <KartuLokasi id="cek-lokasi" status={lokasi.status} radius={u.lokasi.radius_meter} onCari={lokasi.cari} />}
                                     <div className="border-t border-slate-100 pt-4">
                                         <KartuKesiapan
@@ -651,7 +651,7 @@ function TataTertib({ terbuka, lockdown, wajibLokasi }: { terbuka: boolean; lock
     )
 }
 
-function KartuUnduh({ id, ujian, status, onUnduh }: { id: string; ujian: UjianRingkas; status: TahapUnduh; onUnduh: () => void }) {
+function KartuUnduh({ id, ujian, status, online, onUnduh }: { id: string; ujian: UjianRingkas; status: TahapUnduh; online: boolean; onUnduh: () => void }) {
     const [lencana, nada] =
         status.tahap === 'siap'
             ? (['Siap', 'green'] as const)
@@ -673,6 +673,17 @@ function KartuUnduh({ id, ujian, status, onUnduh }: { id: string; ujian: UjianRi
                 <Lencana nada={nada} aria-live="polite">
                     {lencana}
                 </Lencana>
+                {status.tahap === 'siap' && online && (
+                    <button
+                        type="button"
+                        onClick={onUnduh}
+                        aria-label="Perbarui paket soal"
+                        title="Perbarui paket soal"
+                        className="-my-2 -mr-2 inline-flex size-11 items-center justify-center rounded-sm text-primary hover:bg-primary-50"
+                    >
+                        <RotateCw className="size-4" />
+                    </button>
+                )}
             </div>
 
             {status.tahap === 'belum' && !ujian.bisa_unduh && (
