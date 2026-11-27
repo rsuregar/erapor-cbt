@@ -800,4 +800,64 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         kontrol.lepas()
         expect(lapor).toHaveBeenCalledWith('salin_diblokir', expect.objectContaining({ aksi: 'paste', diblokir: true, soal: 5 }))
     })
+
+    it('19. iOS PWA App Switcher 7 dtk saat WebKit membekukan performance.now() tetap tercatat sebagai pindah_tab (bukan layar_mati)', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        let monoNow = 10_000
+        const perfSpy = vi.spyOn(performance, 'now').mockImplementation(() => monoNow)
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            jenisPerangkat: 'ios',
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 120_000,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        // Masuk App Switcher: visibilityState menjadi hidden, lalu iOS membekukan WebKit sehingga
+        // performance.now() hanya maju 150ms sementara jam dinding maju 7 detik.
+        env.emitVisibility('hidden')
+        vi.setSystemTime(new Date(Date.now() + 7000))
+        monoNow += 150
+        env.emitVisibility('visible')
+
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('pindah_tab', 120_000, 7000)
+
+        perfSpy.mockRestore()
+        lepas()
+    })
+
+    it('20. iOS PWA App Switcher intip cepat 3x (masing-masing 600ms) dalam 2 menit memicu pindah_tab pada kali ke-3', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            jenisPerangkat: 'ios',
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 130_000,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        for (let i = 0; i < 3; i++) {
+            env.emitVisibility('hidden')
+            vi.advanceTimersByTime(600)
+            env.emitVisibility('visible')
+            vi.advanceTimersByTime(2000)
+        }
+
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('pindah_tab', 130_000, 600)
+        lepas()
+    })
 })

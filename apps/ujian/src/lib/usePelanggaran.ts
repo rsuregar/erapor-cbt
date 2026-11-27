@@ -1,5 +1,7 @@
 import { api, platform } from '@/lib/api'
 import {
+    BATAS_INTIP_CEPAT,
+    bolehDeteksiLayarMatiDariJam,
     DEBOUNCE_LAYAR_DIBAGI_MS,
     evaluasiKepergianSingkat,
     harusCatatKeluarLayarPenuh,
@@ -11,11 +13,12 @@ import {
     INTERVAL_CEK_FOKUS_IOS_MS,
     klasifikasiKepergian,
     KONFIRMASI_BLUR_IOS_MS,
+    MIN_INTIP_TERSEMBUNYI_MS,
     MIN_KEPERGIAN_MS,
     TOLERANSI_PERGI_MS,
 } from '@/lib/deteksiKepergian'
 import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative, isTauri } from '@/lib/native'
-import { jenisPerangkat, layarDibagi } from '@/lib/perangkat'
+import { jenisPerangkat, layarDibagi, type JenisPerangkat } from '@/lib/perangkat'
 import { App } from '@capacitor/app'
 import { penyimpanan } from '@/lib/ujian'
 import { GalatApi, type EntriPelanggaran, type JenisPelanggaran, type UjianRingkas } from '@erapor-cbt/exam-core'
@@ -45,9 +48,18 @@ export type PengawasKepergianOpsi = {
     pakaiNative: boolean
     pakaiTauri: boolean
     pantauBlur: boolean
+    jenisPerangkat?: JenisPerangkat
     msSejakMulai: () => number | undefined
     onPergi?: () => void
     onKembali?: () => void
+    onKembaliDetail?: (info: {
+        durasiMs: number
+        selisihDindingMs: number
+        selisihMonotonikMs: number
+        hasil: JenisPelanggaran | null
+        jumlahIntip: number
+        batasIntip: number
+    }) => void
     onFokusBerubah?: (tidakFokus: boolean) => void
     abaikanCatatSekali?: () => boolean
     konfirmasiBlurMs?: number
@@ -66,6 +78,7 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     let sejakDinding = 0
     let mulaiMs: number | undefined
     let pernahLayarMati = false
+    let pernahTersembunyi = false
     let fokusTauri = true
     let riwayatSingkat: number[] = []
     let timerKonfirmasiBlur: ReturnType<typeof setTimeout> | undefined
@@ -80,6 +93,7 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
 
     const pergi = (awal?: { mono: number; dinding: number; mulai: number | undefined }) => {
         batalKonfirmasiBlur()
+        if (document.visibilityState === 'hidden') pernahTersembunyi = true
         if (sejakMono !== null) return
         opsi.onPergi?.()
         opsi.onFokusBerubah?.(true)
@@ -118,16 +132,20 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
         const selisihMonotonikMs = performance.now() - sejakMono
         const selisihDindingMs = Date.now() - sejakDinding
         const layarMatiNative = pernahLayarMati
+        const tersembunyiSaatPergi = pernahTersembunyi
         const mulaiSaatPergi = mulaiMs
         sejakMono = null
         mulaiMs = undefined
         pernahLayarMati = false
+        pernahTersembunyi = false
 
         const catatDenganStatus = (mati: boolean) => {
             const durasiMs = Math.round(Math.max(selisihMonotonikMs, selisihDindingMs))
-            const bukanLayarMati = !mati && selisihDindingMs - selisihMonotonikMs < 2000
+            const pakaiHeuristikJam = bolehDeteksiLayarMatiDariJam(opsi.jenisPerangkat)
+            const minPergiMs = tersembunyiSaatPergi ? MIN_INTIP_TERSEMBUNYI_MS : MIN_PERGI_MS
+            const bukanLayarMati = !mati && (!pakaiHeuristikJam || selisihDindingMs - selisihMonotonikMs < 2000)
             let paksaCatatSingkat = false
-            if (durasiMs >= MIN_PERGI_MS && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
+            if (durasiMs >= minPergiMs && durasiMs < TOLERANSI_PERGI_MS && bukanLayarMati) {
                 const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
                 riwayatSingkat = ev.riwayatBaru
                 paksaCatatSingkat = ev.lewatiBatas
@@ -135,16 +153,25 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
 
             const hasil = klasifikasiKepergian({
                 platform: bacaPlatform(),
+                jenisPerangkat: opsi.jenisPerangkat,
                 layarMatiNative: mati,
                 selisihDindingMs,
                 selisihMonotonikMs,
-                minPergiMs: MIN_PERGI_MS,
+                minPergiMs,
                 toleransiPergiMs: TOLERANSI_PERGI_MS,
                 paksaCatatSingkat,
             })
             if (hasil && !opsi.abaikanCatatSekali?.()) {
                 opsi.onCatat(hasil.jenis, mulaiSaatPergi, hasil.durasiMs)
             }
+            opsi.onKembaliDetail?.({
+                durasiMs,
+                selisihDindingMs: Math.round(selisihDindingMs),
+                selisihMonotonikMs: Math.round(selisihMonotonikMs),
+                hasil: hasil?.jenis ?? null,
+                jumlahIntip: paksaCatatSingkat ? BATAS_INTIP_CEPAT : riwayatSingkat.length,
+                batasIntip: BATAS_INTIP_CEPAT,
+            })
         }
 
         if (opsi.pakaiNative && !layarMatiNative) {
@@ -154,7 +181,14 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
             catatDenganStatus(layarMatiNative)
         }
     }
-    const visibilitas = () => (document.visibilityState === 'hidden' ? pergi() : kembali())
+    const visibilitas = () => {
+        if (document.visibilityState === 'hidden') {
+            pernahTersembunyi = true
+            pergi()
+        } else {
+            kembali()
+        }
+    }
     const pulihSaatSentuh = () => {
         if (sejakMono !== null && document.visibilityState === 'visible' && document.hasFocus()) {
             kembali()
@@ -525,6 +559,7 @@ export function usePelanggaran(opsi: {
             pakaiNative,
             pakaiTauri,
             pantauBlur,
+            jenisPerangkat: perangkat,
             konfirmasiBlurMs,
             intervalCekFokusMs,
             msSejakMulai: () => ref.current.msSejakMulai(),

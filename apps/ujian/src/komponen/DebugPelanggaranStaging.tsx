@@ -196,6 +196,7 @@ function PanelDebugStaging() {
             pakaiNative: false,
             pakaiTauri: false,
             pantauBlur,
+            jenisPerangkat: perangkat,
             konfirmasiBlurMs,
             intervalCekFokusMs,
             msSejakMulai: () => Date.now() - mulaiRef.current,
@@ -208,6 +209,21 @@ function PanelDebugStaging() {
             },
             onKembali: () => {
                 sedangPergiRef.current = false
+            },
+            onKembaliDetail: (info) => {
+                if (info.hasil !== null) return
+                const sumber = sumberPergiRef.current
+                sumberPergiRef.current = null
+                const dtk = `${(info.durasiMs / 1000).toFixed(1)} dtk`
+                const infoLog = `${dtk} (dinding=${info.selisihDindingMs}ms, mono=${info.selisihMonotonikMs}ms, intip ${info.jumlahIntip}/${info.batasIntip})`
+                if (info.jumlahIntip > 0) {
+                    const target = sumber === 'blur' ? 'slide_over_floating' : 'pindah_tab'
+                    tandaiCeklis(target, 'sinyal', 'Kembali (Toleransi)', infoLog)
+                } else {
+                    const w = formatWaktuDebug()
+                    logIdRef.current += 1
+                    setLog((prev) => tambahLogDebug(prev, 'Kembali (Abaikan)', infoLog, w, logIdRef.current))
+                }
             },
             onFokusBerubah: (hilang) => {
                 setTidakFokus(hilang)

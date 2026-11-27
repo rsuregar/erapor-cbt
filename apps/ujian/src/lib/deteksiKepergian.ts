@@ -62,9 +62,18 @@ export function harusCatatMuatUlang(params: {
 }
 
 export const MIN_KEPERGIAN_MS = 1000
+export const MIN_INTIP_TERSEMBUNYI_MS = 400
 export const TOLERANSI_PERGI_MS = 5000
 export const JENDELA_INTIP_CEPAT_MS = 120_000
 export const BATAS_INTIP_CEPAT = 3
+
+/**
+ * Di iOS/iPadOS WebKit PWA, proses dibekukan saat App Switcher / latar belakang meski layar tetap menyala,
+ * sehingga selisih jam dinding vs monotonik tidak dapat dipakai untuk menebak `layar_mati`.
+ */
+export function bolehDeteksiLayarMatiDariJam(jenisPerangkat?: JenisPerangkat): boolean {
+    return jenisPerangkat !== 'ios'
+}
 
 /**
  * Pantau kepergian singkat (1–5 detik) agar tidak diakali dengan intip cepat berulang.
@@ -96,6 +105,7 @@ export function evaluasiKepergianSingkat(
  */
 export function klasifikasiKepergian(params: {
     platform: 'android' | 'ios' | 'pwa'
+    jenisPerangkat?: JenisPerangkat
     layarMatiNative: boolean
     selisihDindingMs: number
     selisihMonotonikMs: number
@@ -106,7 +116,11 @@ export function klasifikasiKepergian(params: {
     const durasiMs = Math.round(Math.max(params.selisihMonotonikMs, params.selisihDindingMs))
     if (durasiMs < (params.minPergiMs ?? MIN_KEPERGIAN_MS)) return null
 
-    if (params.layarMatiNative || params.selisihDindingMs - params.selisihMonotonikMs >= 2000) {
+    if (
+        params.layarMatiNative ||
+        (bolehDeteksiLayarMatiDariJam(params.jenisPerangkat) &&
+            params.selisihDindingMs - params.selisihMonotonikMs >= 2000)
+    ) {
         return { jenis: 'layar_mati', durasiMs }
     }
 

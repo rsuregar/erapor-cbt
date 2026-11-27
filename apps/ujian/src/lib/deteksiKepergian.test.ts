@@ -58,15 +58,26 @@ describe('deteksiKepergian', () => {
         ).toEqual({ jenis: 'layar_mati', durasiMs: 4200 })
     })
 
-    it('mengklasifikasikan perangkat sleep/suspend di PWA atau desktop sebagai layar_mati lewat selisih jam dinding vs monotonik', () => {
+    it('mengklasifikasikan perangkat sleep/suspend di desktop sebagai layar_mati, namun tidak salah melabeli pembekuan WebKit iOS PWA sebagai layar_mati', () => {
         expect(
             klasifikasiKepergian({
                 platform: 'pwa',
+                jenisPerangkat: 'desktop',
                 layarMatiNative: false,
                 selisihDindingMs: 25_000,
                 selisihMonotonikMs: 1200,
             }),
         ).toEqual({ jenis: 'layar_mati', durasiMs: 25_000 })
+
+        expect(
+            klasifikasiKepergian({
+                platform: 'pwa',
+                jenisPerangkat: 'ios',
+                layarMatiNative: false,
+                selisihDindingMs: 8000,
+                selisihMonotonikMs: 150,
+            }),
+        ).toEqual({ jenis: 'pindah_tab', durasiMs: 8000 })
     })
 
     it('mentoleransi kepergian singkat 1–4.9 detik (mis. notifikasi / salah klik), kecuali paksaCatatSingkat', () => {
