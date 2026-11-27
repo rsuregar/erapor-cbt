@@ -16,6 +16,8 @@ use tauri_plugin_http::reqwest;
 
 static URUTAN_UNDUH: AtomicU64 = AtomicU64::new(0);
 
+const USER_AGENT: &str = concat!("AlAkhyarCBT/", env!("CARGO_PKG_VERSION"), " (+https://erapor.alakhyar.sch.id)");
+
 fn folder_media(app: &AppHandle) -> Result<PathBuf, String> {
     let folder = app.path().app_data_dir().map_err(|e| e.to_string())?.join("media");
     fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
@@ -52,12 +54,14 @@ pub async fn unduh_media(app: AppHandle, url: String) -> Result<String, String> 
     }
 
     let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
         .connect_timeout(Duration::from_secs(20))
         .timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())?;
     let res = client
         .get(url)
+        .header(reqwest::header::ACCEPT, "image/*,*/*;q=0.8")
         .send()
         .await
         .map_err(|_| "Gagal mengunduh media. Periksa internet lalu coba lagi.".to_string())?;
@@ -115,5 +119,11 @@ mod tests {
         assert_eq!(nama("https://erapor.test/storage/tanpa-ekstensi").len(), 64);
         assert_eq!(nama("https://erapor.test/storage/a.p%2Fng").len(), 64);
         assert_eq!(nama("https://erapor.test/storage/a.toolong").len(), 64);
+    }
+
+    #[test]
+    fn user_agent_valid_dan_client_terbangun() {
+        assert!(USER_AGENT.starts_with("AlAkhyarCBT/"));
+        assert!(reqwest::Client::builder().user_agent(USER_AGENT).build().is_ok());
     }
 }

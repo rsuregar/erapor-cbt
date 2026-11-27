@@ -45,6 +45,8 @@ export type UjianRingkas = {
     durasi_menit: number
     tambahan_waktu_menit: number
     jumlah_soal: number
+    /** Revisi ringkas isi paket dari server untuk mendeteksi pembaruan paket lokal sebelum mulai. */
+    versi_paket?: string
     level_keamanan: 'dasar' | 'ketat' | 'lockdown'
     sesi: { nama: string; ruang: string | null } | null
     /** wajib = hanya bisa dikerjakan di sekolah; minta izin GPS sebelum Mulai. */
@@ -69,6 +71,7 @@ export type DaftarUjianRespons = { data: UjianRingkas[]; aplikasi?: InfoAplikasi
 /** GET /ujian/{ujian}/paket (terenkripsi) */
 export type PaketTerenkripsi = {
     versi: string
+    versi_paket?: string
     algoritma: 'AES-256-GCM'
     iv: string
     aad: string
