@@ -16,6 +16,7 @@ import {
     KONFIRMASI_BLUR_IOS_MS,
     MIN_INTIP_TERSEMBUNYI_MS,
     MIN_KEPERGIAN_MS,
+    TOLERANSI_LAYAR_DIBAGI_MS,
     TOLERANSI_PERGI_MS,
 } from '@/lib/deteksiKepergian'
 import { adaNative, apakahLayarMatiNative, dengarStatusLayarNative, isTauri } from '@/lib/native'
@@ -401,8 +402,8 @@ export type PengawasLayarDibagiOpsi = {
 
 /**
  * Pantau Split View, Stage Manager, dan jendela mengambang selama ujian di tablet/HP.
- * Memakai debounce masuk (300 ms) agar rotasi layar tidak berkedip dan masa tenggang 5 detik
- * (+ pencegahan intip cepat berulang) konsisten dengan pindah tab.
+ * Memakai debounce masuk (300 ms) agar rotasi layar tidak berkedip dan masa tenggang 2 detik
+ * (+ pencegahan intip cepat berulang).
  */
 export function pasangPengawasLayarDibagi(opsi: PengawasLayarDibagiOpsi): () => void {
     let terbagiAktif = false
@@ -447,9 +448,9 @@ export function pasangPengawasLayarDibagi(opsi: PengawasLayarDibagiOpsi): () => 
                         })
                     ) {
                         sudahCatatSesiIni = true
-                        opsi.onCatat('ukuran_layar', mulaiMs, TOLERANSI_PERGI_MS)
+                        opsi.onCatat('ukuran_layar', mulaiMs, TOLERANSI_LAYAR_DIBAGI_MS)
                     }
-                }, TOLERANSI_PERGI_MS)
+                }, TOLERANSI_LAYAR_DIBAGI_MS)
             }, debounceMs)
             return
         }
@@ -460,7 +461,7 @@ export function pasangPengawasLayarDibagi(opsi: PengawasLayarDibagiOpsi): () => 
         opsi.onStatusBerubah?.(false)
         if (!sudahCatatSesiIni && sejakMono !== null) {
             const durasiMs = Math.round(performance.now() - sejakMono)
-            if (durasiMs >= MIN_KEPERGIAN_MS && durasiMs < TOLERANSI_PERGI_MS) {
+            if (durasiMs >= MIN_KEPERGIAN_MS && durasiMs < TOLERANSI_LAYAR_DIBAGI_MS) {
                 const ev = evaluasiKepergianSingkat(riwayatSingkat, Date.now())
                 riwayatSingkat = ev.riwayatBaru
                 if (ev.lewatiBatas) {

@@ -1158,7 +1158,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         </span>
                         <h2 id="judul-layar-terbagi" className="mt-3 text-title">Layar sedang dibagi</h2>
                         <p className="mt-1 text-sm">
-                            Split View atau jendela mengambang tidak diperbolehkan saat ujian. Kembalikan ke satu layar penuh dalam 5 detik agar tidak tercatat sebagai pelanggaran.
+                            Split View atau jendela mengambang tidak diperbolehkan saat ujian. Kembalikan ke satu layar penuh dalam 2 detik agar tidak tercatat sebagai pelanggaran.
                         </p>
                     </div>
                 </div>

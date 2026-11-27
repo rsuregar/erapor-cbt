@@ -641,7 +641,7 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         lepas()
     })
 
-    it('16. iPad Split View: >= 5 dtk mencatat ukuran_layar tanpa hukuman ganda pindah_tab, dan rotasi < 300ms diabaikan', () => {
+    it('16. iPad Split View: >= 2 dtk mencatat ukuran_layar tanpa hukuman ganda pindah_tab, dan rotasi < 300ms diabaikan', () => {
         const env = buatLingkunganDom()
         const onCatat = vi.fn()
         const onStatusBerubah = vi.fn()
@@ -695,19 +695,19 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         expect(onStatusBerubah).not.toHaveBeenCalled()
         expect(onCatat).not.toHaveBeenCalled()
 
-        // Split View nyata + tap aplikasi sebelah selama 7 detik
+        // Split View nyata + tap aplikasi sebelah selama 7 detik -> ukuran_layar tercatat pada 2 dtk
         terbagi = true
         env.winMock.dispatchEvent(env.buatEvent('resize'))
         vi.advanceTimersByTime(300)
         expect(onStatusBerubah).toHaveBeenLastCalledWith(true)
 
         env.emitBlur()
-        vi.advanceTimersByTime(5000)
+        vi.advanceTimersByTime(2000)
         expect(onCatat).toHaveBeenCalledTimes(1)
-        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 100_000, 5000)
+        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 100_000, 2000)
 
         // Kembali fokus & tutup Split View -> tidak menambah pindah_tab ganda
-        vi.advanceTimersByTime(2000)
+        vi.advanceTimersByTime(5000)
         terbagi = false
         env.winMock.dispatchEvent(env.buatEvent('resize'))
         env.emitFocus()
@@ -718,7 +718,7 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         lepasPergi()
     })
 
-    it('17. iPad Split View intip cepat 3x (< 5 dtk) dalam 2 menit memicu ukuran_layar pada kali ke-3', () => {
+    it('17. iPad Split View intip cepat 3x (< 2 dtk) dalam 2 menit memicu ukuran_layar pada kali ke-3', () => {
         const env = buatLingkunganDom()
         const onCatat = vi.fn()
         let terbagi = false
@@ -734,14 +734,14 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         for (let i = 0; i < 3; i++) {
             terbagi = true
             env.winMock.dispatchEvent(env.buatEvent('resize'))
-            vi.advanceTimersByTime(300 + 2000)
+            vi.advanceTimersByTime(300 + 1200)
             terbagi = false
             env.winMock.dispatchEvent(env.buatEvent('resize'))
-            vi.advanceTimersByTime(5000)
+            vi.advanceTimersByTime(2000)
         }
 
         expect(onCatat).toHaveBeenCalledTimes(1)
-        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 110_000, 2000)
+        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 110_000, 1200)
         lepasSplit()
     })
 

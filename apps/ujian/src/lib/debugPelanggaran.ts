@@ -47,7 +47,7 @@ export function buatCeklisAwal(): ItemCeklisDebug[] {
         {
             kunci: 'split_view',
             label: 'Split View / Stage Manager',
-            deskripsi: 'Bagi layar atau ubah ukuran jendela (tahan ≥ 5 dtk untuk ukuran_layar)',
+            deskripsi: 'Bagi layar atau ubah ukuran jendela (tahan ≥ 2 dtk untuk ukuran_layar)',
             status: 'belum',
             jumlah: 0,
         },

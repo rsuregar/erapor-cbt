@@ -65,6 +65,7 @@ export function harusCatatMuatUlang(params: {
 export const MIN_KEPERGIAN_MS = 1000
 export const MIN_INTIP_TERSEMBUNYI_MS = 400
 export const TOLERANSI_PERGI_MS = 5000
+export const TOLERANSI_LAYAR_DIBAGI_MS = 2000
 export const JENDELA_INTIP_CEPAT_MS = 120_000
 export const BATAS_INTIP_CEPAT = 3
 
