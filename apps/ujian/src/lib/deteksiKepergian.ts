@@ -20,6 +20,7 @@ export function harusPantauBlurWindow(params: {
 
 export const KONFIRMASI_BLUR_IOS_MS = 250
 export const INTERVAL_CEK_FOKUS_IOS_MS = 500
+export const AMBANG_JEDA_FRAME_IOS_MS = 1200
 export const DEBOUNCE_LAYAR_DIBAGI_MS = 300
 
 export function harusKonfirmasiBlur(jenisPerangkat: JenisPerangkat): boolean {

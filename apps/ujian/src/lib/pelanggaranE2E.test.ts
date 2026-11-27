@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { KONFIRMASI_BLUR_IOS_MS } from './deteksiKepergian'
+import { AMBANG_JEDA_FRAME_IOS_MS, KONFIRMASI_BLUR_IOS_MS } from './deteksiKepergian'
 import { pasangPengawasKepergian, pasangPengawasLayarDibagi, pasangPengawasLayarPenuh } from './usePelanggaran'
 import { pasangProteksiKonten } from './useProteksiKonten'
 
@@ -858,6 +858,102 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
 
         expect(onCatat).toHaveBeenCalledTimes(1)
         expect(onCatat).toHaveBeenCalledWith('pindah_tab', 130_000, 600)
+        lepas()
+    })
+
+    it('21. iPhone/iPad slide side: window.blur saat WebKit membiarkan document.hasFocus() === true tetap memicu tirai & mencatat pindah_tab', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onFokusBerubah = vi.fn()
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            jenisPerangkat: 'ios',
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 140_000,
+            onFokusBerubah,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        // WebKit menembakkan window.blur, tetapi document.hasFocus() tetap true (state.focused = true)
+        env.winMock.dispatchEvent(env.buatEvent('blur'))
+        vi.advanceTimersByTime(KONFIRMASI_BLUR_IOS_MS)
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(true)
+
+        // Pastikan interval 500ms tidak memutus prematur walau hasFocus() true
+        vi.advanceTimersByTime(6000)
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(true)
+
+        // Kembali lewat window.focus
+        env.winMock.dispatchEvent(env.buatEvent('focus'))
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(false)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('pindah_tab', 140_000, 6000 + KONFIRMASI_BLUR_IOS_MS)
+        lepas()
+    })
+
+    it('22. iPhone slide side tanpa blur/visibilitychange: pembekuan requestAnimationFrame oleh SpringBoard tertangkap (>=5 dtk & 3x intip)', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onJedaFrame = vi.fn()
+        let nextId = 1
+        const antreanRaf = new Map<number, FrameRequestCallback>()
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+            const id = nextId++
+            antreanRaf.set(id, cb)
+            return id
+        })
+        vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+            antreanRaf.delete(id)
+        })
+
+        const jalankanSatuFrame = () => {
+            const entries = [...antreanRaf.entries()]
+            antreanRaf.clear()
+            for (const [, cb] of entries) cb(performance.now())
+        }
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            jenisPerangkat: 'ios',
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            ambangJedaFrameMs: AMBANG_JEDA_FRAME_IOS_MS,
+            msSejakMulai: () => 150_000,
+            onJedaFrame,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        // Frame normal 16ms -> tidak terdeteksi jeda
+        vi.advanceTimersByTime(16)
+        jalankanSatuFrame()
+        expect(onJedaFrame).not.toHaveBeenCalled()
+
+        // 1) Slide side ditahan 6 detik tanpa event blur/visibilitychange
+        vi.advanceTimersByTime(6000)
+        jalankanSatuFrame()
+        expect(onJedaFrame).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenLastCalledWith('pindah_tab', 150_000, 6000)
+
+        // 2) Intip slide side cepat 3x masing-masing 1.8 detik (diselingi frame aktif normal < 1.2 dtk)
+        for (let i = 0; i < 3; i++) {
+            vi.advanceTimersByTime(500)
+            jalankanSatuFrame()
+            vi.advanceTimersByTime(1800)
+            jalankanSatuFrame()
+        }
+        expect(onCatat).toHaveBeenCalledTimes(2)
+        expect(onCatat).toHaveBeenLastCalledWith('pindah_tab', 150_000, 1800)
+
+        expect(env.state.visibilityState).toBe('visible')
         lepas()
     })
 })

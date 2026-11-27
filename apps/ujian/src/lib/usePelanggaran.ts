@@ -1,5 +1,6 @@
 import { api, platform } from '@/lib/api'
 import {
+    AMBANG_JEDA_FRAME_IOS_MS,
     BATAS_INTIP_CEPAT,
     bolehDeteksiLayarMatiDariJam,
     DEBOUNCE_LAYAR_DIBAGI_MS,
@@ -64,6 +65,8 @@ export type PengawasKepergianOpsi = {
     abaikanCatatSekali?: () => boolean
     konfirmasiBlurMs?: number
     intervalCekFokusMs?: number
+    ambangJedaFrameMs?: number
+    onJedaFrame?: (jedaMs: number) => void
     onCatat: (jenis: JenisPelanggaran, mulaiMs: number | undefined, durasiMs: number) => void
     bacaPlatform?: () => 'android' | 'ios' | 'pwa'
     imporJendelaTauri?: () => Promise<{
@@ -79,8 +82,10 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     let mulaiMs: number | undefined
     let pernahLayarMati = false
     let pernahTersembunyi = false
+    let jendelaBlurAktif = false
     let fokusTauri = true
     let riwayatSingkat: number[] = []
+    let terakhirKembaliDinding = -Infinity
     let timerKonfirmasiBlur: ReturnType<typeof setTimeout> | undefined
     const bacaPlatform = opsi.bacaPlatform ?? platform
 
@@ -107,7 +112,8 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
         }
     }
 
-    const mulaiBlurTerverifikasi = () => {
+    const mulaiBlurTerverifikasi = (sumber: 'event' | 'watchdog') => {
+        if (sumber === 'event') jendelaBlurAktif = true
         if (sejakMono !== null || timerKonfirmasiBlur) return
         const jedaKonfirmasi = opsi.konfirmasiBlurMs ?? 0
         if (jedaKonfirmasi <= 0) {
@@ -117,7 +123,11 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
         const awal = { mono: performance.now(), dinding: Date.now(), mulai: opsi.msSejakMulai() }
         timerKonfirmasiBlur = setTimeout(() => {
             timerKonfirmasiBlur = undefined
-            if (document.visibilityState === 'visible' && document.hasFocus()) return
+            if (sumber === 'event') {
+                if (!jendelaBlurAktif) return
+            } else if (document.visibilityState === 'visible' && document.hasFocus()) {
+                return
+            }
             pergi(awal)
         }, jedaKonfirmasi)
     }
@@ -125,8 +135,9 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     const kembali = () => {
         batalKonfirmasiBlur()
         if (sejakMono === null || document.visibilityState !== 'visible') return
-        if (opsi.pantauBlur && !document.hasFocus()) return
+        if (opsi.pantauBlur && (jendelaBlurAktif || !document.hasFocus())) return
         if (opsi.pakaiTauri && !fokusTauri) return
+        terakhirKembaliDinding = Date.now()
         opsi.onKembali?.()
         opsi.onFokusBerubah?.(false)
         const selisihMonotonikMs = performance.now() - sejakMono
@@ -186,11 +197,20 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
             pernahTersembunyi = true
             pergi()
         } else {
+            if (pernahTersembunyi && document.hasFocus()) jendelaBlurAktif = false
             kembali()
         }
     }
-    const pulihSaatSentuh = () => {
-        if (sejakMono !== null && document.visibilityState === 'visible' && document.hasFocus()) {
+    const saatBlur = () => mulaiBlurTerverifikasi('event')
+    const saatFocus = () => {
+        jendelaBlurAktif = false
+        kembali()
+    }
+    const pulihSaatInteraksi = () => {
+        if (document.visibilityState !== 'visible' || !document.hasFocus()) return
+        jendelaBlurAktif = false
+        batalKonfirmasiBlur()
+        if (sejakMono !== null) {
             kembali()
         }
     }
@@ -225,29 +245,86 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     let timerCekFokus: ReturnType<typeof setInterval> | undefined
     const pakaiCekFokusBerkala = opsi.pantauBlur && (opsi.intervalCekFokusMs ?? 0) > 0
     if (opsi.pantauBlur) {
-        window.addEventListener('blur', mulaiBlurTerverifikasi)
-        window.addEventListener('focus', kembali)
+        window.addEventListener('blur', saatBlur)
+        window.addEventListener('focus', saatFocus)
         if (pakaiCekFokusBerkala) {
-            window.addEventListener('pointerdown', pulihSaatSentuh, { capture: true, passive: true })
-            window.addEventListener('touchstart', pulihSaatSentuh, { capture: true, passive: true })
+            window.addEventListener('pointerdown', pulihSaatInteraksi, { capture: true, passive: true })
+            window.addEventListener('touchstart', pulihSaatInteraksi, { capture: true, passive: true })
+            window.addEventListener('keydown', pulihSaatInteraksi, { capture: true, passive: true })
             if (document.visibilityState === 'visible' && !document.hasFocus()) {
-                mulaiBlurTerverifikasi()
+                mulaiBlurTerverifikasi('watchdog')
             }
             timerCekFokus = setInterval(() => {
                 if (document.visibilityState !== 'visible') return
                 if (!document.hasFocus()) {
-                    if (sejakMono === null) mulaiBlurTerverifikasi()
-                } else if (sejakMono !== null) {
+                    if (sejakMono === null) mulaiBlurTerverifikasi('watchdog')
+                } else if (!jendelaBlurAktif && sejakMono !== null) {
                     kembali()
                 }
             }, opsi.intervalCekFokusMs)
         }
+    }
+    let idRaf: number | undefined
+    let batalRaf = false
+    const ambangJedaFrame = opsi.ambangJedaFrameMs ?? 0
+    if (ambangJedaFrame > 0 && typeof requestAnimationFrame === 'function') {
+        let terakhirFrameDinding = Date.now()
+        const detakFrame = () => {
+            if (batalRaf) return
+            const sekarangDinding = Date.now()
+            const jedaMs = sekarangDinding - terakhirFrameDinding
+            terakhirFrameDinding = sekarangDinding
+            if (
+                document.visibilityState === 'visible' &&
+                sejakMono === null &&
+                !jendelaBlurAktif &&
+                !timerKonfirmasiBlur &&
+                sekarangDinding - terakhirKembaliDinding >= 1500 &&
+                jedaMs >= ambangJedaFrame
+            ) {
+                terakhirKembaliDinding = sekarangDinding
+                opsi.onJedaFrame?.(jedaMs)
+                let paksaCatatSingkat = false
+                if (jedaMs < TOLERANSI_PERGI_MS) {
+                    const ev = evaluasiKepergianSingkat(riwayatSingkat, sekarangDinding)
+                    riwayatSingkat = ev.riwayatBaru
+                    paksaCatatSingkat = ev.lewatiBatas
+                }
+                const hasil = klasifikasiKepergian({
+                    platform: bacaPlatform(),
+                    jenisPerangkat: opsi.jenisPerangkat,
+                    layarMatiNative: false,
+                    selisihDindingMs: jedaMs,
+                    selisihMonotonikMs: jedaMs,
+                    minPergiMs: ambangJedaFrame,
+                    toleransiPergiMs: TOLERANSI_PERGI_MS,
+                    paksaCatatSingkat,
+                })
+                if (hasil && !opsi.abaikanCatatSekali?.()) {
+                    opsi.onCatat(hasil.jenis, opsi.msSejakMulai(), hasil.durasiMs)
+                }
+                opsi.onKembaliDetail?.({
+                    durasiMs: Math.round(jedaMs),
+                    selisihDindingMs: Math.round(jedaMs),
+                    selisihMonotonikMs: Math.round(jedaMs),
+                    hasil: hasil?.jenis ?? null,
+                    jumlahIntip: paksaCatatSingkat ? BATAS_INTIP_CEPAT : riwayatSingkat.length,
+                    batasIntip: BATAS_INTIP_CEPAT,
+                })
+            }
+            idRaf = requestAnimationFrame(detakFrame)
+        }
+        idRaf = requestAnimationFrame(detakFrame)
     }
     const saatPagehide = () => pergi()
     window.addEventListener('pagehide', saatPagehide)
 
     return () => {
         batalTauri = true
+        batalRaf = true
+        if (idRaf !== undefined && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(idRaf)
+        }
         batalKonfirmasiBlur()
         if (timerCekFokus) clearInterval(timerCekFokus)
         lepasFokusTauri?.()
@@ -255,11 +332,12 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
         void statusApp?.then((h) => h.remove())
         void statusLayar?.then((h) => h?.remove())
         if (opsi.pantauBlur) {
-            window.removeEventListener('blur', mulaiBlurTerverifikasi)
-            window.removeEventListener('focus', kembali)
+            window.removeEventListener('blur', saatBlur)
+            window.removeEventListener('focus', saatFocus)
             if (pakaiCekFokusBerkala) {
-                window.removeEventListener('pointerdown', pulihSaatSentuh, true)
-                window.removeEventListener('touchstart', pulihSaatSentuh, true)
+                window.removeEventListener('pointerdown', pulihSaatInteraksi, true)
+                window.removeEventListener('touchstart', pulihSaatInteraksi, true)
+                window.removeEventListener('keydown', pulihSaatInteraksi, true)
             }
         }
         window.removeEventListener('pagehide', saatPagehide)
@@ -554,6 +632,7 @@ export function usePelanggaran(opsi: {
         const pantauBlur = harusPantauBlurWindow({ adaNative: pakaiNative, isTauri: pakaiTauri, jenisPerangkat: perangkat })
         const konfirmasiBlurMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? KONFIRMASI_BLUR_IOS_MS : 0
         const intervalCekFokusMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? INTERVAL_CEK_FOKUS_IOS_MS : 0
+        const ambangJedaFrameMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? AMBANG_JEDA_FRAME_IOS_MS : 0
 
         const lepas = pasangPengawasKepergian({
             pakaiNative,
@@ -562,6 +641,7 @@ export function usePelanggaran(opsi: {
             jenisPerangkat: perangkat,
             konfirmasiBlurMs,
             intervalCekFokusMs,
+            ambangJedaFrameMs,
             msSejakMulai: () => ref.current.msSejakMulai(),
             onPergi: () => {
                 sedangPergiRef.current = true

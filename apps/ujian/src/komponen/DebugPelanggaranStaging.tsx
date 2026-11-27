@@ -11,6 +11,7 @@ import {
     type StatusCeklisDebug,
 } from '@/lib/debugPelanggaran'
 import {
+    AMBANG_JEDA_FRAME_IOS_MS,
     harusKonfirmasiBlur,
     harusPantauBlurWindow,
     harusPantauLayarDibagi,
@@ -191,6 +192,7 @@ function PanelDebugStaging() {
         const pantauBlur = harusPantauBlurWindow({ adaNative: false, isTauri: false, jenisPerangkat: perangkat })
         const konfirmasiBlurMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? KONFIRMASI_BLUR_IOS_MS : 0
         const intervalCekFokusMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? INTERVAL_CEK_FOKUS_IOS_MS : 0
+        const ambangJedaFrameMs = pantauBlur && harusKonfirmasiBlur(perangkat) ? AMBANG_JEDA_FRAME_IOS_MS : 0
 
         const lepasPergi = pasangPengawasKepergian({
             pakaiNative: false,
@@ -199,7 +201,17 @@ function PanelDebugStaging() {
             jenisPerangkat: perangkat,
             konfirmasiBlurMs,
             intervalCekFokusMs,
+            ambangJedaFrameMs,
             msSejakMulai: () => Date.now() - mulaiRef.current,
+            onJedaFrame: (jedaMs) => {
+                sumberPergiRef.current = 'blur'
+                tandaiCeklis(
+                    'slide_over_floating',
+                    'sinyal',
+                    'Jeda Frame iOS',
+                    `rAF terhenti ${(jedaMs / 1000).toFixed(1)} dtk (gestur Slide Side / SpringBoard)`,
+                )
+            },
             onPergi: () => {
                 sedangPergiRef.current = true
                 if (document.visibilityState === 'hidden') {
@@ -381,6 +393,18 @@ function PanelDebugStaging() {
         document.addEventListener('drop', observasiSeleksi)
         document.addEventListener('keydown', observasiKeydown)
 
+        const logRawEvent = (pesan: string) => {
+            const w = formatWaktuDebug()
+            logIdRef.current += 1
+            setLog((prev) => tambahLogDebug(prev, 'Raw Event', pesan, w, logIdRef.current))
+        }
+        const rawBlur = () => logRawEvent(`window.blur (hasFocus=${String(document.hasFocus())}, vis=${document.visibilityState})`)
+        const rawFocus = () => logRawEvent(`window.focus (hasFocus=${String(document.hasFocus())})`)
+        const rawTouchCancel = () => logRawEvent(`touchcancel (vis=${document.visibilityState}, hasFocus=${String(document.hasFocus())})`)
+        window.addEventListener('blur', rawBlur)
+        window.addEventListener('focus', rawFocus)
+        window.addEventListener('touchcancel', rawTouchCancel, { capture: true, passive: true })
+
         return () => {
             lepasPergi()
             lepasSplit()
@@ -390,6 +414,9 @@ function PanelDebugStaging() {
             document.removeEventListener('dragstart', observasiSeleksi)
             document.removeEventListener('drop', observasiSeleksi)
             document.removeEventListener('keydown', observasiKeydown)
+            window.removeEventListener('blur', rawBlur)
+            window.removeEventListener('focus', rawFocus)
+            window.removeEventListener('touchcancel', rawTouchCancel, true)
             laporTempelRef.current = null
             kontrol.lepas()
         }
