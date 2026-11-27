@@ -81,6 +81,8 @@ name = "app"
 version = "0.10.5"
 dependencies = [
  "log",
+ "objc2",
+ "objc2-app-kit",
  "rusqlite",
  "serde",
  "serde_json",

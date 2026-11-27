@@ -462,13 +462,15 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
                     }),
                 }),
             }))
+            const invokeMock = vi.fn().mockResolvedValue(undefined)
             vi.doMock('@tauri-apps/api/core', () => ({
-                invoke: vi.fn().mockResolvedValue(undefined),
+                invoke: invokeMock,
             }))
 
             const { bukaPengaturanWifi } = await import('./native')
             const onKembali = vi.fn()
             await bukaPengaturanWifi({ pulihkanKiosk: true, onKembali })
+            expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: false })
 
             // Jendela masih tidak fokus saat 90 dtk lewat -> belum memulihkan
             focusCb?.({ payload: false })
@@ -479,6 +481,7 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
             // Kembali fokus -> selesai & pulih
             tauriFocused = true
             focusCb?.({ payload: true })
+            expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
             expect(onKembali).toHaveBeenCalledTimes(1)
         }
     })
@@ -955,5 +958,106 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
 
         expect(env.state.visibilityState).toBe('visible')
         lepas()
+    })
+
+    it('23. bukaTautanLuar di Tauri tidak memulihkan kios paksa setelah 15 dtk saat app masih di latar', async () => {
+        vi.resetModules()
+        const env = buatLingkunganDom({ visibilityState: 'visible', focused: true })
+        ;(env.winMock as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}
+        let tauriFocused = false
+        let focusCb: ((e: { payload: boolean }) => void) | undefined
+        const setFullscreenMock = vi.fn().mockResolvedValue(undefined)
+        const setAlwaysOnTopMock = vi.fn().mockResolvedValue(undefined)
+        const invokeMock = vi.fn().mockResolvedValue(undefined)
+        const openUrlMock = vi.fn().mockResolvedValue(undefined)
+
+        vi.doMock('@capacitor/core', () => ({
+            Capacitor: { getPlatform: () => 'web', isNativePlatform: () => false, convertFileSrc: (p: string) => p },
+            registerPlugin: () => ({}),
+        }))
+        vi.doMock('@tauri-apps/api/window', () => ({
+            getCurrentWindow: () => ({
+                isFocused: async () => tauriFocused,
+                setAlwaysOnTop: setAlwaysOnTopMock,
+                setFullscreen: setFullscreenMock,
+                onFocusChanged: vi.fn().mockImplementation(async (cb: (e: { payload: boolean }) => void) => {
+                    focusCb = cb
+                    return vi.fn()
+                }),
+            }),
+        }))
+        vi.doMock('@tauri-apps/api/core', () => ({
+            invoke: invokeMock,
+        }))
+        vi.doMock('@tauri-apps/plugin-opener', () => ({
+            openUrl: openUrlMock,
+        }))
+
+        const { bukaTautanLuar } = await import('./native')
+        await bukaTautanLuar('https://github.com/rsuregar/erapor-cbt-releases/releases/latest')
+        expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: false })
+        expect(openUrlMock).toHaveBeenCalledTimes(1)
+
+        // Browser pengunduh masih aktif di depan saat 15 dtk lewat -> belum memulihkan kios
+        focusCb?.({ payload: false })
+        vi.advanceTimersByTime(16_000)
+        await flushMicrotasks()
+        expect(setFullscreenMock).not.toHaveBeenCalledWith(true)
+        expect(invokeMock).not.toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
+
+        // Kembali fokus ke Exam Browser -> baru pulihkan kios
+        tauriFocused = true
+        focusCb?.({ payload: true })
+        expect(setFullscreenMock).toHaveBeenCalledWith(true)
+        expect(setAlwaysOnTopMock).toHaveBeenCalledWith(true)
+        expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
+    })
+
+    it('24. WebView2 shortcut (F7, F3, Ctrl+F/G/H/J) diblokir dan aturProteksiKontenNative memanggil atur_proteksi_konten_jendela', async () => {
+        const env = buatLingkunganDom()
+        const kabari = vi.fn()
+        const kontrol = pasangProteksiKonten({
+            kabari,
+            pakaiTauri: false,
+            pakaiNative: false,
+        })
+
+        for (const k of [
+            { key: 'F7', code: 'F7', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'F3', code: 'F3', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'f', code: 'KeyF', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'g', code: 'KeyG', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'h', code: 'KeyH', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'j', code: 'KeyJ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+        ]) {
+            const ev = env.buatEvent('keydown', k)
+            env.docMock.dispatchEvent(ev)
+            expect(ev.defaultPrevented, `Shortcut ${k.key} seharusnya diblokir`).toBe(true)
+        }
+
+        const pengawas = env.buatEvent('keydown', { key: 'Q', code: 'KeyQ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true })
+        env.docMock.dispatchEvent(pengawas)
+        expect(pengawas.defaultPrevented).toBe(false)
+        kontrol.lepas()
+
+        vi.resetModules()
+        const envTauri = buatLingkunganDom()
+        ;(envTauri.winMock as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}
+        const invokeMock = vi.fn().mockResolvedValue(undefined)
+        vi.doMock('@capacitor/core', () => ({
+            Capacitor: { getPlatform: () => 'web', isNativePlatform: () => false, convertFileSrc: (p: string) => p },
+            registerPlugin: () => ({}),
+        }))
+        vi.doMock('@tauri-apps/api/core', () => ({
+            invoke: invokeMock,
+        }))
+
+        const { aturProteksiKontenNative } = await import('./native')
+        await aturProteksiKontenNative(true)
+        expect(invokeMock).toHaveBeenCalledWith('atur_proteksi_konten_jendela', { aktif: true })
+        expect(invokeMock).toHaveBeenCalledWith('bersihkan_clipboard')
+
+        await aturProteksiKontenNative(false)
+        expect(invokeMock).toHaveBeenCalledWith('atur_proteksi_konten_jendela', { aktif: false })
     })
 })

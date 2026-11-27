@@ -162,6 +162,42 @@ describe('pilihPembaruan', () => {
             const r = [rilis('staging-1.1.0-b7', berkas, { prerelease: true })]
             expect(pilihPembaruan(r, 'macos', '1.1.0', { staging: true, buildApp: 6 })?.manifes).toMatch(/macos.*-updater\.json$/)
         })
+
+        it('macOS memisahkan unduhan dan manifes updater antara Intel (x64) dan Apple Silicon (arm64)', () => {
+            const berkasMulti = [
+                'cbt-al-akhyar-macos-v1.2.0-b9-arm64.dmg',
+                'cbt-al-akhyar-macos-v1.2.0-b9-arm64-updater.json',
+                'cbt-al-akhyar-macos-v1.2.0-b9-x64.dmg',
+                'cbt-al-akhyar-macos-v1.2.0-b9-x64-updater.json',
+            ]
+            const r = [rilis('release-desktop-1.2.0', berkasMulti)]
+            const intel = pilihPembaruan(r, 'macos', '1.1.0', { staging: false, buildApp: 0, arch: 'x64' })
+            expect(intel?.unduh).toBe('https://dl/release-desktop-1.2.0/cbt-al-akhyar-macos-v1.2.0-b9-x64.dmg')
+            expect(intel?.manifes).toBe('https://dl/release-desktop-1.2.0/cbt-al-akhyar-macos-v1.2.0-b9-x64-updater.json')
+
+            const arm = pilihPembaruan(r, 'macos', '1.1.0', { staging: false, buildApp: 0, arch: 'arm64' })
+            expect(arm?.unduh).toBe('https://dl/release-desktop-1.2.0/cbt-al-akhyar-macos-v1.2.0-b9-arm64.dmg')
+            expect(arm?.manifes).toBe('https://dl/release-desktop-1.2.0/cbt-al-akhyar-macos-v1.2.0-b9-arm64-updater.json')
+        })
+
+        it('macOS tetap fallback ke manifes legacy tanpa sufiks arch untuk rilis lama dan menolak DMG arsitektur lain', () => {
+            const r = [
+                rilis('release-desktop-1.1.0', [
+                    'cbt-al-akhyar-macos-v1.1.0-b5-arm64.dmg',
+                    'cbt-al-akhyar-macos-v1.1.0-b5-x64.dmg',
+                    'cbt-al-akhyar-macos-v1.1.0-b5-updater.json',
+                ]),
+            ]
+            expect(pilihPembaruan(r, 'macos', '1.0.0', { staging: false, buildApp: 0, arch: 'arm64' })?.manifes).toBe(
+                'https://dl/release-desktop-1.1.0/cbt-al-akhyar-macos-v1.1.0-b5-updater.json',
+            )
+            expect(pilihPembaruan(r, 'macos', '1.0.0', { staging: false, buildApp: 0, arch: 'x64' })?.manifes).toBe(
+                'https://dl/release-desktop-1.1.0/cbt-al-akhyar-macos-v1.1.0-b5-updater.json',
+            )
+
+            const hanyaArm = [rilis('release-desktop-1.2.0', ['cbt-al-akhyar-macos-v1.2.0-b6-arm64.dmg'])]
+            expect(pilihPembaruan(hanyaArm, 'macos', '1.0.0', { staging: false, buildApp: 0, arch: 'x64' })).toBeNull()
+        })
     })
 })
 

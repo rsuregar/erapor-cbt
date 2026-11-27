@@ -6,6 +6,7 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 mod cache_webview;
+mod kios_macos;
 mod media;
 mod pembaruan;
 
@@ -34,7 +35,7 @@ unsafe extern "system" {
 }
 
 #[tauri::command]
-fn bersihkan_clipboard() -> Result<(), String> {
+async fn bersihkan_clipboard() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         unsafe {
@@ -64,54 +65,126 @@ fn bersihkan_clipboard() -> Result<(), String> {
     }
 }
 
-fn lepas_wake_lock(state: &WakeLockState) {
+fn lepas_wake_lock(app: &tauri::AppHandle, state: &WakeLockState) {
     #[cfg(target_os = "windows")]
     {
         let _ = state;
-        unsafe {
+        let _ = app.run_on_main_thread(|| unsafe {
             SetThreadExecutionState(ES_CONTINUOUS);
-        }
+        });
     }
     #[cfg(target_os = "macos")]
-    if let Ok(mut guard) = state.0.lock() {
-        if let Some(mut child) = guard.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+    {
+        let _ = app;
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let _ = state;
+    let _ = (app, state);
 }
 
-/// Hanya `keluar_aplikasi` (setelah PIN pengawas) yang boleh menutup aplikasi di mode
-/// Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
+fn penanda_versi_webview(versi: &str, build: Option<&str>) -> String {
+    match build.map(str::trim).filter(|b| !b.is_empty() && *b != "0") {
+        Some(b) => format!("{versi}-b{b}"),
+        None => versi.to_string(),
+    }
+}
+
+/// Hanya `keluar_aplikasi` (setelah PIN pengawas) atau `restart()` updater yang boleh menutup
+/// aplikasi di mode Exam Browser. Jalur lain (Cmd+Q di macOS, menu Quit, logout OS) ditolak di ExitRequested.
 static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
+
+#[cfg_attr(debug_assertions, allow(dead_code))]
+fn boleh_keluar(diizinkan: bool, code: Option<i32>) -> bool {
+    diizinkan || code == Some(tauri::RESTART_EXIT_CODE)
+}
+
+#[cfg_attr(debug_assertions, allow(dead_code))]
+fn harus_cegah_tutup_jendela(diizinkan: bool) -> bool {
+    !diizinkan
+}
+
+pub(crate) fn siapkan_keluar_aplikasi(app_handle: &tauri::AppHandle) {
+    if let Some(wl) = app_handle.try_state::<WakeLockState>() {
+        lepas_wake_lock(app_handle, &wl);
+    }
+    kios_macos::atur_kios_sinkron(app_handle, false);
+    KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
+}
+
+pub(crate) fn siapkan_pemasangan_pembaruan(app_handle: &tauri::AppHandle) {
+    if let Some(jendela) = app_handle.get_webview_window("main") {
+        let _ = jendela.set_always_on_top(false);
+        let _ = jendela.set_fullscreen(false);
+    }
+    siapkan_keluar_aplikasi(app_handle);
+}
+
+pub(crate) fn pulihkan_setelah_pembaruan_gagal(app_handle: &tauri::AppHandle) {
+    KELUAR_DIIZINKAN.store(false, Ordering::SeqCst);
+    if let Some(jendela) = app_handle.get_webview_window("main") {
+        let _ = jendela.set_fullscreen(true);
+        let _ = jendela.set_always_on_top(true);
+    }
+    kios_macos::atur_kios_sinkron(app_handle, true);
+}
 
 #[tauri::command]
 fn keluar_aplikasi(app_handle: tauri::AppHandle) {
-    if let Some(wl) = app_handle.try_state::<WakeLockState>() {
-        lepas_wake_lock(&wl);
-    }
-    KELUAR_DIIZINKAN.store(true, Ordering::SeqCst);
+    siapkan_keluar_aplikasi(&app_handle);
     app_handle.exit(0);
 }
 
 #[tauri::command]
-fn atur_tetap_menyala(state: tauri::State<'_, WakeLockState>, aktif: bool) -> Result<(), String> {
+fn arsitektur_aplikasi() -> &'static str {
+    std::env::consts::ARCH
+}
+
+#[tauri::command]
+async fn atur_kios_macos(app: tauri::AppHandle, aktif: bool) -> Result<(), String> {
+    kios_macos::atur_kios_sinkron(&app, aktif);
+    Ok(())
+}
+
+#[tauri::command]
+fn atur_proteksi_konten_jendela(window: tauri::WebviewWindow, aktif: bool) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        window.set_content_protected(aktif).map_err(|e| e.to_string())?;
+    }
+    #[cfg(debug_assertions)]
+    {
+        let _ = (window, aktif);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn atur_tetap_menyala(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, WakeLockState>,
+    aktif: bool,
+) -> Result<(), String> {
     if !aktif {
-        lepas_wake_lock(&state);
+        lepas_wake_lock(&app, &state);
         return Ok(());
     }
     #[cfg(target_os = "windows")]
     {
         let _ = state;
-        unsafe {
+        app.run_on_main_thread(|| unsafe {
             SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
-        }
+        })
+        .map_err(|e| e.to_string())?;
         Ok(())
     }
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         let mut guard = state.0.lock().map_err(|e| e.to_string())?;
         if let Some(child) = guard.as_mut() {
             if matches!(child.try_wait(), Ok(None)) {
@@ -128,7 +201,7 @@ fn atur_tetap_menyala(state: tauri::State<'_, WakeLockState>, aktif: bool) -> Re
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let _ = state;
+        let _ = (app, state);
         Ok(())
     }
 }
@@ -142,12 +215,14 @@ fn jumlah_monitor(window: tauri::WebviewWindow) -> usize {
 fn buka_pengaturan_wifi(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        if app.opener().open_url("ms-availablenetworks:", None::<&str>).is_ok() {
+        // Utamakan Settings penuh agar jendela Wi-Fi konsisten mencuri fokus di Windows 10/11
+        // (flyout `ms-availablenetworks:` di Windows 11 sering menutup/gagal fokus secara diam-diam).
+        if app.opener().open_url("ms-settings:network-wifi", None::<&str>).is_ok() {
             return Ok(());
         }
         return app
             .opener()
-            .open_url("ms-settings:network-wifi", None::<&str>)
+            .open_url("ms-availablenetworks:", None::<&str>)
             .map_err(|e| e.to_string());
     }
     #[cfg(target_os = "macos")]
@@ -260,9 +335,13 @@ fn sqlite_daftar_kunci(state: tauri::State<'_, DbState>, awalan: Option<String>)
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
+    let penanda_versi = penanda_versi_webview(
+        &context.package_info().version.to_string(),
+        option_env!("VITE_APP_BUILD"),
+    );
     cache_webview::bersihkan_cache_saat_naik_versi(
         &context.config().identifier,
-        &context.package_info().version.to_string(),
+        &penanda_versi,
     );
     let mut builder = tauri::Builder::default();
     // Updater hanya didaftarkan bila build membawa pubkey (plugins.updater dari --config CI).
@@ -286,7 +365,8 @@ pub fn run() {
             let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
             conn.execute_batch(
-                "PRAGMA journal_mode = WAL;
+                "PRAGMA busy_timeout = 5000;
+                 PRAGMA journal_mode = WAL;
                  PRAGMA synchronous = NORMAL;
                  CREATE TABLE IF NOT EXISTS erapor_cbt_kv (
                      kunci TEXT PRIMARY KEY NOT NULL,
@@ -301,7 +381,10 @@ pub fn run() {
             app.manage(WakeLockState(Mutex::new(None)));
 
             #[cfg(all(target_os = "macos", not(debug_assertions)))]
-            pasang_menu_macos(app.handle())?;
+            {
+                pasang_menu_macos(app.handle())?;
+                kios_macos::aktifkan_saat_startup(app.handle());
+            }
 
             Ok(())
         })
@@ -309,6 +392,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             keluar_aplikasi,
+            atur_kios_macos,
+            atur_proteksi_konten_jendela,
+            arsitektur_aplikasi,
             bersihkan_clipboard,
             atur_tetap_menyala,
             jumlah_monitor,
@@ -322,26 +408,61 @@ pub fn run() {
             sqlite_hapus,
             sqlite_daftar_kunci
         ])
-        .on_window_event(|_window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Di mode Exam Browser (Release), cegah penutupan jendela sembarangan (Alt+F4)
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                // Di mode Exam Browser (Release), cegah penutupan jendela sembarangan (Alt+F4),
+                // namun izinkan saat keluar sah atau pemasangan pembaruan Windows (Restart Manager / msiexec).
                 #[cfg(not(debug_assertions))]
-                api.prevent_close();
-                #[cfg(debug_assertions)]
-                let _ = api;
-            }
-        })
-        .build(context)
-        .expect("error while building tauri application")
-        .run(|_app, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                // Di mode Exam Browser (Release), tolak keluar selain lewat `keluar_aplikasi` (Cmd+Q di macOS)
-                #[cfg(not(debug_assertions))]
-                if !KELUAR_DIIZINKAN.load(Ordering::SeqCst) {
-                    api.prevent_exit();
+                if harus_cegah_tutup_jendela(KELUAR_DIIZINKAN.load(Ordering::SeqCst)) {
+                    api.prevent_close();
                 }
                 #[cfg(debug_assertions)]
                 let _ = api;
             }
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(true) => {
+                kios_macos::sinkronkan_jika_aktif(window.app_handle());
+            }
+            _ => {}
+        })
+        .build(context)
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                // Di mode Exam Browser (Release), tolak keluar selain lewat `keluar_aplikasi` atau `restart()` updater
+                #[cfg(not(debug_assertions))]
+                if !boleh_keluar(KELUAR_DIIZINKAN.load(Ordering::SeqCst), code) {
+                    api.prevent_exit();
+                }
+                #[cfg(debug_assertions)]
+                let _ = (code, api);
+            }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn boleh_keluar_hanya_saat_diizinkan_atau_restart() {
+        assert!(!boleh_keluar(false, None));
+        assert!(!boleh_keluar(false, Some(0)));
+        assert!(boleh_keluar(true, None));
+        assert!(boleh_keluar(false, Some(tauri::RESTART_EXIT_CODE)));
+    }
+
+    #[test]
+    fn penanda_versi_webview_ikut_sertakan_build_staging_jika_valid() {
+        assert_eq!(penanda_versi_webview("0.10.5", Some("42")), "0.10.5-b42");
+        assert_eq!(penanda_versi_webview("0.10.5", Some(" 7 ")), "0.10.5-b7");
+        assert_eq!(penanda_versi_webview("0.10.5", None), "0.10.5");
+        assert_eq!(penanda_versi_webview("0.10.5", Some("")), "0.10.5");
+        assert_eq!(penanda_versi_webview("0.10.5", Some("0")), "0.10.5");
+    }
+
+    #[test]
+    fn harus_cegah_tutup_jendela_hanya_saat_keluar_belum_diizinkan() {
+        assert!(harus_cegah_tutup_jendela(false));
+        assert!(!harus_cegah_tutup_jendela(true));
+    }
 }

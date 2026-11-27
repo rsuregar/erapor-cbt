@@ -194,7 +194,7 @@ jobs:
             TARGET_ARCH="darwin-$(echo "$ARCH" | sed -E 's/^x64$/x86_64/; s/^arm64$/aarch64/')"
             ASET="$BASE-$ARCH.app.tar.gz"
             cp "$TARBALL" "$OUT/$ASET"
-            node scripts/buat-manifes-updater.mjs "$OUT/$BASE-updater.json" "${{ steps.version.outputs.version_name }}" "$TARGET_ARCH" \
+            node scripts/buat-manifes-updater.mjs "$OUT/$BASE-$ARCH-updater.json" "${{ steps.version.outputs.version_name }}" "$TARGET_ARCH" \
               "https://github.com/$RELEASE_REPO/releases/download/$TAG/$ASET" "$SIG"
           fi
           ls -la "$OUT"

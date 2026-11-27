@@ -19,6 +19,7 @@ import { Capacitor } from '@capacitor/core'
  */
 
 export type PlatformRilis = 'windows' | 'macos' | 'android' | 'ios'
+export type ArchRilis = 'arm64' | 'x64'
 
 export type InfoPembaruan = {
     /** Versi terbaru, dinormalkan ke X.Y.Z. */
@@ -76,9 +77,22 @@ const POLA_RELEASE_TAG = /^release-(?:(all|universal|desktop|win|macos|mobile|an
 /** Satu tag staging memuat berkas semua platform yang dibuild pada nomor build itu. */
 const POLA_STAGING = /^staging-(\d+\.\d+\.\d+)-b(\d+)$/
 
-export type Saluran = { staging: boolean; buildApp: number }
+export type Saluran = { staging: boolean; buildApp: number; arch?: ArchRilis }
 
-function asetPlatform(r: RilisGithub, platform: PlatformRilis) {
+function asetPlatform(r: RilisGithub, platform: PlatformRilis, arch?: ArchRilis) {
+    if (platform === 'macos') {
+        const polaPrioritas =
+            arch === 'x64'
+                ? [/x64\.dmg$/i, /x86_64\.dmg$/i, /universal\.dmg$/i]
+                : [/arm64\.dmg$/i, /universal\.dmg$/i]
+        for (const pola of polaPrioritas) {
+            const aset = r.assets.find((a) => pola.test(a.name))
+            if (aset) return aset
+        }
+        const polaLain = arch === 'x64' ? /(?:arm64|aarch64)\.dmg$/i : /(?:x64|x86_64)\.dmg$/i
+        return r.assets.find((a) => /\.dmg$/i.test(a.name) && !polaLain.test(a.name))
+    }
+
     for (const pola of BERKAS[platform]) {
         const aset = r.assets.find((a) => pola.test(a.name))
         if (aset) return aset
@@ -87,16 +101,36 @@ function asetPlatform(r: RilisGithub, platform: PlatformRilis) {
     return undefined
 }
 
-/** Info pembaruan dari satu rilis; `manifes` hanya diisi bila rilis memuatnya. */
-function infoRilis(r: RilisGithub, platform: PlatformRilis, versi: string, unduh: string): InfoPembaruan {
+function manifesPlatform(r: RilisGithub, platform: PlatformRilis, arch?: ArchRilis): string | undefined {
+    if (platform === 'macos') {
+        const polaArch =
+            arch === 'x64' ? /macos.*(?:x64|x86_64)-updater\.json$/i : /macos.*(?:arm64|aarch64)-updater\.json$/i
+        const cocokArch = r.assets.find((a) => polaArch.test(a.name))
+        if (cocokArch) return cocokArch.browser_download_url
+        const polaSalahArch = /(?:arm64|aarch64|x64|x86_64)-updater\.json$/i
+        return r.assets.find((a) => /macos.*-updater\.json$/i.test(a.name) && !polaSalahArch.test(a.name))
+            ?.browser_download_url
+    }
+
     const pola = MANIFES[platform]
-    const manifes = pola && r.assets.find((a) => pola.test(a.name))?.browser_download_url
+    return pola ? r.assets.find((a) => pola.test(a.name))?.browser_download_url : undefined
+}
+
+/** Info pembaruan dari satu rilis; `manifes` hanya diisi bila rilis memuatnya. */
+function infoRilis(r: RilisGithub, platform: PlatformRilis, versi: string, unduh: string, arch?: ArchRilis): InfoPembaruan {
+    const manifes = manifesPlatform(r, platform, arch)
 
     return { versi, tag: r.tag_name, unduh, halaman: r.html_url, ...(manifes ? { manifes } : {}) }
 }
 
 /** Saluran staging: tag staging-X.Y.Z-bN terbaru yang memuat berkas platform ini, bila lebih baru dari app. */
-function pilihPembaruanStaging(rilis: RilisGithub[], platform: PlatformRilis, versiApp: string, buildApp: number): InfoPembaruan | null {
+function pilihPembaruanStaging(
+    rilis: RilisGithub[],
+    platform: PlatformRilis,
+    versiApp: string,
+    buildApp: number,
+    arch?: ArchRilis,
+): InfoPembaruan | null {
     let terbaik: (InfoPembaruan & { build: number; dasar: string }) | null = null
     const lebihBaru = (v: string, b: number, v2: string, b2: number) => {
         const banding = bandingkanVersi(v, v2) ?? 0
@@ -110,9 +144,9 @@ function pilihPembaruanStaging(rilis: RilisGithub[], platform: PlatformRilis, ve
         if (!m) continue
         const [dasar, build] = [m[1], Number(m[2])]
         if (terbaik && !lebihBaru(dasar, build, terbaik.dasar, terbaik.build)) continue
-        const aset = asetPlatform(r, platform)
+        const aset = asetPlatform(r, platform, arch)
         if (!aset) continue
-        terbaik = { ...infoRilis(r, platform, `${dasar}-b${build}`, aset.browser_download_url), build, dasar }
+        terbaik = { ...infoRilis(r, platform, `${dasar}-b${build}`, aset.browser_download_url, arch), build, dasar }
     }
     if (!terbaik || !lebihBaru(terbaik.dasar, terbaik.build, versiApp.replace(/-.*$/, ''), buildApp)) return null
     const { build: _build, dasar: _dasar, ...info } = terbaik
@@ -164,7 +198,7 @@ export function pilihPembaruan(
     versiApp: string,
     saluran: Saluran = { staging: false, buildApp: 0 },
 ): InfoPembaruan | null {
-    if (saluran.staging) return pilihPembaruanStaging(rilis, platform, versiApp, saluran.buildApp)
+    if (saluran.staging) return pilihPembaruanStaging(rilis, platform, versiApp, saluran.buildApp, saluran.arch)
     let terbaik: InfoPembaruan | null = null
 
     for (const r of rilis) {
@@ -174,21 +208,46 @@ export function pilihPembaruan(
         const versi = u.versi
         if (terbaik && (bandingkanVersi(versi, terbaik.versi) ?? 0) <= 0) continue
 
-        const aset = asetPlatform(r, platform)
+        const aset = asetPlatform(r, platform, saluran.arch)
         if (!aset) continue
 
-        terbaik = infoRilis(r, platform, versi, aset.browser_download_url)
+        terbaik = infoRilis(r, platform, versi, aset.browser_download_url, saluran.arch)
     }
 
     return terbaik && (bandingkanVersi(terbaik.versi, versiApp) ?? 0) > 0 ? terbaik : null
 }
 
-type IsiCache = { pada: number; versiApp: string; info: InfoPembaruan | null }
+async function ambilArsitekturDesktop(): Promise<ArchRilis | undefined> {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return undefined
+    try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const arch = await invoke<string>('arsitektur_aplikasi')
+        if (arch === 'x86_64') return 'x64'
+        if (arch === 'aarch64') return 'arm64'
+    } catch {
+        // abaikan jika runtime lama belum menyediakan command ini
+    }
+    return undefined
+}
 
-function bacaCache(): IsiCache | null {
+async function fetchGithub(url: string, init?: RequestInit): Promise<Response> {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        try {
+            const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
+            return await tauriFetch(url, init)
+        } catch {
+            // fallback ke fetch web biasa bila plugin tidak tersedia
+        }
+    }
+    return globalThis.fetch(url, init)
+}
+
+type IsiCache = { pada: number; versiApp: string; arch?: ArchRilis; info: InfoPembaruan | null }
+
+function bacaCache(arch?: ArchRilis): IsiCache | null {
     try {
         const c = JSON.parse(localStorage.getItem(KUNCI_CACHE) ?? 'null') as IsiCache | null
-        if (c && c.versiApp === __VERSI_APP__ && Date.now() - c.pada < TTL_CEK_PEMBARUAN_MS) return c
+        if (c && c.versiApp === __VERSI_APP__ && c.arch === arch && Date.now() - c.pada < TTL_CEK_PEMBARUAN_MS) return c
     } catch {
         // cache rusak / localStorage tidak tersedia: lanjut cek ke jaringan
     }
@@ -201,17 +260,22 @@ export async function cekPembaruan(): Promise<InfoPembaruan | null> {
     const platform = platformRilis()
     if (!platform) return null
 
-    const cache = bacaCache()
+    const arch = await ambilArsitekturDesktop()
+    const cache = bacaCache(arch)
     if (cache) return cache.info
 
-    const res = await fetch(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
+    const res = await fetchGithub(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
         headers: { Accept: 'application/vnd.github+json' },
     })
     if (!res.ok) throw new Error(`Cek pembaruan gagal (HTTP ${res.status})`)
 
-    const info = pilihPembaruan((await res.json()) as RilisGithub[], platform, __VERSI_APP__, { staging: STAGING, buildApp: __BUILD_APP__ })
+    const info = pilihPembaruan((await res.json()) as RilisGithub[], platform, __VERSI_APP__, {
+        staging: STAGING,
+        buildApp: __BUILD_APP__,
+        arch,
+    })
     try {
-        localStorage.setItem(KUNCI_CACHE, JSON.stringify({ pada: Date.now(), versiApp: __VERSI_APP__, info } satisfies IsiCache))
+        localStorage.setItem(KUNCI_CACHE, JSON.stringify({ pada: Date.now(), versiApp: __VERSI_APP__, arch, info } satisfies IsiCache))
     } catch {
         // abaikan: hanya mengurangi efektivitas cache
     }
@@ -314,7 +378,7 @@ export async function cariUnduhan(): Promise<DaftarUnduhan> {
     }
 
     try {
-        const res = await fetch(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
+        const res = await fetchGithub(`https://api.github.com/repos/${REPO_RILIS}/releases?per_page=30`, {
             headers: { Accept: 'application/vnd.github+json' },
         })
         if (!res.ok) throw new Error(`Gagal memuat daftar unduhan (HTTP ${res.status})`)
