@@ -4,27 +4,27 @@ import type { DaftarUnduhan } from './pembaruan'
 
 export const UNDUHAN_TERBARU: DaftarUnduhan = {
     "windows": {
-        "versi": "0.10.5",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.10.5/cbt-al-akhyar-windows-v0.10.5-b12-x64.msi",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.10.5",
-        "ukuran": 8716288
+        "versi": "0.11.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.11.0/cbt-al-akhyar-windows-v0.11.0-b14-x64.msi",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.11.0",
+        "ukuran": 10563584
     },
     "macos": {
-        "versi": "0.10.5",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.10.5/cbt-al-akhyar-macos-v0.10.5-b12-arm64.dmg",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.10.5",
-        "ukuran": 8949141
+        "versi": "0.11.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.11.0/cbt-al-akhyar-macos-v0.11.0-b14-arm64.dmg",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.11.0",
+        "ukuran": 8990689
     },
     "macos_intel": {
-        "versi": "0.10.5",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.10.5/cbt-al-akhyar-macos-v0.10.5-b12-x64.dmg",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.10.5",
-        "ukuran": 9477614
+        "versi": "0.11.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.11.0/cbt-al-akhyar-macos-v0.11.0-b14-x64.dmg",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.11.0",
+        "ukuran": 9522022
     },
     "android": {
-        "versi": "0.10.5",
-        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.10.5/cbt-al-akhyar-android-v0.10.5-b12-release.apk",
-        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.10.5",
-        "ukuran": 5130723
+        "versi": "0.11.0",
+        "unduh": "https://github.com/rsuregar/erapor-cbt-releases/releases/download/v0.11.0/cbt-al-akhyar-android-v0.11.0-b13-release.apk",
+        "halaman": "https://github.com/rsuregar/erapor-cbt-releases/releases/tag/v0.11.0",
+        "ukuran": 5138005
     }
 } as const
