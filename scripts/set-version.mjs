@@ -30,8 +30,8 @@ if (buildNumber) {
 
 function hitungVersionCode(vName, bNum) {
   const [major = 0, minor = 0, patch = 0] = vName.replace(/-.*$/, '').split('.').map(Number);
-  const build = Math.min(Math.max(Number(bNum || 0), 0), 999);
-  return major * 10_000_000 + minor * 100_000 + patch * 1_000 + (Number.isFinite(build) ? build : 0);
+  const build = Math.min(Math.max(Number(bNum || 0), 0), 9999);
+  return major * 100_000_000 + minor * 1_000_000 + patch * 10_000 + (Number.isFinite(build) ? build : 0);
 }
 
 console.log(`[set-version] Setting version: ${versionName}${buildNumber ? ` (build ${buildNumber})` : ''}`);
