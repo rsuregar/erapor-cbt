@@ -286,6 +286,12 @@ export function pasangProteksiKonten(opsi: ProteksiKontenPasangOpsi): {
 
             return
         }
+        // Blokir dialog Caret Browsing (F7), Find bar (F3 / Ctrl+F / Ctrl+G), Riwayat (Ctrl+H), Unduhan (Ctrl+J) bawaan WebView2.
+        if (e.key === 'F7' || e.key === 'F3' || ((e.ctrlKey || e.metaKey) && ['f', 'g', 'h', 'j'].includes(k))) {
+            e.preventDefault()
+
+            return
+        }
         // Blokir navigasi Back/Forward bawaan WebView2 Windows (Alt + Panah Kiri/Kanan).
         if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
             e.preventDefault()

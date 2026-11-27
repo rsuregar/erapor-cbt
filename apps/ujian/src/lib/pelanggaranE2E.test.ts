@@ -1012,4 +1012,52 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
         expect(setAlwaysOnTopMock).toHaveBeenCalledWith(true)
         expect(invokeMock).toHaveBeenCalledWith('atur_kios_macos', { aktif: true })
     })
+
+    it('24. WebView2 shortcut (F7, F3, Ctrl+F/G/H/J) diblokir dan aturProteksiKontenNative memanggil atur_proteksi_konten_jendela', async () => {
+        const env = buatLingkunganDom()
+        const kabari = vi.fn()
+        const kontrol = pasangProteksiKonten({
+            kabari,
+            pakaiTauri: false,
+            pakaiNative: false,
+        })
+
+        for (const k of [
+            { key: 'F7', code: 'F7', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'F3', code: 'F3', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'f', code: 'KeyF', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'g', code: 'KeyG', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'h', code: 'KeyH', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+            { key: 'j', code: 'KeyJ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false },
+        ]) {
+            const ev = env.buatEvent('keydown', k)
+            env.docMock.dispatchEvent(ev)
+            expect(ev.defaultPrevented, `Shortcut ${k.key} seharusnya diblokir`).toBe(true)
+        }
+
+        const pengawas = env.buatEvent('keydown', { key: 'Q', code: 'KeyQ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true })
+        env.docMock.dispatchEvent(pengawas)
+        expect(pengawas.defaultPrevented).toBe(false)
+        kontrol.lepas()
+
+        vi.resetModules()
+        const envTauri = buatLingkunganDom()
+        ;(envTauri.winMock as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}
+        const invokeMock = vi.fn().mockResolvedValue(undefined)
+        vi.doMock('@capacitor/core', () => ({
+            Capacitor: { getPlatform: () => 'web', isNativePlatform: () => false, convertFileSrc: (p: string) => p },
+            registerPlugin: () => ({}),
+        }))
+        vi.doMock('@tauri-apps/api/core', () => ({
+            invoke: invokeMock,
+        }))
+
+        const { aturProteksiKontenNative } = await import('./native')
+        await aturProteksiKontenNative(true)
+        expect(invokeMock).toHaveBeenCalledWith('atur_proteksi_konten_jendela', { aktif: true })
+        expect(invokeMock).toHaveBeenCalledWith('bersihkan_clipboard')
+
+        await aturProteksiKontenNative(false)
+        expect(invokeMock).toHaveBeenCalledWith('atur_proteksi_konten_jendela', { aktif: false })
+    })
 })

@@ -47,6 +47,13 @@
     ],
     "macOS": {
       "signingIdentity": "-"
+    },
+    "windows": {
+      "allowDowngrades": true,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      }
     }
   }
 }

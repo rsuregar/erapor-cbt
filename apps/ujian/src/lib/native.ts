@@ -311,7 +311,10 @@ export async function aturProteksiKontenNative(aktif: boolean): Promise<void> {
         await UjianNative.aturProteksiKonten({ aktif }).catch(() => undefined)
         return
     }
-    if (aktif && isTauri()) {
+    if (!isTauri()) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('atur_proteksi_konten_jendela', { aktif }).catch(() => undefined)
+    if (aktif) {
         await bersihkanClipboardNative()
     }
 }

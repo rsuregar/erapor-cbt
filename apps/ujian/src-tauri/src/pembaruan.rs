@@ -61,7 +61,9 @@ pub async fn pasang_pembaruan(
         .ok_or("Aplikasi sudah versi terbaru.")?;
 
     let mut mulai = false;
-    update
+    let progres_memasang = progres.clone();
+    let app_memasang = app.clone();
+    let hasil_pasang = update
         .download_and_install(
             |potongan, total| {
                 if !mulai {
@@ -70,15 +72,20 @@ pub async fn pasang_pembaruan(
                 }
                 let _ = progres.send(ProgresPembaruan::Progres { diterima: potongan });
             },
-            || {
-                let _ = progres.send(ProgresPembaruan::Memasang);
+            move || {
+                let _ = progres_memasang.send(ProgresPembaruan::Memasang);
+                // Turunkan fullscreen + alwaysOnTop & siapkan keluar sebelum Windows msiexec / UAC muncul.
+                crate::siapkan_pemasangan_pembaruan(&app_memasang);
             },
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+    if let Err(e) = hasil_pasang {
+        crate::pulihkan_setelah_pembaruan_gagal(&app);
+        return Err(e.to_string());
+    }
 
     // Lepas wake lock, kios macOS, dan izinkan keluar sebelum restart agar ExitRequested tidak menolak pembaruan.
     crate::siapkan_keluar_aplikasi(&app);
-    // Windows: pemasang NSIS sudah mengambil alih dan menutup app. macOS/Linux: mulai ulang.
+    // Windows: pemasang NSIS/MSI sudah mengambil alih dan menutup app. macOS/Linux: mulai ulang.
     app.restart();
 }

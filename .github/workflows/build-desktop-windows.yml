@@ -130,6 +130,8 @@ jobs:
           VITE_API_URL: ${{ steps.env.outputs.api_url }}
           VITE_APP_VERSION: ${{ steps.version.outputs.version_name }}
           VITE_APP_BUILD: ${{ steps.version.outputs.build_number }}
+          MSI_V: ${{ steps.version.outputs.version_name }}
+          MSI_B: ${{ steps.version.outputs.build_number }}
           VITE_LINGKUNGAN: ${{ steps.env.outputs.target }}
           VITE_TARGET_NATIVE: "1"
           VITE_UPDATE_REPO: ${{ vars.RELEASE_REPO }}
@@ -146,7 +148,14 @@ jobs:
           cd apps/ujian
           ARGS=()
           # Staging: nama, identifier, & ikon terpisah (bisa dipasang berdampingan dengan produksi).
-          if [ "${VITE_LINGKUNGAN}" = staging ]; then ARGS+=(--config src-tauri/tauri.staging.conf.json); fi
+          # Versi MSI 4-digit berbeda tiap build agar staging tidak bentrok dengan versi X.Y.Z yang sama.
+          if [ "${VITE_LINGKUNGAN}" = staging ]; then
+            MSI_BUILD=$(( ${MSI_B} % 65535 ))
+            if [ "$MSI_BUILD" -eq 0 ]; then MSI_BUILD=1; fi
+            export MSI_B="$MSI_BUILD"
+            ARGS+=(--config src-tauri/tauri.staging.conf.json)
+            ARGS+=(--config "$(node -e 'console.log(JSON.stringify({bundle:{windows:{wix:{version:`${process.env.MSI_V}.${process.env.MSI_B}`}}}}))')" )
+          fi
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_UPDATER_PUBKEY" ]; then
             ARGS+=(--config "$(node -e 'console.log(JSON.stringify({bundle:{createUpdaterArtifacts:true},plugins:{updater:{pubkey:process.env.TAURI_UPDATER_PUBKEY}}}))')")
             echo "updater=true" >> $GITHUB_OUTPUT
