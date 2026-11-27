@@ -2,19 +2,38 @@ import { describe, expect, it } from 'vitest'
 import {
     evaluasiKepergianSingkat,
     harusCatatKeluarLayarPenuh,
+    harusCatatLayarDibagi,
     harusCatatMuatUlang,
+    harusKonfirmasiBlur,
     harusPantauBlurWindow,
+    harusPantauLayarDibagi,
     klasifikasiKepergian,
 } from './deteksiKepergian'
 
 describe('deteksiKepergian', () => {
-    it('menonaktifkan pantauan window.blur pada Android/iOS/Tauri dan mengaktifkannya hanya pada browser desktop non-native', () => {
+    it('mengaktifkan pantauan window.blur pada desktop non-native dan iOS/iPadOS PWA, namun menonaktifkannya di Android & Tauri', () => {
         expect(harusPantauBlurWindow({ adaNative: true, jenisPerangkat: 'android' })).toBe(false)
         expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'android' })).toBe(false)
-        expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'ios' })).toBe(false)
+        expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'ios' })).toBe(true)
+        expect(harusPantauBlurWindow({ adaNative: true, jenisPerangkat: 'ios' })).toBe(false)
         expect(harusPantauBlurWindow({ adaNative: false, isTauri: true, jenisPerangkat: 'desktop' })).toBe(false)
         expect(harusPantauBlurWindow({ adaNative: false, isTauri: false, jenisPerangkat: 'desktop' })).toBe(true)
         expect(harusPantauBlurWindow({ adaNative: false, jenisPerangkat: 'desktop' })).toBe(true)
+    })
+
+    it('memerlukan konfirmasi blur singkat hanya di iOS/iPadOS dan memantau layar dibagi untuk HP/tablet non-Tauri', () => {
+        expect(harusKonfirmasiBlur('ios')).toBe(true)
+        expect(harusKonfirmasiBlur('android')).toBe(false)
+        expect(harusKonfirmasiBlur('desktop')).toBe(false)
+
+        expect(harusPantauLayarDibagi({ isTauri: false, jenisPerangkat: 'ios' })).toBe(true)
+        expect(harusPantauLayarDibagi({ isTauri: false, jenisPerangkat: 'android' })).toBe(true)
+        expect(harusPantauLayarDibagi({ isTauri: false, jenisPerangkat: 'desktop' })).toBe(false)
+        expect(harusPantauLayarDibagi({ isTauri: true, jenisPerangkat: 'ios' })).toBe(false)
+
+        expect(harusCatatLayarDibagi({ layarDibagiAktif: true, terlihat: true })).toBe(true)
+        expect(harusCatatLayarDibagi({ layarDibagiAktif: true, terlihat: false })).toBe(false)
+        expect(harusCatatLayarDibagi({ layarDibagiAktif: false, terlihat: true })).toBe(false)
     })
 
     it('mengabaikan kepergian sangat singkat di bawah MIN_PERGI_MS', () => {

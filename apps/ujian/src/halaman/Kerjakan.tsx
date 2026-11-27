@@ -198,7 +198,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
 
     // Percobaan salin/tempel/klik kanan yang diblokir dilaporkan sebagai informasi untuk pengawas,
     // lengkap dengan nomor soal yang sedang dibuka.
-    const proteksi = useProteksiKonten(u.status === 'mengerjakan', {
+    const proteksi = useProteksiKonten(u.status === 'mengerjakan' || u.status === 'terkunci', {
         lapor: p.laporInfo,
         soalAktif: () => indeks + 1,
         teksSoalAktif: () => teksSoalRef.current,
@@ -401,7 +401,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
     })
     pintasan.current = {
         aktif: u.status === 'mengerjakan' && !tinjau,
-        terhalang: bantuanPintasan || panel || konfirmasi || modeModalPengawas !== null || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh),
+        terhalang: bantuanPintasan || panel || konfirmasi || modeModalPengawas !== null || blokir.status === 'blocked' || !!p.kejadian || (wajibLp && !layarPenuh) || p.layarTerbagi || p.tidakFokus,
         waktuHabis,
         soal: aktif,
         jawaban: aktif ? u.jawaban[aktif.id] : undefined,
@@ -1146,6 +1146,40 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                         <Tombol penuh className="mt-5" onClick={() => void masukLayarPenuh()}>
                             Layar penuh
                         </Tombol>
+                    </div>
+                </div>
+            )}
+
+            {p.layarTerbagi && u.status === 'mengerjakan' && !jedaJaringan && (
+                <div role="alertdialog" aria-modal aria-labelledby="judul-layar-terbagi" className="fixed inset-0 z-40 flex items-center justify-center bg-ink/85 p-6 backdrop-blur-md">
+                    <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
+                        <span className="mx-auto inline-flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                            <Maximize className="size-7" />
+                        </span>
+                        <h2 id="judul-layar-terbagi" className="mt-3 text-title">Layar sedang dibagi</h2>
+                        <p className="mt-1 text-sm">
+                            Split View atau jendela mengambang tidak diperbolehkan saat ujian. Kembalikan ke satu layar penuh dalam 5 detik agar tidak tercatat sebagai pelanggaran.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {p.tidakFokus && !p.layarTerbagi && u.status === 'mengerjakan' && !jedaJaringan && (
+                <div
+                    role="alertdialog"
+                    aria-modal
+                    aria-labelledby="judul-tidak-fokus"
+                    onClick={() => window.focus()}
+                    className="fixed inset-0 z-40 flex items-center justify-center bg-ink/85 p-6 backdrop-blur-md"
+                >
+                    <div className="max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
+                        <span className="mx-auto inline-flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                            <AlertTriangle className="size-7" />
+                        </span>
+                        <h2 id="judul-tidak-fokus" className="mt-3 text-title">Layar ujian tidak aktif</h2>
+                        <p className="mt-1 text-sm">
+                            Tutup Slide Over, menu mengambang, atau aplikasi lain lalu ketuk layar ini untuk melanjutkan. Meninggalkan layar lebih dari 5 detik tercatat sebagai pelanggaran.
+                        </p>
                     </div>
                 </div>
             )}

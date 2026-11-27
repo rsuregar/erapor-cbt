@@ -2,18 +2,42 @@ import type { JenisPerangkat } from '@/lib/perangkat'
 import type { JenisPelanggaran } from '@erapor-cbt/exam-core'
 
 /**
- * `window.blur` di Android/iOS (khususnya WebView/Chrome tablet saat unmount input atau
+ * `window.blur` di Android (khususnya WebView/Chrome tablet saat unmount input atau
  * tutup keyboard virtual saat pindah soal) sering menembak meski halaman tetap `visible`.
  * Di Tauri Exam Browser, pemantauan fokus memakai event fokus jendela OS (`onFocusChanged`)
  * alih-alih DOM `window.blur` agar popup/dialog internal WebView2 tidak memicu false positive.
- * Karena itu, hanya pantau `blur`/`focus` pada browser desktop non-native.
+ * Di iOS/iPadOS PWA, Slide Over, Floating Menu (`...`), Control Center, dan jendela mengambang
+ * menjaga `visibilityState === 'visible'` — satu-satunya sinyal adalah `window.blur` / `hasFocus()`,
+ * sehingga iOS PWA ikut dipantau dengan konfirmasi singkat (`KONFIRMASI_BLUR_IOS_MS`).
  */
 export function harusPantauBlurWindow(params: {
     adaNative: boolean
     isTauri?: boolean
     jenisPerangkat: JenisPerangkat
 }): boolean {
-    return !params.adaNative && !params.isTauri && params.jenisPerangkat === 'desktop'
+    return !params.adaNative && !params.isTauri && (params.jenisPerangkat === 'desktop' || params.jenisPerangkat === 'ios')
+}
+
+export const KONFIRMASI_BLUR_IOS_MS = 250
+export const INTERVAL_CEK_FOKUS_IOS_MS = 500
+export const DEBOUNCE_LAYAR_DIBAGI_MS = 300
+
+export function harusKonfirmasiBlur(jenisPerangkat: JenisPerangkat): boolean {
+    return jenisPerangkat === 'ios'
+}
+
+export function harusPantauLayarDibagi(params: {
+    isTauri?: boolean
+    jenisPerangkat: JenisPerangkat
+}): boolean {
+    return !params.isTauri && params.jenisPerangkat !== 'desktop'
+}
+
+export function harusCatatLayarDibagi(params: {
+    layarDibagiAktif: boolean
+    terlihat: boolean
+}): boolean {
+    return params.layarDibagiAktif && params.terlihat
 }
 
 /**

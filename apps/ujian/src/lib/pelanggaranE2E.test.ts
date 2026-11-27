@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { pasangPengawasKepergian, pasangPengawasLayarPenuh } from './usePelanggaran'
+import { KONFIRMASI_BLUR_IOS_MS } from './deteksiKepergian'
+import { pasangPengawasKepergian, pasangPengawasLayarDibagi, pasangPengawasLayarPenuh } from './usePelanggaran'
 import { pasangProteksiKonten } from './useProteksiKonten'
 
 type StateDom = {
@@ -19,8 +20,9 @@ function buatLingkunganDom(awal: Partial<StateDom> = {}) {
     const bersihkanKelas = vi.fn()
     const tambahKelas = vi.fn()
 
+    const selectionMock = { isCollapsed: true, anchorNode: null as unknown, focusNode: null as unknown, removeAllRanges: vi.fn() }
     const winMock = Object.assign(targetWin, {
-        getSelection: () => ({ isCollapsed: true, removeAllRanges: vi.fn() }),
+        getSelection: () => selectionMock,
         addEventListener: targetWin.addEventListener.bind(targetWin),
         removeEventListener: targetWin.removeEventListener.bind(targetWin),
         dispatchEvent: targetWin.dispatchEvent.bind(targetWin),
@@ -60,7 +62,13 @@ function buatLingkunganDom(awal: Partial<StateDom> = {}) {
 
     const buatEvent = (tipe: string, props: Record<string, unknown> = {}) => {
         const ev = new Event(tipe, { cancelable: true, bubbles: true })
-        Object.assign(ev, props)
+        for (const [k, v] of Object.entries(props)) {
+            if (k === 'target') {
+                Object.defineProperty(ev, k, { value: v, configurable: true })
+            } else {
+                ;(ev as unknown as Record<string, unknown>)[k] = v
+            }
+        }
         return ev
     }
 
@@ -69,6 +77,7 @@ function buatLingkunganDom(awal: Partial<StateDom> = {}) {
         winMock,
         docMock,
         navMock,
+        selectionMock,
         buatEvent,
         emitFocus: () => {
             state.focused = true
@@ -539,5 +548,256 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
 
         kontrol.lepas()
         expect(lapor).toHaveBeenCalledWith('salin_diblokir', expect.objectContaining({ aksi: 'paste', diblokir: true, soal: 3 }))
+    })
+
+    it('13. iPad PWA: Slide Over / Floating Menu (window.blur saat visibilityState tetap visible) memicu tirai fokus & mencatat pindah_tab setelah >= 5 dtk', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onFokusBerubah = vi.fn()
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 80_000,
+            onFokusBerubah,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        // Slide Over dibuka: visibilityState tetap 'visible', hanya blur + hasFocus() === false
+        env.emitBlur()
+        vi.advanceTimersByTime(KONFIRMASI_BLUR_IOS_MS)
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(true)
+
+        vi.advanceTimersByTime(6000)
+        env.emitFocus()
+
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(false)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('pindah_tab', 80_000, 6000 + KONFIRMASI_BLUR_IOS_MS)
+        lepas()
+    })
+
+    it('14. iPad PWA: glitch blur < 250ms (mis. unmount input) menghasilkan 0 pelanggaran dan tidak memicu tirai', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onFokusBerubah = vi.fn()
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 85_000,
+            onFokusBerubah,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        env.emitBlur()
+        vi.advanceTimersByTime(100)
+        env.emitFocus()
+        vi.advanceTimersByTime(6000)
+
+        expect(onFokusBerubah).not.toHaveBeenCalled()
+        expect(onCatat).not.toHaveBeenCalled()
+        lepas()
+    })
+
+    it('15. iPad PWA: WebKit tidak menembakkan blur/focus (hanya hasFocus() berubah) tetap tertangkap watchdog & touchstart', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onFokusBerubah = vi.fn()
+
+        const lepas = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            intervalCekFokusMs: 500,
+            msSejakMulai: () => 90_000,
+            onFokusBerubah,
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        // Control Center / Floating Menu: hanya document.hasFocus() yang turun tanpa event blur
+        env.state.focused = false
+        vi.advanceTimersByTime(500 + KONFIRMASI_BLUR_IOS_MS)
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(true)
+
+        vi.advanceTimersByTime(6000)
+        // Kembali tanpa event focus: pengguna mengetuk tirai (touchstart saat hasFocus() sudah true)
+        env.state.focused = true
+        env.winMock.dispatchEvent(env.buatEvent('touchstart'))
+
+        expect(onFokusBerubah).toHaveBeenLastCalledWith(false)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat.mock.calls[0]?.[0]).toBe('pindah_tab')
+        lepas()
+    })
+
+    it('16. iPad Split View: >= 5 dtk mencatat ukuran_layar tanpa hukuman ganda pindah_tab, dan rotasi < 300ms diabaikan', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        const onStatusBerubah = vi.fn()
+        let terbagi = false
+        let sudahCatatSplit = false
+        let sedangPergi = false
+
+        const lepasPergi = pasangPengawasKepergian({
+            pakaiNative: false,
+            pakaiTauri: false,
+            pantauBlur: true,
+            konfirmasiBlurMs: KONFIRMASI_BLUR_IOS_MS,
+            msSejakMulai: () => 100_000,
+            onPergi: () => {
+                sedangPergi = true
+            },
+            onKembali: () => {
+                sedangPergi = false
+            },
+            abaikanCatatSekali: () => {
+                if (!sudahCatatSplit) return false
+                sudahCatatSplit = false
+                return true
+            },
+            onCatat,
+            bacaPlatform: () => 'pwa',
+        })
+
+        const lepasSplit = pasangPengawasLayarDibagi({
+            cekLayarDibagi: () => terbagi,
+            msSejakMulai: () => 100_000,
+            onStatusBerubah: (aktif) => {
+                onStatusBerubah(aktif)
+                if (aktif || !sedangPergi) sudahCatatSplit = false
+            },
+            onCatat: (jenis, mulaiMs, durasiMs) => {
+                sudahCatatSplit = true
+                onCatat(jenis, mulaiMs, durasiMs)
+            },
+            debounceMasukMs: 300,
+            intervalCekMs: 1000,
+        })
+
+        // Rotasi layar 150ms -> tidak memicu tirai / pelanggaran
+        terbagi = true
+        env.winMock.dispatchEvent(env.buatEvent('resize'))
+        vi.advanceTimersByTime(150)
+        terbagi = false
+        env.winMock.dispatchEvent(env.buatEvent('resize'))
+        vi.advanceTimersByTime(6000)
+        expect(onStatusBerubah).not.toHaveBeenCalled()
+        expect(onCatat).not.toHaveBeenCalled()
+
+        // Split View nyata + tap aplikasi sebelah selama 7 detik
+        terbagi = true
+        env.winMock.dispatchEvent(env.buatEvent('resize'))
+        vi.advanceTimersByTime(300)
+        expect(onStatusBerubah).toHaveBeenLastCalledWith(true)
+
+        env.emitBlur()
+        vi.advanceTimersByTime(5000)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 100_000, 5000)
+
+        // Kembali fokus & tutup Split View -> tidak menambah pindah_tab ganda
+        vi.advanceTimersByTime(2000)
+        terbagi = false
+        env.winMock.dispatchEvent(env.buatEvent('resize'))
+        env.emitFocus()
+        expect(onStatusBerubah).toHaveBeenLastCalledWith(false)
+        expect(onCatat).toHaveBeenCalledTimes(1)
+
+        lepasSplit()
+        lepasPergi()
+    })
+
+    it('17. iPad Split View intip cepat 3x (< 5 dtk) dalam 2 menit memicu ukuran_layar pada kali ke-3', () => {
+        const env = buatLingkunganDom()
+        const onCatat = vi.fn()
+        let terbagi = false
+
+        const lepasSplit = pasangPengawasLayarDibagi({
+            cekLayarDibagi: () => terbagi,
+            msSejakMulai: () => 110_000,
+            onCatat,
+            debounceMasukMs: 300,
+            intervalCekMs: 1000,
+        })
+
+        for (let i = 0; i < 3; i++) {
+            terbagi = true
+            env.winMock.dispatchEvent(env.buatEvent('resize'))
+            vi.advanceTimersByTime(300 + 2000)
+            terbagi = false
+            env.winMock.dispatchEvent(env.buatEvent('resize'))
+            vi.advanceTimersByTime(5000)
+        }
+
+        expect(onCatat).toHaveBeenCalledTimes(1)
+        expect(onCatat).toHaveBeenCalledWith('ukuran_layar', 110_000, 2000)
+        lepasSplit()
+    })
+
+    it('18. Proteksi salin-tempel berlapis: rollback input non-cancelable, insertReplacementText dataTransfer, dan selectionchange di luar isian', () => {
+        const env = buatLingkunganDom()
+        const lapor = vi.fn()
+        const kabari = vi.fn()
+
+        const kontrol = pasangProteksiKonten({
+            lapor,
+            kabari,
+            soalAktif: () => 5,
+            teksSoalAktif: () => 'Apa ibu kota Indonesia?',
+            pakaiTauri: false,
+            pakaiNative: false,
+        })
+
+        const textareaMock = {
+            tagName: 'TEXTAREA',
+            value: 'Jawaban awal',
+            selectionStart: 12,
+            selectionEnd: 12,
+            setSelectionRange: vi.fn(),
+            closest: (sel: string) => (sel.includes('textarea') ? textareaMock : null),
+        } as unknown as HTMLTextAreaElement
+
+        // Simulasi paste non-cancelable iOS: paste diblokir, tapi WebKit tetap mengubah value dan menembakkan input
+        const pasteEv = env.buatEvent('paste', { target: textareaMock })
+        env.docMock.dispatchEvent(pasteEv)
+        expect(pasteEv.defaultPrevented).toBe(true)
+
+        textareaMock.value = 'Jawaban awal tempelan rahasia dari catatan'
+        const inputEv = env.buatEvent('input', { target: textareaMock, inputType: 'insertFromPaste' })
+        env.docMock.dispatchEvent(inputEv)
+        expect(textareaMock.value).toBe('Jawaban awal')
+
+        // Simulasi QuickType / Scan Text (insertReplacementText) dengan data: null dan dataTransfer terisi
+        const repEv = env.buatEvent('beforeinput', {
+            target: textareaMock,
+            inputType: 'insertReplacementText',
+            isComposing: false,
+            data: null,
+            dataTransfer: { getData: () => 'tempelan jawaban panjang dari keyboard' },
+        })
+        env.docMock.dispatchEvent(repEv)
+        expect(repEv.defaultPrevented).toBe(true)
+
+        // Simulasi selectionchange saat textarea fokus, tetapi seleksi berada pada teks soal (bukan textarea)
+        env.docMock.activeElement = textareaMock
+        env.selectionMock.isCollapsed = false
+        env.selectionMock.anchorNode = { nodeType: 3, parentElement: { closest: () => null } }
+        env.selectionMock.focusNode = { nodeType: 3, parentElement: { closest: () => null } }
+        env.docMock.dispatchEvent(env.buatEvent('selectionchange'))
+        expect(env.selectionMock.removeAllRanges).toHaveBeenCalledTimes(1)
+
+        kontrol.lepas()
+        expect(lapor).toHaveBeenCalledWith('salin_diblokir', expect.objectContaining({ aksi: 'paste', diblokir: true, soal: 5 }))
     })
 })

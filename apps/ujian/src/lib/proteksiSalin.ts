@@ -74,12 +74,16 @@ export function terdeteksiTempel(opsi: {
 
     if (opsi.teksSoal) {
         const soalNorm = normalisasiTeks(opsi.teksSoal)
-        if (sisipanNorm.length >= 12 && jumlahKata >= 3 && soalNorm.includes(sisipanNorm)) {
+        if (sisipanNorm.length >= 10 && jumlahKata >= 2 && soalNorm.includes(sisipanNorm)) {
             return { diblokir: true, alasan: 'salin_soal' }
         }
     }
 
-    if (((sisipan.includes('\n') || sisipan.includes('\r')) && sisipanNorm.length >= 12) || (sisipanNorm.length >= 25 && jumlahKata >= 4)) {
+    if (
+        ((sisipan.includes('\n') || sisipan.includes('\r')) && sisipanNorm.length >= 8) ||
+        (sisipanNorm.length >= 16 && jumlahKata >= 3) ||
+        /(?:https?:\/\/|www\.)\S+/i.test(sisipanNorm)
+    ) {
         return { diblokir: true, alasan: 'tempel_massal' }
     }
 
@@ -96,6 +100,18 @@ const INPUT_TYPE_TEMPEL = new Set([
 
 export function adalahInputTypeTempel(inputType: string | null | undefined): boolean {
     return !!inputType && INPUT_TYPE_TEMPEL.has(inputType)
+}
+
+export function ekstrakTeksInputEvent(e: {
+    data?: string | null
+    dataTransfer?: { getData?: (type: string) => string } | null
+}): string {
+    if (typeof e.data === 'string' && e.data.length > 0) return e.data
+    try {
+        return e.dataTransfer?.getData?.('text/plain') ?? ''
+    } catch {
+        return ''
+    }
 }
 
 export function adalahPintasanCopas(e: {
@@ -127,4 +143,11 @@ export function adalahTargetIsian(target: EventTarget | null): boolean {
     if (!input) return false
     const tipe = (input.type || 'text').toLowerCase()
     return !INPUT_NON_TEKS.has(tipe)
+}
+
+export function adalahNodeDiDalamIsian(node: unknown): boolean {
+    if (!node || typeof node !== 'object') return false
+    const n = node as { nodeType?: number; parentElement?: Element | null }
+    const target = n.nodeType === 3 ? n.parentElement : (node as EventTarget)
+    return adalahTargetIsian(target ?? null)
 }
