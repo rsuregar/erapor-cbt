@@ -15,14 +15,22 @@ import { bersihkanServiceWorkerNative } from './lib/pembaruanPwa'
 import { queryClient } from './lib/queryClient'
 
 if (isTauri() && typeof window !== 'undefined') {
-    // Cegah Escape / Ctrl+Cmd+F / Cmd+W / Cmd+M / Cmd+H mengeluarkan WebView dari fullscreen macOS.
-    // Listener bubble-phase membiarkan dialog internal menutup dulu lalu tetap memanggil preventDefault().
-    window.addEventListener('keydown', (e) => {
-        const k = e.key.toLowerCase()
-        if (e.key === 'Escape' || (e.metaKey && (k === 'w' || k === 'm' || k === 'h' || (e.ctrlKey && k === 'f')))) {
-            e.preventDefault()
-        }
-    })
+    // Cegah Escape / Cmd+. / F11 / Ctrl+Cmd+F / Cmd+W / Cmd+M / Cmd+H mengeluarkan WebView dari fullscreen.
+    // Capture-phase memastikan preventDefault() tetap terpanggil meski handler dialog memanggil stopPropagation().
+    window.addEventListener(
+        'keydown',
+        (e) => {
+            const k = e.key.toLowerCase()
+            if (
+                e.key === 'Escape' ||
+                e.key === 'F11' ||
+                (e.metaKey && (k === '.' || k === 'w' || k === 'm' || k === 'h' || (e.ctrlKey && k === 'f')))
+            ) {
+                e.preventDefault()
+            }
+        },
+        { capture: true },
+    )
 }
 
 if (webDitolak()) {

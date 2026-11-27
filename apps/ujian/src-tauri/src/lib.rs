@@ -102,6 +102,20 @@ static KELUAR_DIIZINKAN: AtomicBool = AtomicBool::new(false);
 /// sekaligus memulihkan fullscreen seketika bila pengguna keluar lewat tombol Esc / Space macOS.
 #[cfg_attr(debug_assertions, allow(dead_code))]
 static PERNAH_FULLSCREEN: AtomicBool = AtomicBool::new(false);
+/// Menjaga jeda antar panggilan `set_fullscreen(true)` agar animasi `toggleFullScreen:` macOS tidak terpanggil ganda.
+#[cfg_attr(debug_assertions, allow(dead_code))]
+static TERAKHIR_PAKSA_FULLSCREEN: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+#[cfg_attr(debug_assertions, allow(dead_code))]
+fn boleh_paksa_fullscreen_ulang(terakhir: &mut Option<std::time::Instant>, sekarang: std::time::Instant) -> bool {
+    if let Some(prev) = *terakhir {
+        if sekarang.duration_since(prev) < std::time::Duration::from_millis(800) {
+            return false;
+        }
+    }
+    *terakhir = Some(sekarang);
+    true
+}
 
 #[cfg_attr(debug_assertions, allow(dead_code))]
 fn boleh_keluar(diizinkan: bool, code: Option<i32>) -> bool {
@@ -395,13 +409,13 @@ pub fn run() {
             app.manage(WakeLockState(Mutex::new(None)));
 
             #[cfg(not(debug_assertions))]
-            kios_windows::atur_aktif(true);
-
-            #[cfg(all(target_os = "macos", not(debug_assertions)))]
             {
-                pasang_menu_macos(app.handle())?;
+                kios_windows::atur_aktif(true);
                 kios_macos::aktifkan_saat_startup(app.handle());
             }
+
+            #[cfg(all(target_os = "macos", not(debug_assertions)))]
+            pasang_menu_macos(app.handle())?;
 
             Ok(())
         })
@@ -441,12 +455,33 @@ pub fn run() {
                 if kios_macos::sedang_aktif() {
                     if window.is_fullscreen().unwrap_or(false) {
                         PERNAH_FULLSCREEN.store(true, Ordering::SeqCst);
+                        if let Ok(mut guard) = TERAKHIR_PAKSA_FULLSCREEN.lock() {
+                            *guard = None;
+                        }
                     } else if PERNAH_FULLSCREEN.load(Ordering::SeqCst) {
-                        let _ = window.set_fullscreen(true);
-                        let _ = window.set_always_on_top(true);
+                        let boleh = TERAKHIR_PAKSA_FULLSCREEN
+                            .lock()
+                            .map(|mut g| boleh_paksa_fullscreen_ulang(&mut g, std::time::Instant::now()))
+                            .unwrap_or(true);
+                        if boleh {
+                            let _ = window.set_fullscreen(true);
+                            let _ = window.set_always_on_top(true);
+                        }
                     }
                 }
                 kios_macos::sinkronkan_jika_aktif(window.app_handle());
+            }
+            tauri::WindowEvent::Focused(false) => {
+                #[cfg(all(target_os = "windows", not(debug_assertions)))]
+                if kios_macos::sedang_aktif() && PERNAH_FULLSCREEN.load(Ordering::SeqCst) {
+                    let _ = window.set_always_on_top(true);
+                    if !window.is_fullscreen().unwrap_or(false) {
+                        let _ = window.set_fullscreen(true);
+                    }
+                    let _ = window.set_focus();
+                }
+                #[cfg(not(all(target_os = "windows", not(debug_assertions))))]
+                let _ = window;
             }
             _ => {}
         })
@@ -490,5 +525,20 @@ mod tests {
     fn harus_cegah_tutup_jendela_hanya_saat_keluar_belum_diizinkan() {
         assert!(harus_cegah_tutup_jendela(false));
         assert!(!harus_cegah_tutup_jendela(true));
+    }
+
+    #[test]
+    fn cooldown_paksa_fullscreen_mencegah_toggle_ganda() {
+        let mut terakhir = None;
+        let t0 = std::time::Instant::now();
+        assert!(boleh_paksa_fullscreen_ulang(&mut terakhir, t0));
+        assert!(!boleh_paksa_fullscreen_ulang(
+            &mut terakhir,
+            t0 + std::time::Duration::from_millis(200)
+        ));
+        assert!(boleh_paksa_fullscreen_ulang(
+            &mut terakhir,
+            t0 + std::time::Duration::from_millis(900)
+        ));
     }
 }

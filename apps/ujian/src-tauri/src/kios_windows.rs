@@ -11,25 +11,43 @@ const VK_TAB: u32 = 0x09;
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 const VK_ESCAPE: u32 = 0x1B;
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_SPACE: u32 = 0x20;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 const VK_SNAPSHOT: u32 = 0x2C;
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 const VK_LWIN: u32 = 0x5B;
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 const VK_RWIN: u32 = 0x5C;
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_APPS: u32 = 0x5D;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_SLEEP: u32 = 0x5F;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 const VK_F4: u32 = 0x73;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_F11: u32 = 0x7A;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_BROWSER_BACK: u32 = 0xA6;
+#[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
+const VK_LAUNCH_APP2: u32 = 0xB7;
 
 /// Tentukan apakah tombol/kombinasi tombol harus diblokir saat Exam Browser Windows aktif:
-/// - `Win` kiri/kanan (membuka Start Menu, Win+D, Win+E, Win+R, Win+Tab)
-/// - `Alt+Tab`, `Alt+Esc`, `Ctrl+Esc` (berpindah jendela / membuka Start Menu)
-/// - `Alt+F4` (menutup paksa jendela)
-/// - `PrintScreen` (`VK_SNAPSHOT`)
+/// - `Win` kiri/kanan (Start Menu, Win+D, Win+E, Win+R, Win+Tab, Win+G)
+/// - `Apps` (menu konteks), `Sleep`, `PrintScreen` (`VK_SNAPSHOT`), `F11`, tombol peluncur perangkat keras
+/// - `Alt+Tab`, `Alt+Esc`, `Alt+Space`, `Alt+F4`, `Ctrl+Esc` / `Ctrl+Shift+Esc`
 #[cfg_attr(any(debug_assertions, not(target_os = "windows")), allow(dead_code))]
 pub fn apakah_tombol_kios_diblokir(vk_code: u32, alt_down: bool, ctrl_down: bool) -> bool {
-    if vk_code == VK_LWIN || vk_code == VK_RWIN || vk_code == VK_SNAPSHOT {
+    if vk_code == VK_LWIN
+        || vk_code == VK_RWIN
+        || vk_code == VK_APPS
+        || vk_code == VK_SLEEP
+        || vk_code == VK_SNAPSHOT
+        || vk_code == VK_F11
+        || (VK_BROWSER_BACK..=VK_LAUNCH_APP2).contains(&vk_code)
+    {
         return true;
     }
-    if alt_down && (vk_code == VK_TAB || vk_code == VK_ESCAPE || vk_code == VK_F4) {
+    if alt_down && (vk_code == VK_TAB || vk_code == VK_ESCAPE || vk_code == VK_SPACE || vk_code == VK_F4) {
         return true;
     }
     if ctrl_down && vk_code == VK_ESCAPE {
@@ -46,7 +64,9 @@ mod win32 {
 
     const WH_KEYBOARD_LL: i32 = 13;
     const WM_KEYDOWN: usize = 0x0100;
+    const WM_KEYUP: usize = 0x0101;
     const WM_SYSKEYDOWN: usize = 0x0104;
+    const WM_SYSKEYUP: usize = 0x0105;
     const LLKHF_ALTDOWN: u32 = 0x0000_0020;
     const VK_CONTROL: i32 = 0x11;
 
@@ -110,15 +130,19 @@ mod win32 {
         w_param: usize,
         l_param: isize,
     ) -> isize {
-        if n_code >= 0
-            && HOOK_AKTIF.load(Ordering::Relaxed)
-            && (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN)
-        {
+        if n_code >= 0 && HOOK_AKTIF.load(Ordering::Acquire) {
             let kb = unsafe { &*(l_param as *const KBDLLHOOKSTRUCT) };
-            let alt_down = (kb.flags & LLKHF_ALTDOWN) != 0;
-            let ctrl_down = (unsafe { GetAsyncKeyState(VK_CONTROL) } as u16 & 0x8000) != 0;
-            if apakah_tombol_kios_diblokir(kb.vkCode, alt_down, ctrl_down) {
-                return 1;
+            if w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN {
+                let alt_down = (kb.flags & LLKHF_ALTDOWN) != 0;
+                let ctrl_down = (unsafe { GetAsyncKeyState(VK_CONTROL) } as u16 & 0x8000) != 0;
+                if apakah_tombol_kios_diblokir(kb.vkCode, alt_down, ctrl_down) {
+                    return 1;
+                }
+            } else if w_param == WM_KEYUP || w_param == WM_SYSKEYUP {
+                // Blokir juga KEYUP tombol mandiri (terutama Win) agar Start Menu tidak terbuka saat tombol dilepas.
+                if apakah_tombol_kios_diblokir(kb.vkCode, false, false) {
+                    return 1;
+                }
             }
         }
         unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param) }
@@ -160,17 +184,24 @@ mod tests {
     fn memblokir_tombol_windows_dan_pintasan_pindah_aplikasi() {
         assert!(apakah_tombol_kios_diblokir(VK_LWIN, false, false));
         assert!(apakah_tombol_kios_diblokir(VK_RWIN, false, false));
+        assert!(apakah_tombol_kios_diblokir(VK_APPS, false, false));
+        assert!(apakah_tombol_kios_diblokir(VK_SLEEP, false, false));
         assert!(apakah_tombol_kios_diblokir(VK_SNAPSHOT, false, false));
+        assert!(apakah_tombol_kios_diblokir(VK_F11, false, false));
+        assert!(apakah_tombol_kios_diblokir(VK_BROWSER_BACK, false, false));
+        assert!(apakah_tombol_kios_diblokir(VK_LAUNCH_APP2, false, false));
         assert!(apakah_tombol_kios_diblokir(VK_TAB, true, false));
         assert!(apakah_tombol_kios_diblokir(VK_ESCAPE, true, false));
+        assert!(apakah_tombol_kios_diblokir(VK_SPACE, true, false));
         assert!(apakah_tombol_kios_diblokir(VK_F4, true, false));
         assert!(apakah_tombol_kios_diblokir(VK_ESCAPE, false, true));
     }
 
     #[test]
     fn mengizinkan_tombol_ketik_dan_pintasan_pengawas() {
-        // Huruf biasa, Tab tanpa Alt, Esc tanpa Alt/Ctrl, Ctrl+Shift+Q/X tetap lolos.
+        // Huruf biasa, Spasi/Tab/Esc tanpa Alt/Ctrl, Ctrl+Shift+Q/X tetap lolos.
         assert!(!apakah_tombol_kios_diblokir(0x41, false, false));
+        assert!(!apakah_tombol_kios_diblokir(VK_SPACE, false, false));
         assert!(!apakah_tombol_kios_diblokir(VK_TAB, false, false));
         assert!(!apakah_tombol_kios_diblokir(VK_ESCAPE, false, false));
         assert!(!apakah_tombol_kios_diblokir(0x51, false, true));
