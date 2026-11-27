@@ -513,7 +513,7 @@ export default function Kerjakan({ attemptId }: { attemptId: number }) {
                             setGalatPinWifi(null)
                         }}
                         placeholder="Masukkan PIN pengawas…"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-800 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     {galatPinWifi && <p className="text-xs font-medium text-coral-700">{galatPinWifi}</p>}
                 </div>

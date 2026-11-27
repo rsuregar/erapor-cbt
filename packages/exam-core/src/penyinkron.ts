@@ -62,17 +62,17 @@ export class Penyinkron {
     }
 
     /** Kirim sekarang (event online, app kembali terlihat, sebelum kumpul). Bila sedang mengirim, tunggu putaran aktif selesai dan jalankan putaran baru jika masih ada entri tertunda. */
-    async kirim(): Promise<SinkronRespons | null> {
+    async kirim(opsi?: { keepalive?: boolean }): Promise<SinkronRespons | null> {
         if (this.janjiKirim) {
             this.ulangSetelahKirim = true
             const hasil = await this.janjiKirim
             if (hasil !== null && (await this.o.outbox.jumlahTertunda()) > 0) {
-                return this.kirim()
+                return this.kirim(opsi)
             }
 
             return hasil
         }
-        const janji = this.lakukanKirim()
+        const janji = this.lakukanKirim(opsi?.keepalive ?? false)
         this.janjiKirim = janji
         try {
             return await janji
@@ -81,12 +81,18 @@ export class Penyinkron {
         }
     }
 
-    private async lakukanKirim(): Promise<SinkronRespons | null> {
+    private async lakukanKirim(keepalive = false): Promise<SinkronRespons | null> {
         if (this.timer) this.ct(this.timer)
 
         try {
             const entri = await this.o.outbox.antrean()
-            const r = await this.o.api.sinkron(this.o.attemptId, entri, { ...this.o.detak?.(), offline_ms: Math.round(this.totalOffline()) })
+            const r = await this.o.api.sinkron(
+                this.o.attemptId,
+                entri,
+                { ...this.o.detak?.(), offline_ms: Math.round(this.totalOffline()) },
+                undefined,
+                keepalive ? { keepalive: true } : undefined,
+            )
             await this.o.outbox.akui(r.diakui)
             this.o.jam.setel(r.waktu_server)
             this.tandaiOnline()

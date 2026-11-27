@@ -10,6 +10,9 @@ if (typeof document !== 'undefined') {
     document.addEventListener('gesturestart', tahan, { passive: false })
     document.addEventListener('gesturechange', tahan, { passive: false })
     document.addEventListener('gestureend', tahan, { passive: false })
-    // Dua jari di atas layar (browser lain yang mengabaikan meta viewport).
-    document.addEventListener('touchmove', (e) => e.touches.length > 1 && e.preventDefault(), { passive: false })
+    // Dua jari di atas layar (hanya di non-Safari agar tidak mematikan fast-scroll & palm rejection iPadOS).
+    const dukungGesture = typeof window !== 'undefined' && ('GestureEvent' in window || 'ongesturestart' in window)
+    if (!dukungGesture) {
+        document.addEventListener('touchmove', (e) => e.touches.length > 1 && e.preventDefault(), { passive: false })
+    }
 }

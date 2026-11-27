@@ -134,14 +134,19 @@ export async function unduhMedia(ujianId: number, urls: string[], onProgres: (se
         simpanAkhir = () => penyimpanan.simpan(kunciMedia(ujianId), peta)
     } else if ('caches' in globalThis) {
         const cache = await caches.open(CACHE_MEDIA)
+        const peta: PetaMedia = (await penyimpanan.ambil<PetaMedia>(kunciMedia(ujianId))) ?? {}
         unduhSatu = async (url) => {
-            if (await cache.match(url)) return
-            const r = await fetch(url, { mode: 'no-cors', cache: 'reload' }).catch(() => {
-                throw new GalatMedia('Gagal mengunduh media. Periksa internet lalu coba lagi.')
-            })
-            if (r.type !== 'opaque' && !r.ok) throw new GalatMedia(`Gagal mengunduh media (${r.status}).`)
-            await cache.put(url, r)
+            const target = urlAbsolut(url)
+            if (!(await cache.match(target))) {
+                const r = await fetch(target, { mode: 'no-cors', cache: 'reload' }).catch(() => {
+                    throw new GalatMedia('Gagal mengunduh media. Periksa internet lalu coba lagi.')
+                })
+                if (r.type !== 'opaque' && !r.ok) throw new GalatMedia(`Gagal mengunduh media (${r.status}).`)
+                await cache.put(target, r)
+            }
+            peta[url] = target
         }
+        simpanAkhir = () => penyimpanan.simpan(kunciMedia(ujianId), peta)
     } else {
         onProgres(unik.length, unik.length)
 
@@ -165,38 +170,47 @@ export async function unduhMedia(ujianId: number, urls: string[], onProgres: (se
 }
 
 /**
- * URL media → src yang bisa dipakai <img> (berkas lokal). Kosong di PWA / bila belum diunduh.
+ * URL media → src yang bisa dipakai <img> (berkas lokal di native atau URL absolut server di PWA).
  * Dicatat juga dengan bentuk absolutnya, jadi cocok walau soal & daftar media menulis URL berbeda (relatif/absolut).
  */
 export async function srcMediaUjian(ujianId: number): Promise<PetaMedia> {
-    if (!adaMediaNative()) return {}
     const peta = (await penyimpanan.ambil<PetaMedia>(kunciMedia(ujianId))) ?? {}
     const hasil: PetaMedia = {}
+    if (!adaMediaNative()) {
+        for (const [url, target] of Object.entries(peta)) hasil[url] = hasil[urlAbsolut(url)] = target
+
+        return hasil
+    }
     for (const [url, path] of Object.entries(peta)) hasil[url] = hasil[urlAbsolut(url)] = await srcMediaNative(path)
 
     return hasil
 }
 
-/** src gambar soal → berkas lokal bila ada di peta, selain itu src asli. */
+/** src gambar soal → berkas lokal / URL absolut bila ada di peta, selain itu URL absolut bila relatif /storage/. */
 export function srcLokal(peta: PetaMedia | undefined, src: string): string {
     if (!peta) return src
     try {
-        return peta[src] ?? peta[urlAbsolut(src)] ?? src
+        return peta[src] ?? peta[urlAbsolut(src)] ?? (src.startsWith('/storage/') ? urlAbsolut(src) : src)
     } catch {
         return src
     }
 }
 
-/** Hapus media ujian ini; berkas yang juga dipakai ujian lain (nama = hash URL) dibiarkan. */
+/** Hapus media ujian ini; berkas yang juga dipakai ujian lain (nama = hash URL / cache key) dibiarkan. */
 export async function hapusMediaUjian(ujianId: number): Promise<void> {
-    if (!adaMediaNative()) return
     const kunci = kunciMedia(ujianId)
-    const milikIni = Object.values((await penyimpanan.ambil<PetaMedia>(kunci)) ?? {})
+    const milikIni = [...new Set(Object.values((await penyimpanan.ambil<PetaMedia>(kunci)) ?? {}))]
     const dipakaiLain = new Set<string>()
     for (const k of await penyimpanan.daftarKunci('media:')) {
         if (k === kunci) continue
         for (const p of Object.values((await penyimpanan.ambil<PetaMedia>(k)) ?? {})) dipakaiLain.add(p)
     }
-    await hapusMediaNative(milikIni.filter((p) => !dipakaiLain.has(p)))
+    const yangDihapus = milikIni.filter((p) => !dipakaiLain.has(p))
+    if (adaMediaNative()) {
+        await hapusMediaNative(yangDihapus)
+    } else if ('caches' in globalThis && yangDihapus.length > 0) {
+        const cache = await caches.open(CACHE_MEDIA)
+        await Promise.all(yangDihapus.map((u) => cache.delete(u).catch(() => false)))
+    }
     await penyimpanan.hapus(kunci)
 }

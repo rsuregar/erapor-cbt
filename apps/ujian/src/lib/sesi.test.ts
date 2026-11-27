@@ -16,7 +16,7 @@ vi.mock('@capacitor/preferences', () => ({
     },
 }))
 
-import { sesi } from './sesi'
+import { buatUuid, sesi } from './sesi'
 
 describe('Sesi Murid', () => {
     beforeEach(async () => {
@@ -112,5 +112,21 @@ describe('Sesi Murid', () => {
         expect(memori['nisn']).toBeUndefined()
         expect(memori['foto']).toBeUndefined()
         expect(memori['sekolah']).toBeUndefined()
+    })
+
+    it('menghasilkan UUID v4 valid saat crypto.randomUUID tidak tersedia (iOS 15.0–15.3)', () => {
+        const asli = globalThis.crypto
+        vi.stubGlobal('crypto', {
+            getRandomValues: (arr: Uint8Array) => {
+                for (let i = 0; i < arr.length; i++) arr[i] = (i * 17 + 3) & 0xff
+                return arr
+            },
+        })
+        try {
+            const id = buatUuid()
+            expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+        } finally {
+            vi.stubGlobal('crypto', asli)
+        }
     })
 })

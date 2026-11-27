@@ -153,6 +153,11 @@ describe('offline 10 menit lalu online (story 6.5)', () => {
         expect(offlineMs).toBeGreaterThanOrEqual(4 * MENIT)
         expect(offlineMs).toBeLessThanOrEqual(11 * MENIT)
 
+        // Mode keepalive (pagehide / hidden di iOS Safari) diteruskan ke fetch.
+        await app.outbox.catat(1, 'keepalive-ok', false)
+        await app.penyinkron.kirim({ keepalive: true })
+        expect(server.fetch.mock.calls.at(-1)?.[1]?.keepalive).toBe(true)
+
         app.penyinkron.henti()
     })
 })

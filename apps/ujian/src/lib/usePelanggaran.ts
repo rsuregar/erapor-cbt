@@ -12,6 +12,7 @@ import {
     harusPantauBlurWindow,
     harusPantauLayarDibagi,
     INTERVAL_CEK_FOKUS_IOS_MS,
+    INTERVAL_CEK_FRAME_IOS_MS,
     klasifikasiKepergian,
     KONFIRMASI_BLUR_IOS_MS,
     MIN_INTIP_TERSEMBUNYI_MS,
@@ -266,15 +267,24 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
         }
     }
     let idRaf: number | undefined
+    let timerCekFrame: ReturnType<typeof setTimeout> | undefined
     let batalRaf = false
     const ambangJedaFrame = opsi.ambangJedaFrameMs ?? 0
     if (ambangJedaFrame > 0 && typeof requestAnimationFrame === 'function') {
-        let terakhirFrameDinding = Date.now()
+        let terakhirCekDinding = Date.now()
+        const jadwalkanCekFrame = () => {
+            if (batalRaf) return
+            terakhirCekDinding = Date.now()
+            timerCekFrame = setTimeout(() => {
+                timerCekFrame = undefined
+                if (!batalRaf) idRaf = requestAnimationFrame(detakFrame)
+            }, INTERVAL_CEK_FRAME_IOS_MS)
+        }
         const detakFrame = () => {
+            idRaf = undefined
             if (batalRaf) return
             const sekarangDinding = Date.now()
-            const jedaMs = sekarangDinding - terakhirFrameDinding
-            terakhirFrameDinding = sekarangDinding
+            const jedaMs = Math.max(0, sekarangDinding - terakhirCekDinding - INTERVAL_CEK_FRAME_IOS_MS)
             if (
                 document.visibilityState === 'visible' &&
                 sejakMono === null &&
@@ -313,9 +323,9 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
                     batasIntip: BATAS_INTIP_CEPAT,
                 })
             }
-            idRaf = requestAnimationFrame(detakFrame)
+            jadwalkanCekFrame()
         }
-        idRaf = requestAnimationFrame(detakFrame)
+        jadwalkanCekFrame()
     }
     const saatPagehide = () => pergi()
     window.addEventListener('pagehide', saatPagehide)
@@ -323,6 +333,7 @@ export function pasangPengawasKepergian(opsi: PengawasKepergianOpsi): () => void
     return () => {
         batalTauri = true
         batalRaf = true
+        if (timerCekFrame) clearTimeout(timerCekFrame)
         if (idRaf !== undefined && typeof cancelAnimationFrame === 'function') {
             cancelAnimationFrame(idRaf)
         }

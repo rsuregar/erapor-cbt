@@ -14,6 +14,24 @@ let foto: string | null = null
 let sekolah: string | null = null
 let perangkatIdCache: string | null = null
 
+/** UUID v4 dengan fallback `crypto.getRandomValues` untuk iOS Safari 15.0–15.3 yang belum punya `crypto.randomUUID`. */
+export function buatUuid(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    const byte = new Uint8Array(16)
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        crypto.getRandomValues(byte)
+    } else {
+        for (let i = 0; i < 16; i++) byte[i] = Math.floor(Math.random() * 256)
+    }
+    byte[6] = (byte[6] & 0x0f) | 0x40
+    byte[8] = (byte[8] & 0x3f) | 0x80
+    const hex = Array.from(byte, (b) => b.toString(16).padStart(2, '0')).join('')
+
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 export const sesi = {
     /**
      * Token ditolak server (dicabut, mis. pengawas mereset sesi akun, atau kedaluwarsa): layar
@@ -184,7 +202,7 @@ export const sesi = {
             perangkatIdCache = ada
             return ada
         }
-        const baru = crypto.randomUUID()
+        const baru = buatUuid()
         await Preferences.set({ key: 'perangkat_id', value: baru })
         perangkatIdCache = baru
 

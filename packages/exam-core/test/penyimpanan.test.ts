@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    PenyimpananIndexedDb,
     PenyimpananMemori,
     PenyimpananSqlite,
     PenyimpananSqliteNative,
@@ -190,5 +191,94 @@ describe('PenyimpananSqlite Khusus', () => {
 
         const sqlite = new PenyimpananSqlite(koneksi)
         expect(await sqlite.ambil('korup')).toBeUndefined()
+    })
+})
+
+describe('PenyimpananIndexedDb pemulihan iOS WebKit', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    it('membuka ulang koneksi secara otomatis saat db.transaction melempar galat koneksi terputus (tanpa onclose)', async () => {
+        const nilaiMap = new Map<string, unknown>([['attempt:1:sesi', { ok: true }]])
+        let bukaKe = 0
+        const dbPertama = {
+            close: vi.fn(),
+            transaction: vi.fn(() => {
+                throw new DOMException('Connection to Indexed Database server lost', 'InvalidStateError')
+            }),
+        }
+        const dbKedua = {
+            close: vi.fn(),
+            transaction: vi.fn(() => {
+                let oncompleteCb: (() => void) | null = null
+                const tx = {
+                    objectStore: () => ({
+                        get: (k: string) => {
+                            const req = { result: nilaiMap.get(k) }
+                            queueMicrotask(() => oncompleteCb?.())
+                            return req
+                        },
+                    }),
+                    set oncomplete(cb: (() => void) | null) {
+                        oncompleteCb = cb
+                    },
+                    get oncomplete() {
+                        return oncompleteCb
+                    },
+                    onerror: null,
+                    onabort: null,
+                }
+                return tx
+            }),
+        }
+
+        vi.stubGlobal('indexedDB', {
+            open: vi.fn(() => {
+                bukaKe++
+                const req: Record<string, unknown> = {
+                    result: bukaKe === 1 ? dbPertama : dbKedua,
+                    onupgradeneeded: null,
+                    onsuccess: null,
+                    onerror: null,
+                    onblocked: null,
+                }
+                queueMicrotask(() => (req.onsuccess as (() => void) | null)?.())
+                return req
+            }),
+        })
+
+        const idb = new PenyimpananIndexedDb()
+        await expect(idb.ambil('attempt:1:sesi')).resolves.toEqual({ ok: true })
+        expect(bukaKe).toBe(2)
+        expect(dbPertama.close).toHaveBeenCalledTimes(1)
+    })
+
+    it('menolak dan mereset janji buka saat indexedDB.open memicu onblocked', async () => {
+        let bukaKe = 0
+        vi.stubGlobal('indexedDB', {
+            open: vi.fn(() => {
+                bukaKe++
+                const req: Record<string, unknown> = {
+                    result: {
+                        close: vi.fn(),
+                        transaction: vi.fn(),
+                    },
+                    onupgradeneeded: null,
+                    onsuccess: null,
+                    onerror: null,
+                    onblocked: null,
+                }
+                queueMicrotask(() => {
+                    if (bukaKe === 1) (req.onblocked as (() => void) | null)?.()
+                    else (req.onsuccess as (() => void) | null)?.()
+                })
+                return req
+            }),
+        })
+
+        const idb = new PenyimpananIndexedDb()
+        await expect(idb.daftarKunci('')).rejects.toThrow(/diblokir/i)
+        expect(bukaKe).toBe(1)
     })
 })

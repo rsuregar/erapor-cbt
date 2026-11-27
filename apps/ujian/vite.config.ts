@@ -127,7 +127,7 @@ export default defineConfig(({ mode }) => {
                                   ? "Aplikasi ujian CBT Al Akhyar — versi STAGING (server uji)"
                                   : "Aplikasi ujian CBT murid Al Akhyar",
                               lang: "id",
-                              display: "fullscreen",
+                              display: "standalone",
                               orientation: "any",
                               theme_color: identitas.warna,
                               background_color: "#F5F8FA",
@@ -154,6 +154,11 @@ export default defineConfig(({ mode }) => {
                                       options: {
                                           cacheName: "cbt-media",
                                           cacheableResponse: { statuses: [0, 200] },
+                                          expiration: {
+                                              maxEntries: 200,
+                                              maxAgeSeconds: 14 * 24 * 60 * 60,
+                                              purgeOnQuotaError: true,
+                                          },
                                       },
                                   },
                               ],

@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { buatArsipDariSesi, simpanArsipJawaban } from '@/lib/arsipJawaban'
-import { ambilPosisi, izinLokasi, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
+import { ambilPosisi, izinLokasi, posisiTerakhirTersimpan, tanpaWaktu, type PosisiDidapat } from '@/lib/lokasi'
 import { adaNative, kunciLayar, lepasKunciLayar, statusKunciLayar } from '@/lib/native'
 import { PenulisJawaban } from '@/lib/penulisJawaban'
 import { bersihkan, muatUjian, penyimpanan, type PetaMedia, type SesiUjian } from '@/lib/ujian'
@@ -61,7 +61,7 @@ export function useSesiUjian(attemptId: number) {
     const jam = useRef<JamServer>()
     const penyinkron = useRef<Penyinkron>()
     const soalAktif = useRef<number | null>(null)
-    const posisi = useRef<PosisiDidapat | null>(null)
+    const posisi = useRef<PosisiDidapat | null>(posisiTerakhirTersimpan())
     /** kiosk_aktif di detak: null di PWA (web tidak bisa membaca kunci OS) */
     const kios = useRef<boolean | null>(null)
     const penulis = useRef<PenulisJawaban>()
@@ -194,8 +194,12 @@ export function useSesiUjian(attemptId: number) {
             void penyinkron.current?.kirim()
         }
         // App ke latar / halaman ditutup: OS bisa mematikan app kapan saja, jadi ketikan yang
-        // masih ditunda ditulis sekarang dan dikirim selagi bisa.
-        const amankan = () => void penulis.current?.tulisSemua().then(segarkan)
+        // masih ditunda ditulis sekarang dan dikirim dengan `keepalive` selagi bisa.
+        const amankan = () =>
+            void penulis.current?.tulisSemua().then(() => {
+                bangunTungguRef.current?.()
+                void penyinkron.current?.kirim({ keepalive: true })
+            })
         const terlihat = () => (document.visibilityState === 'visible' ? segarkan() : amankan())
         window.addEventListener('online', segarkan)
         window.addEventListener('pagehide', amankan)

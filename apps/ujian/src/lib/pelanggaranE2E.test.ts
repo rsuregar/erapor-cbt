@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AMBANG_JEDA_FRAME_IOS_MS, KONFIRMASI_BLUR_IOS_MS } from './deteksiKepergian'
+import { AMBANG_JEDA_FRAME_IOS_MS, INTERVAL_CEK_FRAME_IOS_MS, KONFIRMASI_BLUR_IOS_MS } from './deteksiKepergian'
 import { pasangPengawasKepergian, pasangPengawasLayarDibagi, pasangPengawasLayarPenuh } from './usePelanggaran'
 import { pasangProteksiKonten } from './useProteksiKonten'
 
@@ -931,23 +931,23 @@ describe('E2E pencegahan false positive pelanggaran & proteksi konten', () => {
             bacaPlatform: () => 'pwa',
         })
 
-        // Frame normal 16ms -> tidak terdeteksi jeda
-        vi.advanceTimersByTime(16)
+        // Frame normal (interval 500ms + 16ms rAF) -> tidak terdeteksi jeda
+        vi.advanceTimersByTime(INTERVAL_CEK_FRAME_IOS_MS + 16)
         jalankanSatuFrame()
         expect(onJedaFrame).not.toHaveBeenCalled()
 
         // 1) Slide side ditahan 6 detik tanpa event blur/visibilitychange
-        vi.advanceTimersByTime(6000)
+        vi.advanceTimersByTime(INTERVAL_CEK_FRAME_IOS_MS + 6000)
         jalankanSatuFrame()
         expect(onJedaFrame).toHaveBeenCalledTimes(1)
         expect(onCatat).toHaveBeenCalledTimes(1)
         expect(onCatat).toHaveBeenLastCalledWith('pindah_tab', 150_000, 6000)
 
-        // 2) Intip slide side cepat 3x masing-masing 1.8 detik (diselingi frame aktif normal < 1.2 dtk)
+        // 2) Intip slide side cepat 3x masing-masing 1.8 detik (diselingi frame aktif normal < 1.5 dtk)
         for (let i = 0; i < 3; i++) {
-            vi.advanceTimersByTime(500)
+            vi.advanceTimersByTime(INTERVAL_CEK_FRAME_IOS_MS + 16)
             jalankanSatuFrame()
-            vi.advanceTimersByTime(1800)
+            vi.advanceTimersByTime(INTERVAL_CEK_FRAME_IOS_MS + 1800)
             jalankanSatuFrame()
         }
         expect(onCatat).toHaveBeenCalledTimes(2)
